@@ -38,11 +38,20 @@ export type DashboardStats = {
   }[];
 };
 
+export type AdminLeadsAvailability = "all" | "available" | "sold";
+export type AdminLeadsSort = "newest" | "oldest";
+
 type LeadsQueryParams = {
   categoryId?: string | null;
   search?: string;
   page?: number;
   pageSize?: number;
+  availability?: AdminLeadsAvailability;
+  /** Partial match on country (case-insensitive). Empty = no filter. */
+  country?: string;
+  createdFrom?: string | null;
+  createdTo?: string | null;
+  sort?: AdminLeadsSort;
 };
 
 type LeadsPaginated = {
@@ -177,35 +186,60 @@ export const adminApi = createApi({
     }),
 
     getLeads: builder.query<LeadsPaginated, LeadsQueryParams>({
-      queryFn: async ({ categoryId, search = "", page = 1, pageSize = 25 }) => {
+      queryFn: async ({
+        categoryId,
+        search = "",
+        page = 1,
+        pageSize = 25,
+        availability = "all",
+        country = "",
+        createdFrom,
+        createdTo,
+        sort = "newest",
+      }) => {
         const from = (page - 1) * pageSize;
         const to = from + pageSize - 1;
-        let q = sb()
+        const ascending = sort === "oldest";
+        const searchOr =
+          search.trim() &&
+          `first_name.ilike.%${search.trim()}%,last_name.ilike.%${search.trim()}%,phone.ilike.%${search.trim()}%,notes.ilike.%${search.trim()}%,country.ilike.%${search.trim()}%`;
+
+        const supabase = sb();
+        let listQuery = supabase
           .from("leads")
-          .select("*, categories(id, name, slug)")
-          .order("created_at", { ascending: false })
-          .range(from, to);
-        if (categoryId) {
-          q = q.eq("category_id", categoryId);
+          .select("*, categories(id, name, slug)");
+        if (categoryId) listQuery = listQuery.eq("category_id", categoryId);
+        if (availability === "available") listQuery = listQuery.is("sold_at", null);
+        if (availability === "sold") listQuery = listQuery.not("sold_at", "is", null);
+        if (country.trim()) {
+          listQuery = listQuery.ilike("country", `%${country.trim()}%`);
         }
-        if (search.trim()) {
-          const term = search.trim();
-          q = q.or(
-            `first_name.ilike.%${term}%,last_name.ilike.%${term}%,phone.ilike.%${term}%,notes.ilike.%${term}%`
-          );
+        if (createdFrom) {
+          listQuery = listQuery.gte("created_at", `${createdFrom}T00:00:00.000Z`);
         }
-        const { data, error } = await q;
+        if (createdTo) {
+          listQuery = listQuery.lte("created_at", `${createdTo}T23:59:59.999Z`);
+        }
+        if (searchOr) listQuery = listQuery.or(searchOr);
+        listQuery = listQuery.order("created_at", { ascending }).range(from, to);
+
+        const { data, error } = await listQuery;
         if (error) return { error };
-        let countQuery = sb()
-          .from("leads")
-          .select("*", { count: "exact", head: true });
+
+        let countQuery = supabase.from("leads").select("*", { count: "exact", head: true });
         if (categoryId) countQuery = countQuery.eq("category_id", categoryId);
-        if (search.trim()) {
-          const term = search.trim();
-          countQuery = countQuery.or(
-            `first_name.ilike.%${term}%,last_name.ilike.%${term}%,phone.ilike.%${term}%,notes.ilike.%${term}%`
-          );
+        if (availability === "available") countQuery = countQuery.is("sold_at", null);
+        if (availability === "sold") countQuery = countQuery.not("sold_at", "is", null);
+        if (country.trim()) {
+          countQuery = countQuery.ilike("country", `%${country.trim()}%`);
         }
+        if (createdFrom) {
+          countQuery = countQuery.gte("created_at", `${createdFrom}T00:00:00.000Z`);
+        }
+        if (createdTo) {
+          countQuery = countQuery.lte("created_at", `${createdTo}T23:59:59.999Z`);
+        }
+        if (searchOr) countQuery = countQuery.or(searchOr);
         const countRes = await countQuery;
         if (countRes.error) return { error: countRes.error };
         return {

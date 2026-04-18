@@ -9,6 +9,8 @@ import {
   useCreateLeadMutation,
   useUpdateLeadMutation,
   useDeleteLeadMutation,
+  type AdminLeadsAvailability,
+  type AdminLeadsSort,
 } from "@/lib/api/admin-api";
 import type { LeadWithCategory } from "@/types/database";
 import { Button } from "@/components/ui/button";
@@ -68,6 +70,12 @@ const emptyForm = {
 export function AdminLeads() {
   const [categoryFilter, setCategoryFilter] = useState<string | "all">("all");
   const [search, setSearch] = useState("");
+  const [availabilityFilter, setAvailabilityFilter] =
+    useState<AdminLeadsAvailability>("all");
+  const [countryFilter, setCountryFilter] = useState("");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
+  const [sort, setSort] = useState<AdminLeadsSort>("newest");
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<LeadWithCategory | null>(null);
@@ -85,6 +93,11 @@ export function AdminLeads() {
     search,
     page,
     pageSize: 20,
+    availability: availabilityFilter,
+    country: countryFilter,
+    createdFrom: createdFrom || undefined,
+    createdTo: createdTo || undefined,
+    sort,
   });
 
   const [createLead, { isLoading: creating }] = useCreateLeadMutation();
@@ -273,65 +286,148 @@ export function AdminLeads() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 lg:p-8">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
-          <p className="text-sm text-muted-foreground">
-            Inventory leads you can later sell to customers.
-          </p>
+      <header className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
+            <p className="text-sm text-muted-foreground">
+              Inventory leads you can later sell to customers.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={exportCsv}>
+              <Download className="size-4" />
+              Export CSV
+            </Button>
+            <Button variant="outline" onClick={() => importRef.current?.click()}>
+              <Upload className="size-4" />
+              Import CSV
+            </Button>
+            <input
+              ref={importRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void importCsv(f);
+                e.currentTarget.value = "";
+              }}
+            />
+            <Button onClick={openCreate} disabled={!categories?.length}>
+              <Plus className="size-4" aria-hidden />
+              New lead
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            placeholder="Search name, phone, notes"
-            className="w-[220px]"
-          />
-          <Select
-            value={categoryFilter}
-            onValueChange={(v) => {
-              setCategoryFilter(v as typeof categoryFilter);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All categories</SelectItem>
-              {(categories ?? []).map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button variant="outline" onClick={exportCsv}>
-            <Download className="size-4" />
-            Export CSV
-          </Button>
-          <Button variant="outline" onClick={() => importRef.current?.click()}>
-            <Upload className="size-4" />
-            Import CSV
-          </Button>
-          <input
-            ref={importRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void importCsv(f);
-              e.currentTarget.value = "";
-            }}
-          />
-          <Button onClick={openCreate} disabled={!categories?.length}>
-            <Plus className="size-4" aria-hidden />
-            New lead
-          </Button>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Search</Label>
+            <Input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Name, phone, notes, country"
+              className="w-[220px]"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Category</Label>
+            <Select
+              value={categoryFilter}
+              onValueChange={(v) => {
+                setCategoryFilter(v as typeof categoryFilter);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {(categories ?? []).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Availability</Label>
+            <Select
+              value={availabilityFilter}
+              onValueChange={(v) => {
+                setAvailabilityFilter(v as AdminLeadsAvailability);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="available">Available</SelectItem>
+                <SelectItem value="sold">Sold</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Country</Label>
+            <Input
+              value={countryFilter}
+              onChange={(e) => {
+                setCountryFilter(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Filter by country"
+              className="w-[160px]"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Created from</Label>
+            <Input
+              type="date"
+              value={createdFrom}
+              onChange={(e) => {
+                setCreatedFrom(e.target.value);
+                setPage(1);
+              }}
+              className="w-[150px]"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Created to</Label>
+            <Input
+              type="date"
+              value={createdTo}
+              onChange={(e) => {
+                setCreatedTo(e.target.value);
+                setPage(1);
+              }}
+              className="w-[150px]"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Sort</Label>
+            <Select
+              value={sort}
+              onValueChange={(v) => {
+                setSort(v as AdminLeadsSort);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="newest">Newest first</SelectItem>
+                <SelectItem value="oldest">Oldest first</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </header>
 
