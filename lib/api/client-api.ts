@@ -73,6 +73,10 @@ export type WalletTransaction = {
   created_at: string;
 };
 
+export type ClientCatalogPackage = PackageWithCategory & {
+  available_unsold_leads: number;
+};
+
 export type ClientMe = Pick<Profile, "id" | "role" | "is_active" | "organization_id" | "email" | "full_name">;
 export type OrgUserWithLastLogin = Profile & { last_sign_in_at: string | null };
 export type CustomerLeadFlow = {
@@ -379,28 +383,32 @@ export const clientApi = createApi({
       providesTags: ["Wallet"],
     }),
 
-    getClientPackages: builder.query<PackageWithCategory[], void>({
+    getClientPackages: builder.query<ClientCatalogPackage[], void>({
       queryFn: async () => {
-        const { data, error } = await sb()
-          .from("lead_packages")
-          .select("*, categories(id, name, slug)")
-          .eq("active", true)
-          .order("created_at", { ascending: false });
-        if (error) return { error };
-        return { data: (data ?? []) as PackageWithCategory[] };
+        const res = await fetch("/api/client/packages");
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: ClientCatalogPackage[];
+          error?: string;
+        };
+        if (!res.ok) {
+          return { error: { status: res.status, data: json.error ?? "Request failed" } };
+        }
+        return { data: json.data ?? [] };
       },
       providesTags: ["Packages"],
     }),
 
     getClientOffers: builder.query<OfferWithPackage[], void>({
       queryFn: async () => {
-        const { data, error } = await sb()
-          .from("lead_offers")
-          .select("*, lead_packages(id, name, category_id)")
-          .eq("active", true)
-          .order("created_at", { ascending: false });
-        if (error) return { error };
-        return { data: (data ?? []) as OfferWithPackage[] };
+        const res = await fetch("/api/client/offers");
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: OfferWithPackage[];
+          error?: string;
+        };
+        if (!res.ok) {
+          return { error: { status: res.status, data: json.error ?? "Request failed" } };
+        }
+        return { data: json.data ?? [] };
       },
       providesTags: ["Packages"],
     }),
@@ -527,9 +535,28 @@ export const clientApi = createApi({
       invalidatesTags: ["LeadFlows"],
     }),
 
-    runLeadFlowsNow: builder.mutation<{ processed: number }, void>({
+    runLeadFlowsNow: builder.mutation<
+      {
+        processed: number;
+        failed: Array<{
+          flow_id: string;
+          package_id: string;
+          package_name: string;
+          reason: string;
+        }>;
+      },
+      void
+    >({
       queryFn: async () => {
-        const res = await requestJson<{ processed: number }>("/api/client/lead-flows/run", "POST", {});
+        const res = await requestJson<{
+          processed: number;
+          failed: Array<{
+            flow_id: string;
+            package_id: string;
+            package_name: string;
+            reason: string;
+          }>;
+        }>("/api/client/lead-flows/run", "POST", {});
         if (res.error) return { error: res.error };
         return { data: res.data! };
       },

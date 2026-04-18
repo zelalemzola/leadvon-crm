@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   useGetClientMeQuery,
@@ -14,6 +14,7 @@ import {
   useCreateTopupSessionMutation,
   useUpsertLeadFlowMutation,
   useRunLeadFlowsNowMutation,
+  usePurchasePackageMutation,
 } from "@/lib/api/client-api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -25,19 +26,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Wallet, Zap, BarChart3 } from "lucide-react";
 
 export function ClientBilling() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { data: me } = useGetClientMeQuery();
   const { data: dashboard } = useGetCustomerDashboardQuery();
-  const { data: wallet } = useGetWalletQuery();
-  const { data: tx } = useGetWalletTransactionsQuery();
-  const { data: packages } = useGetClientPackagesQuery();
+  const { data: wallet, refetch: refetchWallet } = useGetWalletQuery();
+  const { data: tx, refetch: refetchTx } = useGetWalletTransactionsQuery();
+  const {
+    data: packages,
+    isLoading: packagesLoading,
+    isError: packagesError,
+  } = useGetClientPackagesQuery();
   const { data: offers } = useGetClientOffersQuery();
   const { data: leadFlows } = useGetLeadFlowsQuery();
   const [createTopupSession, { isLoading: creatingTopup }] = useCreateTopupSessionMutation();
   const [upsertLeadFlow, { isLoading: savingFlow }] = useUpsertLeadFlowMutation();
   const [runLeadFlowsNow, { isLoading: runningFlows }] = useRunLeadFlowsNowMutation();
+  const [purchasePackage, { isLoading: purchasingNow }] = usePurchasePackageMutation();
   const [topupAmount, setTopupAmount] = useState(50);
   const [selectedPackageId, setSelectedPackageId] = useState<string>("");
+  const [buyNowPackageQty, setBuyNowPackageQty] = useState(1);
   const [leadsPerWeek, setLeadsPerWeek] = useState<number>(100);
   const canManageBilling = me?.role === "customer_admin" && me?.is_active;
 
@@ -61,6 +70,20 @@ export function ClientBilling() {
     return Math.max(1, Math.ceil((leadsPerWeek || 1) / selectedPackage.leads_count));
   }, [selectedPackage, leadsPerWeek]);
 
+  const oneOffUnitCents = useMemo(() => {
+    if (!selectedPackage) return 0;
+    const discount = offersByPackage.get(selectedPackage.id) ?? 0;
+    return Math.round(selectedPackage.price_cents * ((100 - discount) / 100));
+  }, [selectedPackage, offersByPackage]);
+
+  const oneOffTotalCents = oneOffUnitCents * Math.min(100, Math.max(1, buyNowPackageQty || 1));
+  const oneOffLeadEstimate =
+    selectedPackage && buyNowPackageQty >= 1
+      ? selectedPackage.leads_count * Math.min(100, Math.max(1, buyNowPackageQty))
+      : 0;
+  const availableNow = selectedPackage?.available_unsold_leads ?? 0;
+  const likelyShort = selectedPackage ? oneOffLeadEstimate > availableNow : false;
+
   const leadsReceived = dashboard?.totalLeads ?? 0;
   const totalSpent = useMemo(
     () =>
@@ -71,11 +94,40 @@ export function ClientBilling() {
   );
   const avgCpl = leadsReceived > 0 ? totalSpent / leadsReceived : 0;
 
+  /** Avoid duplicate handling (e.g. React Strict Mode) while ?topup= is still present. */
+  const topupHandledRef = useRef<string | null>(null);
+
   useEffect(() => {
     const topupState = searchParams.get("topup");
-    if (topupState === "success") toast.success("Payment received. Wallet will update shortly.");
-    if (topupState === "cancel") toast.info("Top-up canceled.");
-  }, [searchParams]);
+    if (!topupState) {
+      topupHandledRef.current = null;
+      return;
+    }
+    if (topupHandledRef.current === topupState) return;
+    topupHandledRef.current = topupState;
+
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+    void (async () => {
+      if (topupState === "success") {
+        await Promise.all([refetchWallet(), refetchTx()]);
+        router.replace(pathname, { scroll: false });
+        toast.success("Payment received. Your wallet balance has been updated.");
+        retryTimer = setTimeout(() => {
+          void Promise.all([refetchWallet(), refetchTx()]);
+        }, 2500);
+        return;
+      }
+      if (topupState === "cancel") {
+        router.replace(pathname, { scroll: false });
+        toast.info("Top-up canceled.");
+      }
+    })();
+
+    return () => {
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [searchParams, pathname, router, refetchWallet, refetchTx]);
 
   async function startTopup() {
     if (!canManageBilling) {
@@ -92,6 +144,42 @@ export function ClientBilling() {
           ? String((err as { data?: unknown }).data)
           : "Could not start top-up";
       toast.error(msg);
+    }
+  }
+
+  async function purchaseNow() {
+    if (!selectedPackage) {
+      toast.error("Select a package first.");
+      return;
+    }
+    if (!canManageBilling) {
+      toast.error("Only customer admins can purchase packages.");
+      return;
+    }
+    const qty = Math.min(100, Math.max(1, buyNowPackageQty || 1));
+    try {
+      const res = await purchasePackage({
+        package_id: selectedPackage.id,
+        quantity: qty,
+      }).unwrap();
+      toast.success(
+        `Purchased ${res.leads_allocated} leads. Charged ${money(res.total_amount_cents)} from wallet.`
+      );
+    } catch (err: unknown) {
+      const raw =
+        err && typeof err === "object" && "data" in err
+          ? String((err as { data?: unknown }).data)
+          : "Purchase failed";
+      const msg = raw.toLowerCase();
+      if (msg.includes("not enough leads")) {
+        toast.error("We couldn't complete this purchase right now because inventory is low. Try a smaller quantity or another package.");
+        return;
+      }
+      if (msg.includes("insufficient wallet")) {
+        toast.error("Your wallet balance is too low for this purchase. Please add funds and try again.");
+        return;
+      }
+      toast.error("We couldn't complete this purchase right now. Please try again shortly.");
     }
   }
 
@@ -124,7 +212,16 @@ export function ClientBilling() {
     if (!canManageBilling) return;
     try {
       const res = await runLeadFlowsNow().unwrap();
-      toast.success(`Processed ${res.processed} lead flow(s).`);
+      if (res.failed.length === 0) {
+        toast.success(`Processed ${res.processed} lead flow(s).`);
+        return;
+      }
+      toast.success(`Processed ${res.processed} flow(s), ${res.failed.length} need attention.`);
+      const detail = res.failed
+        .slice(0, 2)
+        .map((f) => `${f.package_name}: ${f.reason}`)
+        .join(" ");
+      toast.info(detail || "Some flows could not run right now. We'll try again on the next run.");
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object" && "data" in err
@@ -155,9 +252,23 @@ export function ClientBilling() {
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Product</Label>
-                <Select value={activePackageId} onValueChange={setSelectedPackageId}>
+                <Select
+                  value={activePackageId}
+                  onValueChange={setSelectedPackageId}
+                  disabled={packagesLoading}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select package" />
+                    <SelectValue
+                      placeholder={
+                        packagesLoading
+                          ? "Loading packages…"
+                          : packagesError
+                            ? "Could not load packages"
+                            : (packages ?? []).length === 0
+                              ? "No packages available"
+                              : "Select package"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {(packages ?? []).map((p) => {
@@ -171,6 +282,13 @@ export function ClientBilling() {
                     })}
                   </SelectContent>
                 </Select>
+                {(packages ?? []).length === 0 && !packagesLoading && (
+                  <p className="text-xs text-muted-foreground">
+                    {packagesError
+                      ? "Packages could not be loaded. Check your connection or try again."
+                      : "No active packages in catalog. Ask an admin to add packages under Pricing."}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Leads per week</Label>
@@ -182,8 +300,65 @@ export function ClientBilling() {
                 />
               </div>
             </div>
+
+            <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
+              <p className="text-sm font-medium">Buy once (wallet)</p>
+              <p className="text-xs text-muted-foreground">
+                Charge your wallet immediately for this package. No Stripe checkout—balance must cover the total.
+              </p>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="buy-now-qty">Package quantity</Label>
+                  <Input
+                    id="buy-now-qty"
+                    type="number"
+                    min={1}
+                    max={100}
+                    className="w-28"
+                    value={buyNowPackageQty}
+                    onChange={(e) =>
+                      setBuyNowPackageQty(Math.min(100, Math.max(1, Number(e.target.value) || 1)))
+                    }
+                    disabled={!selectedPackage}
+                  />
+                </div>
+                <div className="min-w-0 flex-1 space-y-1 text-sm">
+                  <p className="text-muted-foreground">
+                    Est. total <span className="font-medium text-foreground">{money(oneOffTotalCents)}</span>
+                    {selectedPackage ? (
+                      <span className="text-muted-foreground">
+                        {" "}
+                        (~{oneOffLeadEstimate} leads if inventory allows)
+                      </span>
+                    ) : null}
+                  </p>
+                </div>
+              </div>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() => void purchaseNow()}
+                disabled={
+                  purchasingNow || !canManageBilling || !selectedPackage || (packages ?? []).length === 0
+                }
+              >
+                {purchasingNow ? "Purchasing…" : "Purchase now"}
+              </Button>
+              {selectedPackage ? (
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <p>
+                    Available right now: <span className="font-medium text-foreground">{availableNow}</span> leads
+                  </p>
+                  {likelyShort ? (
+                    <p className="text-amber-300">
+                      Requested volume may exceed current inventory. Consider a smaller quantity.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+
             <p className="text-xs text-muted-foreground">
-              Estimated package quantity: {estimatedQty}
+              Recurring — estimated package quantity per run: {estimatedQty}
             </p>
             <Button
               className="w-full"
@@ -202,7 +377,7 @@ export function ClientBilling() {
             </Button>
             <p className="text-xs text-muted-foreground">
               {canManageBilling
-                ? "Lead flow saves recurring intent. Use run-now to execute due flows from wallet."
+                ? "Buy once debits your wallet immediately. Lead flow saves recurring intent; use run-now or cron to execute due flows."
                 : "Only customer admins can top up or buy packages."}
             </p>
           </CardContent>
@@ -238,11 +413,17 @@ export function ClientBilling() {
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">Active plans</p>
                 {(leadFlows ?? []).filter((f) => f.is_active).slice(0, 4).map((flow) => (
-                  <div key={flow.id} className="flex items-center justify-between text-sm">
-                    <span>
-                      {flow.lead_packages?.name ?? "Package"} - {flow.leads_per_week}/week
-                    </span>
-                    <Badge className="bg-emerald-500/15 text-emerald-300">Active</Badge>
+                  <div key={flow.id} className="space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>
+                        {flow.lead_packages?.name ?? "Package"} - {flow.leads_per_week}/week
+                      </span>
+                      <Badge className="bg-emerald-500/15 text-emerald-300">Active</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Last run: {flow.last_run_at ? new Date(flow.last_run_at).toLocaleString() : "Not run yet"}.
+                      {" "}Next retry: {new Date(flow.next_run_at).toLocaleString()}.
+                    </p>
                   </div>
                 ))}
                 {((leadFlows ?? []).filter((f) => f.is_active).length === 0) ? (
