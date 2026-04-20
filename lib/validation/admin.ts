@@ -2,11 +2,14 @@ import { z } from "zod";
 
 export const leadSchema = z.object({
   category_id: z.string().uuid(),
+  lead_unit_type: z.enum(["single", "family"]).optional().default("single"),
   phone: z.string().trim().min(4).max(32),
   first_name: z.string().trim().min(1).max(120),
   last_name: z.string().trim().min(1).max(120),
   country: z.string().trim().min(1).max(120),
-  notes: z.string().max(2000).optional().default(""),
+  summary: z.string().max(2000).optional(),
+  // Backward compatibility for older imports/forms.
+  notes: z.string().max(2000).optional(),
   sold_at: z.string().datetime().nullable().optional(),
 });
 

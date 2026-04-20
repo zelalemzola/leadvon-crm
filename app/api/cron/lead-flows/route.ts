@@ -4,6 +4,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** Call often (e.g. every 5–15 minutes) so queued leads deliver soon after inventory lands. */
+
 export async function POST(request: Request) {
   const auth = request.headers.get("authorization");
   const secret = process.env.CRON_SECRET?.trim();
@@ -16,5 +18,6 @@ export async function POST(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
-  return NextResponse.json({ data: { processed: data ?? 0 } });
+  const leadsDelivered = typeof data === "number" ? data : Number(data ?? 0);
+  return NextResponse.json({ data: { leads_delivered: leadsDelivered, processed: leadsDelivered } });
 }

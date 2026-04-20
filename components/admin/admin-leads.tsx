@@ -1,14 +1,24 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Plus, MoreHorizontal, Pencil, Trash2, Upload, Download } from "lucide-react";
+import {
+  Plus,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Upload,
+  Download,
+  CreditCard,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   useGetCategoriesQuery,
   useGetLeadsQuery,
+  useGetCustomersQuery,
   useCreateLeadMutation,
   useUpdateLeadMutation,
   useDeleteLeadMutation,
+  useDeliverPrepaidLeadMutation,
   type AdminLeadsAvailability,
   type AdminLeadsSort,
 } from "@/lib/api/admin-api";
@@ -59,11 +69,12 @@ import Link from "next/link";
 
 const emptyForm = {
   category_id: "",
+  lead_unit_type: "single" as "single" | "family",
   phone: "",
   first_name: "",
   last_name: "",
   country: "",
-  notes: "",
+  summary: "",
   sold: false,
 };
 
@@ -78,11 +89,15 @@ export function AdminLeads() {
   const [sort, setSort] = useState<AdminLeadsSort>("newest");
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [prepaidDialogOpen, setPrepaidDialogOpen] = useState(false);
+  const [prepaidLead, setPrepaidLead] = useState<LeadWithCategory | null>(null);
+  const [prepaidOrgId, setPrepaidOrgId] = useState("");
   const [editing, setEditing] = useState<LeadWithCategory | null>(null);
   const [form, setForm] = useState(emptyForm);
   const importRef = useRef<HTMLInputElement | null>(null);
 
   const { data: categories, isLoading: catLoading } = useGetCategoriesQuery();
+  const { data: customers } = useGetCustomersQuery();
   const {
     data: leads,
     isLoading: leadsLoading,
@@ -103,6 +118,8 @@ export function AdminLeads() {
   const [createLead, { isLoading: creating }] = useCreateLeadMutation();
   const [updateLead, { isLoading: updating }] = useUpdateLeadMutation();
   const [deleteLead, { isLoading: deleting }] = useDeleteLeadMutation();
+  const [deliverPrepaid, { isLoading: deliveringPrepaid }] =
+    useDeliverPrepaidLeadMutation();
 
   const loading = leadsLoading || catLoading;
   const rows = leads?.rows ?? [];
@@ -113,6 +130,16 @@ export function AdminLeads() {
   const defaultCategoryId = useMemo(() => {
     return categories?.[0]?.id ?? "";
   }, [categories]);
+
+  const orgChoices = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of customers ?? []) {
+      if (c.organization_id && c.organizations?.name) {
+        map.set(c.organization_id, c.organizations.name);
+      }
+    }
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [customers]);
 
   function openCreate() {
     setEditing(null);
@@ -127,14 +154,46 @@ export function AdminLeads() {
     setEditing(row);
     setForm({
       category_id: row.category_id,
+      lead_unit_type: row.lead_unit_type ?? "single",
       phone: row.phone,
       first_name: row.first_name,
       last_name: row.last_name,
       country: row.country ?? "",
-      notes: row.notes,
+      summary: row.summary ?? "",
       sold: Boolean(row.sold_at),
     });
     setDialogOpen(true);
+  }
+
+  function openPrepaidDeliver(row: LeadWithCategory) {
+    setPrepaidLead(row);
+    setPrepaidOrgId(orgChoices[0]?.[0] ?? "");
+    setPrepaidDialogOpen(true);
+  }
+
+  async function handlePrepaidDeliver(e: React.FormEvent) {
+    e.preventDefault();
+    if (!prepaidLead || !prepaidOrgId) {
+      toast.error("Select a customer organization.");
+      return;
+    }
+    try {
+      const res = await deliverPrepaid({
+        organization_id: prepaidOrgId,
+        source_lead_id: prepaidLead.id,
+      }).unwrap();
+      toast.success(
+        `Delivered to customer. Charged $${(res.amount_cents / 100).toFixed(2)} from prepaid budget.`
+      );
+      setPrepaidDialogOpen(false);
+      setPrepaidLead(null);
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "data" in err
+          ? String((err as { data?: { message?: string } }).data)
+          : "Delivery failed";
+      toast.error(msg);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -145,11 +204,12 @@ export function AdminLeads() {
     }
     const payload = {
       category_id: form.category_id,
+      lead_unit_type: form.lead_unit_type,
       phone: form.phone.trim(),
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
       country: form.country.trim(),
-      notes: form.notes.trim(),
+      summary: form.summary.trim(),
       sold_at: form.sold ? new Date().toISOString() : null,
     };
 
@@ -163,11 +223,12 @@ export function AdminLeads() {
       } else {
         await createLead({
           category_id: payload.category_id,
+          lead_unit_type: payload.lead_unit_type,
           phone: payload.phone,
           first_name: payload.first_name,
           last_name: payload.last_name,
           country: payload.country,
-          notes: payload.notes,
+          summary: payload.summary,
           sold_at: payload.sold_at,
         }).unwrap();
         toast.success("Lead created");
@@ -200,8 +261,9 @@ export function AdminLeads() {
       "last_name",
       "phone",
       "country",
+      "lead_unit_type",
       "category",
-      "notes",
+      "summary",
       "status",
       "created_at",
     ];
@@ -212,8 +274,9 @@ export function AdminLeads() {
         r.last_name,
         r.phone,
         r.country ?? "",
+        r.lead_unit_type ?? "single",
         r.categories?.name ?? "",
-        (r.notes ?? "").replaceAll('"', '""'),
+        (r.summary ?? "").replaceAll('"', '""'),
         r.sold_at ? "sold" : "available",
         r.created_at,
       ]
@@ -238,6 +301,7 @@ export function AdminLeads() {
     }
     const header = lines[0].split(",").map((h) => h.trim().replaceAll('"', "").toLowerCase());
     const required = ["first_name", "last_name", "phone", "category"];
+    const unitIdx = header.indexOf("lead_unit_type");
     const countryIdx = header.indexOf("country");
     for (const req of required) {
       if (!header.includes(req)) {
@@ -260,11 +324,15 @@ export function AdminLeads() {
         countryIdx >= 0 ? String(values[countryIdx] ?? "").trim() : "";
       await createLead({
         category_id: categoryId,
+        lead_unit_type:
+          unitIdx >= 0 && String(values[unitIdx] ?? "").trim().toLowerCase() === "family"
+            ? "family"
+            : "single",
         phone: String(row.phone ?? ""),
         first_name: String(row.first_name ?? ""),
         last_name: String(row.last_name ?? ""),
         country: countryVal || "Unknown",
-        notes: String(row.notes ?? ""),
+        summary: String(row.summary ?? row.notes ?? ""),
       }).unwrap();
       imported++;
     }
@@ -329,7 +397,7 @@ export function AdminLeads() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Name, phone, notes, country"
+              placeholder="Name, phone, summary, country"
               className="w-[220px]"
             />
           </div>
@@ -474,8 +542,9 @@ export function AdminLeads() {
                     <TableHead>Name</TableHead>
                     <TableHead>Phone</TableHead>
                     <TableHead>Country</TableHead>
+                    <TableHead>Unit</TableHead>
                     <TableHead>Category</TableHead>
-                    <TableHead>Notes</TableHead>
+                    <TableHead>Summary</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -484,7 +553,7 @@ export function AdminLeads() {
                 <TableBody>
                   {rows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="h-24 text-center">
+                      <TableCell colSpan={10} className="h-24 text-center">
                         No leads match this filter.
                       </TableCell>
                     </TableRow>
@@ -503,11 +572,14 @@ export function AdminLeads() {
                         <TableCell className="text-muted-foreground">
                           {row.country || "—"}
                         </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {(row.lead_unit_type ?? "single") === "family" ? "Family" : "Single"}
+                        </TableCell>
                         <TableCell>
                           {row.categories?.name ?? "—"}
                         </TableCell>
                         <TableCell className="max-w-[240px] truncate text-muted-foreground">
-                          {row.notes || "—"}
+                          {row.summary || "—"}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {new Date(row.created_at).toLocaleDateString()}
@@ -535,6 +607,14 @@ export function AdminLeads() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              {!row.sold_at ? (
+                                <DropdownMenuItem
+                                  onClick={() => openPrepaidDeliver(row)}
+                                >
+                                  <CreditCard className="size-4" />
+                                  Deliver (prepaid)
+                                </DropdownMenuItem>
+                              ) : null}
                               <DropdownMenuItem onClick={() => openEdit(row)}>
                                 <Pencil className="size-4" />
                                 Edit
@@ -584,6 +664,80 @@ export function AdminLeads() {
         </Card>
       )}
 
+      <Dialog
+        open={prepaidDialogOpen}
+        onOpenChange={(open) => {
+          setPrepaidDialogOpen(open);
+          if (!open) setPrepaidLead(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={(e) => void handlePrepaidDeliver(e)}>
+            <DialogHeader>
+              <DialogTitle>Deliver lead (prepaid)</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4 text-sm">
+              <p className="text-muted-foreground">
+                Charges the org&apos;s active prepaid delivery budget using the
+                pricebook (category × unit type). The inventory lead is marked
+                sold and copied to the customer.
+              </p>
+              {prepaidLead ? (
+                <p className="rounded-md border border-border/80 bg-muted/40 px-3 py-2 text-xs">
+                  {prepaidLead.first_name} {prepaidLead.last_name} ·{" "}
+                  {prepaidLead.categories?.name ?? "—"} · unit:{" "}
+                  {prepaidLead.lead_unit_type ?? "single"}
+                </p>
+              ) : null}
+              <div className="space-y-2">
+                <Label>Organization</Label>
+                <Select
+                  value={prepaidOrgId}
+                  onValueChange={setPrepaidOrgId}
+                  disabled={orgChoices.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        orgChoices.length === 0
+                          ? "No customers with orgs"
+                          : "Select organization"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {orgChoices.map(([id, name]) => (
+                      <SelectItem key={id} value={id}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPrepaidDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  deliveringPrepaid ||
+                  !prepaidOrgId ||
+                  orgChoices.length === 0
+                }
+              >
+                Deliver
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <form onSubmit={(e) => void handleSubmit(e)}>
@@ -610,6 +764,23 @@ export function AdminLeads() {
                         {c.name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Lead type</Label>
+                <Select
+                  value={form.lead_unit_type}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, lead_unit_type: v as "single" | "family" }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Lead type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="single">Single</SelectItem>
+                    <SelectItem value="family">Family</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -661,12 +832,12 @@ export function AdminLeads() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
+                <Label htmlFor="summary">Summary</Label>
                 <Textarea
-                  id="notes"
-                  value={form.notes}
+                  id="summary"
+                  value={form.summary}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, notes: e.target.value }))
+                    setForm((f) => ({ ...f, summary: e.target.value }))
                   }
                   rows={3}
                 />

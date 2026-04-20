@@ -119,14 +119,15 @@ export function AdminStaff() {
     <div className="flex flex-1 flex-col gap-8 p-6 lg:p-8">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Staff</h1>
-        <p className="text-sm text-muted-foreground">
+        {/* <p className="text-sm text-muted-foreground">
           Create admin accounts with the staff role. Requires{" "}
           <code className="rounded bg-muted px-1 py-0.5 text-xs">
             SUPABASE_SERVICE_ROLE_KEY
           </code>{" "}
           on the server.
-        </p>
+        </p> */}
       </header>
+
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card className="border-border/80 bg-card/50">

@@ -72,7 +72,10 @@ export function ClientLeads() {
     [users]
   );
 
-  async function patchLead(id: string, patch: { status?: string; assigned_to?: string | null }) {
+  async function patchLead(
+    id: string,
+    patch: { status?: string; assigned_to?: string | null; notes?: string }
+  ) {
     try {
       await updateLead({
         id,
@@ -120,7 +123,7 @@ export function ClientLeads() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            placeholder="Search name, phone, notes"
+            placeholder="Search name, phone, summary, notes"
           />
           <Select
             value={categoryId}
@@ -196,16 +199,18 @@ export function ClientLeads() {
                 <TableHead>Phone</TableHead>
                 <TableHead>Country</TableHead>
                 <TableHead>Category</TableHead>
+                <TableHead>Summary</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Assignee</TableHead>
+                <TableHead>Notes</TableHead>
                 <TableHead>Updated</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="h-20 text-center">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="h-20 text-center">Loading...</TableCell></TableRow>
               ) : rows.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="h-20 text-center">No leads found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="h-20 text-center">No leads found.</TableCell></TableRow>
               ) : (
                 rows.map((row) => (
                   <TableRow key={row.id}>
@@ -213,6 +218,9 @@ export function ClientLeads() {
                     <TableCell className="text-muted-foreground">{row.phone}</TableCell>
                     <TableCell className="text-muted-foreground">{row.country || "—"}</TableCell>
                     <TableCell>{row.categories?.name ?? "—"}</TableCell>
+                    <TableCell className="max-w-[260px] truncate text-muted-foreground">
+                      {row.summary || "—"}
+                    </TableCell>
                     <TableCell>
                       <Select
                         value={row.status}
@@ -249,6 +257,19 @@ export function ClientLeads() {
                           ))}
                         </SelectContent>
                       </Select>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex min-w-[260px] items-center gap-2">
+                        <Input
+                          defaultValue={row.notes ?? ""}
+                          placeholder="Leave follow-up notes"
+                          onBlur={(e) => {
+                            if ((row.notes ?? "") !== e.target.value) {
+                              void patchLead(row.id, { notes: e.target.value });
+                            }
+                          }}
+                        />
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">

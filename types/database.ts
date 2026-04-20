@@ -1,5 +1,12 @@
 export type UserRole = "staff" | "customer_admin" | "customer_agent";
 
+export type Organization = {
+  id: string;
+  name: string;
+  phone: string | null;
+  created_at: string;
+};
+
 export type Profile = {
   id: string;
   organization_id: string | null;
@@ -7,8 +14,20 @@ export type Profile = {
   is_active: boolean;
   email: string | null;
   full_name: string | null;
+  phone: string | null;
   created_at: string;
   updated_at: string;
+};
+
+/** Customer-side roles; used for admin directory listings. */
+export type CustomerWithOrganization = Profile & {
+  organizations: Pick<Organization, "id" | "name"> | null;
+};
+
+/** Admin customers table: includes org-level purchased lead count. */
+export type CustomerDirectoryRow = CustomerWithOrganization & {
+  /** `customer_leads` rows for this profile's org (same for all members of an org). */
+  leadsPurchasedCount: number;
 };
 
 export type Category = {
@@ -18,6 +37,9 @@ export type Category = {
   created_at: string;
 };
 
+/** Inventory / customer lead unit for prepaid drawdown pricing. */
+export type LeadUnitType = "single" | "family";
+
 export type Lead = {
   id: string;
   category_id: string;
@@ -25,10 +47,59 @@ export type Lead = {
   first_name: string;
   last_name: string;
   country: string;
-  notes: string;
+  summary: string;
   created_at: string;
   updated_at: string;
   sold_at: string | null;
+  /** Set after migration `20260418210000`; defaults to single in DB. */
+  lead_unit_type?: LeadUnitType;
+};
+
+/** Per category × unit; USD cents. Drives budget drawdown when leads are delivered. */
+export type LeadPricebookRow = {
+  id: string;
+  category_id: string;
+  unit_type: LeadUnitType;
+  price_cents: number;
+  currency: string;
+  label: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+  categories: Pick<Category, "id" | "name" | "slug"> | null;
+};
+
+export type DeliveryEntitlementStatus = "active" | "depleted" | "expired";
+export type DeliveryEntitlementSource = "prepaid_purchase" | "topup";
+
+/** Rolling prepaid window (e.g. 30 calendar days from period_start). */
+export type DeliveryEntitlement = {
+  id: string;
+  organization_id: string;
+  budget_cents_total: number;
+  budget_cents_remaining: number;
+  currency: string;
+  period_start: string;
+  period_end: string;
+  source: DeliveryEntitlementSource;
+  stripe_payment_ref: string | null;
+  status: DeliveryEntitlementStatus;
+  created_at: string;
+  updated_at: string;
+  organizations: Pick<Organization, "id" | "name"> | null;
+};
+
+export type DeliveryLedgerLine = {
+  id: string;
+  entitlement_id: string;
+  organization_id: string;
+  amount_cents: number;
+  balance_after_cents: number;
+  unit_type: LeadUnitType;
+  category_id: string;
+  customer_lead_id: string | null;
+  description: string;
+  created_at: string;
 };
 
 export type LeadPackage = {

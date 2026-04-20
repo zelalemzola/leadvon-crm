@@ -6,15 +6,14 @@ import { toast } from "sonner";
 import {
   useGetClientMeQuery,
   useGetCustomerDashboardQuery,
-  useGetWalletQuery,
-  useGetWalletTransactionsQuery,
   useGetClientPackagesQuery,
   useGetClientOffersQuery,
   useGetLeadFlowsQuery,
-  useCreateTopupSessionMutation,
+  useGetMyDeliveryEntitlementsQuery,
+  useGetMyDeliveryLedgerQuery,
+  useCreatePrepaidSessionMutation,
   useUpsertLeadFlowMutation,
   useRunLeadFlowsNowMutation,
-  usePurchasePackageMutation,
 } from "@/lib/api/client-api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -23,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Wallet, Zap, BarChart3 } from "lucide-react";
+import { Zap, BarChart3, CreditCard, CalendarClock } from "lucide-react";
 
 export function ClientBilling() {
   const router = useRouter();
@@ -31,8 +30,9 @@ export function ClientBilling() {
   const searchParams = useSearchParams();
   const { data: me } = useGetClientMeQuery();
   const { data: dashboard } = useGetCustomerDashboardQuery();
-  const { data: wallet, refetch: refetchWallet } = useGetWalletQuery();
-  const { data: tx, refetch: refetchTx } = useGetWalletTransactionsQuery();
+  const { data: entitlements, refetch: refetchEntitlements } =
+    useGetMyDeliveryEntitlementsQuery();
+  const { data: ledgerLines, refetch: refetchLedger } = useGetMyDeliveryLedgerQuery();
   const {
     data: packages,
     isLoading: packagesLoading,
@@ -40,13 +40,12 @@ export function ClientBilling() {
   } = useGetClientPackagesQuery();
   const { data: offers } = useGetClientOffersQuery();
   const { data: leadFlows } = useGetLeadFlowsQuery();
-  const [createTopupSession, { isLoading: creatingTopup }] = useCreateTopupSessionMutation();
+  const [createPrepaidSession, { isLoading: creatingPrepaid }] =
+    useCreatePrepaidSessionMutation();
   const [upsertLeadFlow, { isLoading: savingFlow }] = useUpsertLeadFlowMutation();
   const [runLeadFlowsNow, { isLoading: runningFlows }] = useRunLeadFlowsNowMutation();
-  const [purchasePackage, { isLoading: purchasingNow }] = usePurchasePackageMutation();
-  const [topupAmount, setTopupAmount] = useState(50);
+  const [prepaidAmount, setPrepaidAmount] = useState(100);
   const [selectedPackageId, setSelectedPackageId] = useState<string>("");
-  const [buyNowPackageQty, setBuyNowPackageQty] = useState(1);
   const [leadsPerWeek, setLeadsPerWeek] = useState<number>(100);
   const canManageBilling = me?.role === "customer_admin" && me?.is_active;
 
@@ -65,121 +64,76 @@ export function ClientBilling() {
     [packages, activePackageId]
   );
 
-  const estimatedQty = useMemo(() => {
-    if (!selectedPackage) return 1;
-    return Math.max(1, Math.ceil((leadsPerWeek || 1) / selectedPackage.leads_count));
-  }, [selectedPackage, leadsPerWeek]);
-
-  const oneOffUnitCents = useMemo(() => {
-    if (!selectedPackage) return 0;
-    const discount = offersByPackage.get(selectedPackage.id) ?? 0;
-    return Math.round(selectedPackage.price_cents * ((100 - discount) / 100));
-  }, [selectedPackage, offersByPackage]);
-
-  const oneOffTotalCents = oneOffUnitCents * Math.min(100, Math.max(1, buyNowPackageQty || 1));
-  const oneOffLeadEstimate =
-    selectedPackage && buyNowPackageQty >= 1
-      ? selectedPackage.leads_count * Math.min(100, Math.max(1, buyNowPackageQty))
-      : 0;
-  const availableNow = selectedPackage?.available_unsold_leads ?? 0;
-  const likelyShort = selectedPackage ? oneOffLeadEstimate > availableNow : false;
+  /** Rough daily target: spread weekly goal across 7 days (matches server accrual). */
+  const dailyTargetLeads = useMemo(
+    () => Math.max(1, Math.ceil((leadsPerWeek || 1) / 7)),
+    [leadsPerWeek]
+  );
 
   const leadsReceived = dashboard?.totalLeads ?? 0;
-  const totalSpent = useMemo(
+  const totalDeliverySpend = useMemo(
     () =>
-      (tx ?? [])
-        .filter((t) => t.tx_type === "debit")
-        .reduce((sum, row) => sum + Number(row.amount_cents || 0), 0),
-    [tx]
+      (ledgerLines ?? []).reduce((sum, row) => sum + Number(row.amount_cents || 0), 0),
+    [ledgerLines]
   );
-  const avgCpl = leadsReceived > 0 ? totalSpent / leadsReceived : 0;
+  const avgCpl = leadsReceived > 0 ? totalDeliverySpend / leadsReceived : 0;
 
-  /** Avoid duplicate handling (e.g. React Strict Mode) while ?topup= is still present. */
-  const topupHandledRef = useRef<string | null>(null);
+  const prepaidHandledRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const topupState = searchParams.get("topup");
-    if (!topupState) {
-      topupHandledRef.current = null;
+    const prepaidState = searchParams.get("prepaid");
+    if (!prepaidState) {
+      prepaidHandledRef.current = null;
       return;
     }
-    if (topupHandledRef.current === topupState) return;
-    topupHandledRef.current = topupState;
+    if (prepaidHandledRef.current === prepaidState) return;
+    prepaidHandledRef.current = prepaidState;
 
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     void (async () => {
-      if (topupState === "success") {
-        await Promise.all([refetchWallet(), refetchTx()]);
+      if (prepaidState === "success") {
+        await Promise.all([refetchEntitlements(), refetchLedger()]);
         router.replace(pathname, { scroll: false });
-        toast.success("Payment received. Your wallet balance has been updated.");
+        toast.success(
+          "Payment received. Your prepaid delivery budget is active for 30 days from payment."
+        );
         retryTimer = setTimeout(() => {
-          void Promise.all([refetchWallet(), refetchTx()]);
+          void Promise.all([refetchEntitlements(), refetchLedger()]);
         }, 2500);
         return;
       }
-      if (topupState === "cancel") {
+      if (prepaidState === "cancel") {
         router.replace(pathname, { scroll: false });
-        toast.info("Top-up canceled.");
+        toast.info("Prepaid checkout canceled.");
       }
     })();
 
     return () => {
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [searchParams, pathname, router, refetchWallet, refetchTx]);
+  }, [searchParams, pathname, router, refetchEntitlements, refetchLedger]);
 
-  async function startTopup() {
+  async function startPrepaid() {
     if (!canManageBilling) {
-      toast.error("Only customer admins can top up wallets.");
+      toast.error("Only customer admins can add prepaid delivery budget.");
       return;
     }
     try {
-      const dollars = Math.max(5, topupAmount || 0);
-      const { url } = await createTopupSession({ amount_cents: dollars * 100 }).unwrap();
+      const dollars = Math.max(5, prepaidAmount || 0);
+      const amount_cents = Math.round(dollars * 100);
+      if (amount_cents < 500) {
+        toast.error("Minimum prepaid amount is $5.");
+        return;
+      }
+      const { url } = await createPrepaidSession({ amount_cents }).unwrap();
       window.location.assign(url);
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object" && "data" in err
           ? String((err as { data?: unknown }).data)
-          : "Could not start top-up";
+          : "Could not start checkout";
       toast.error(msg);
-    }
-  }
-
-  async function purchaseNow() {
-    if (!selectedPackage) {
-      toast.error("Select a package first.");
-      return;
-    }
-    if (!canManageBilling) {
-      toast.error("Only customer admins can purchase packages.");
-      return;
-    }
-    const qty = Math.min(100, Math.max(1, buyNowPackageQty || 1));
-    try {
-      const res = await purchasePackage({
-        package_id: selectedPackage.id,
-        quantity: qty,
-      }).unwrap();
-      toast.success(
-        `Purchased ${res.leads_allocated} leads. Charged ${money(res.total_amount_cents)} from wallet.`
-      );
-    } catch (err: unknown) {
-      const raw =
-        err && typeof err === "object" && "data" in err
-          ? String((err as { data?: unknown }).data)
-          : "Purchase failed";
-      const msg = raw.toLowerCase();
-      if (msg.includes("not enough leads")) {
-        toast.error("We couldn't complete this purchase right now because inventory is low. Try a smaller quantity or another package.");
-        return;
-      }
-      if (msg.includes("insufficient wallet")) {
-        toast.error("Your wallet balance is too low for this purchase. Please add funds and try again.");
-        return;
-      }
-      toast.error("We couldn't complete this purchase right now. Please try again shortly.");
     }
   }
 
@@ -212,16 +166,16 @@ export function ClientBilling() {
     if (!canManageBilling) return;
     try {
       const res = await runLeadFlowsNow().unwrap();
-      if (res.failed.length === 0) {
-        toast.success(`Processed ${res.processed} lead flow(s).`);
+      const n = res.leads_delivered ?? res.processed;
+      if (n > 0) {
+        toast.success(
+          `Delivered ${n} lead${n === 1 ? "" : "s"}. Undelivered queue will keep clearing as inventory and budget allow.`
+        );
         return;
       }
-      toast.success(`Processed ${res.processed} flow(s), ${res.failed.length} need attention.`);
-      const detail = res.failed
-        .slice(0, 2)
-        .map((f) => `${f.package_name}: ${f.reason}`)
-        .join(" ");
-      toast.info(detail || "Some flows could not run right now. We'll try again on the next run.");
+      toast.info(
+        "No leads were delivered this run — usually because inventory is still catching up or your prepaid budget needs a top-up. We will keep trying automatically."
+      );
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object" && "data" in err
@@ -236,8 +190,18 @@ export function ClientBilling() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
         <p className="text-sm text-muted-foreground">
-          Wallet, package purchases, and transaction history.
+          Pay for delivery budget with Stripe, manage recurring lead flows, and review charges
+          against your prepaid budget.
         </p>
+        <div
+          className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-xs text-muted-foreground"
+          role="status"
+        >
+          <strong className="font-medium text-foreground">How delivery works:</strong> each UTC day we add
+          your fair share of the week&apos;s goal to a delivery queue. We assign leads as soon as
+          inventory and your prepaid budget allow — including catching up if we were short earlier.
+          Runs often throughout the day; you can also use &quot;Run due flows now&quot; anytime.
+        </div>
       </header>
 
       <div className="grid gap-4 xl:grid-cols-3">
@@ -291,75 +255,19 @@ export function ClientBilling() {
                 )}
               </div>
               <div className="space-y-2">
-                <Label>Leads per week</Label>
+                <Label>Leads per week (target)</Label>
                 <Input
                   type="number"
                   min={1}
                   value={leadsPerWeek}
                   onChange={(e) => setLeadsPerWeek(Math.max(1, Number(e.target.value) || 1))}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Roughly <strong>{dailyTargetLeads}</strong> leads accrue toward your queue each UTC day
+                  (rounded up). Actual deliveries depend on inventory and prepaid budget.
+                </p>
               </div>
             </div>
-
-            <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
-              <p className="text-sm font-medium">Buy once (wallet)</p>
-              <p className="text-xs text-muted-foreground">
-                Charge your wallet immediately for this package. No Stripe checkout—balance must cover the total.
-              </p>
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="buy-now-qty">Package quantity</Label>
-                  <Input
-                    id="buy-now-qty"
-                    type="number"
-                    min={1}
-                    max={100}
-                    className="w-28"
-                    value={buyNowPackageQty}
-                    onChange={(e) =>
-                      setBuyNowPackageQty(Math.min(100, Math.max(1, Number(e.target.value) || 1)))
-                    }
-                    disabled={!selectedPackage}
-                  />
-                </div>
-                <div className="min-w-0 flex-1 space-y-1 text-sm">
-                  <p className="text-muted-foreground">
-                    Est. total <span className="font-medium text-foreground">{money(oneOffTotalCents)}</span>
-                    {selectedPackage ? (
-                      <span className="text-muted-foreground">
-                        {" "}
-                        (~{oneOffLeadEstimate} leads if inventory allows)
-                      </span>
-                    ) : null}
-                  </p>
-                </div>
-              </div>
-              <Button
-                className="w-full sm:w-auto"
-                onClick={() => void purchaseNow()}
-                disabled={
-                  purchasingNow || !canManageBilling || !selectedPackage || (packages ?? []).length === 0
-                }
-              >
-                {purchasingNow ? "Purchasing…" : "Purchase now"}
-              </Button>
-              {selectedPackage ? (
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <p>
-                    Available right now: <span className="font-medium text-foreground">{availableNow}</span> leads
-                  </p>
-                  {likelyShort ? (
-                    <p className="text-amber-300">
-                      Requested volume may exceed current inventory. Consider a smaller quantity.
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              Recurring — estimated package quantity per run: {estimatedQty}
-            </p>
             <Button
               className="w-full"
               onClick={() => void activateLeadFlow()}
@@ -377,8 +285,8 @@ export function ClientBilling() {
             </Button>
             <p className="text-xs text-muted-foreground">
               {canManageBilling
-                ? "Buy once debits your wallet immediately. Lead flow saves recurring intent; use run-now or cron to execute due flows."
-                : "Only customer admins can top up or buy packages."}
+                ? "Automated delivery runs frequently (at least when our scheduler runs). This button tries immediately for your organization — useful after you add prepaid or when you know new inventory landed."
+                : "Only customer admins can change billing and lead flows."}
             </p>
           </CardContent>
         </Card>
@@ -388,48 +296,100 @@ export function ClientBilling() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between text-base">
                 <span className="flex items-center gap-2">
-                  <Wallet className="size-4 text-primary" />
-                  Current Balance
+                  <CreditCard className="size-4 text-primary" />
+                  Prepaid delivery budget
                 </span>
-                <Button size="sm" onClick={() => void startTopup()} disabled={creatingTopup || !canManageBilling}>
-                  Add Funds
+                <Button
+                  size="sm"
+                  onClick={() => void startPrepaid()}
+                  disabled={creatingPrepaid || !canManageBilling}
+                >
+                  Pay with Stripe
                 </Button>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-3xl font-semibold tabular-nums">{money(wallet?.balance_cents ?? 0)}</p>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={5}
-                  step={1}
-                  value={topupAmount}
-                  onChange={(e) => setTopupAmount(Math.max(5, Number(e.target.value) || 5))}
-                  className="w-32"
-                  disabled={!canManageBilling}
-                />
-                <p className="text-xs text-muted-foreground">USD</p>
+              <p className="text-xs text-muted-foreground">
+                Pay by card when you need coverage. We add a delivery budget for your organization
+                (rolling <strong>30 calendar days</strong> from payment). Leads are charged against
+                this budget as they are delivered — not a stored balance you withdraw.
+              </p>
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="prepaid-amt">Amount (USD)</Label>
+                  <Input
+                    id="prepaid-amt"
+                    type="number"
+                    min={5}
+                    step={1}
+                    value={prepaidAmount}
+                    onChange={(e) => setPrepaidAmount(Math.max(5, Number(e.target.value) || 5))}
+                    className="w-32"
+                    disabled={!canManageBilling}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Active plans</p>
-                {(leadFlows ?? []).filter((f) => f.is_active).slice(0, 4).map((flow) => (
-                  <div key={flow.id} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span>
-                        {flow.lead_packages?.name ?? "Package"} - {flow.leads_per_week}/week
-                      </span>
-                      <Badge className="bg-emerald-500/15 text-emerald-300">Active</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Last run: {flow.last_run_at ? new Date(flow.last_run_at).toLocaleString() : "Not run yet"}.
-                      {" "}Next retry: {new Date(flow.next_run_at).toLocaleString()}.
-                    </p>
-                  </div>
-                ))}
-                {((leadFlows ?? []).filter((f) => f.is_active).length === 0) ? (
-                  <p className="text-xs text-muted-foreground">No active plans yet.</p>
-                ) : null}
+                <p className="text-xs font-medium text-muted-foreground">Active periods</p>
+                {(entitlements ?? []).filter((e) => e.status === "active").length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No prepaid periods yet.</p>
+                ) : (
+                  <ul className="space-y-2 text-xs">
+                    {(entitlements ?? [])
+                      .filter((e) => e.status === "active")
+                      .slice(0, 5)
+                      .map((e) => (
+                        <li
+                          key={e.id}
+                          className="flex flex-col gap-0.5 rounded-md border border-border/60 bg-background/40 px-2 py-1.5"
+                        >
+                          <span className="font-medium tabular-nums">
+                            {money(e.budget_cents_remaining)} / {money(e.budget_cents_total)}{" "}
+                            remaining
+                          </span>
+                          <span className="text-muted-foreground">
+                            {new Date(e.period_start).toLocaleDateString()} →{" "}
+                            {new Date(e.period_end).toLocaleDateString()}
+                          </span>
+                        </li>
+                      ))}
+                  </ul>
+                )}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/70 bg-card/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CalendarClock className="size-4 text-primary" />
+                Active lead flows
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {(leadFlows ?? []).filter((f) => f.is_active).slice(0, 4).map((flow) => (
+                <div key={flow.id} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>
+                      {flow.lead_packages?.name ?? "Package"} — {flow.leads_per_week}/week
+                    </span>
+                    <Badge className="bg-emerald-500/15 text-emerald-300">Active</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Queue:{" "}
+                    <strong className="text-foreground">
+                      {(flow.pending_delivery_leads ?? 0) > 0
+                        ? `${flow.pending_delivery_leads} lead${flow.pending_delivery_leads === 1 ? "" : "s"} waiting`
+                        : "caught up"}
+                    </strong>
+                    . Last delivery:{" "}
+                    {flow.last_run_at ? new Date(flow.last_run_at).toLocaleString() : "—"}.
+                  </p>
+                </div>
+              ))}
+              {((leadFlows ?? []).filter((f) => f.is_active).length === 0) ? (
+                <p className="text-xs text-muted-foreground">No active lead flows yet.</p>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -447,8 +407,8 @@ export function ClientBilling() {
                   <p className="text-lg font-semibold tabular-nums">{leadsReceived}</p>
                 </div>
                 <div className="rounded-lg border border-border/60 bg-background/50 p-2">
-                  <p className="text-xs text-muted-foreground">Total Spent</p>
-                  <p className="text-lg font-semibold tabular-nums">{money(totalSpent)}</p>
+                  <p className="text-xs text-muted-foreground">Delivery spend</p>
+                  <p className="text-lg font-semibold tabular-nums">{money(totalDeliverySpend)}</p>
                 </div>
                 <div className="rounded-lg border border-border/60 bg-background/50 p-2">
                   <p className="text-xs text-muted-foreground">Avg CPL</p>
@@ -474,34 +434,46 @@ export function ClientBilling() {
 
       <Card className="border-border/70 bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base">Transactions</CardTitle>
+          <CardTitle className="text-base">Budget activity</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Charges posted when leads are delivered against your prepaid delivery budget.
+          </p>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Type</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Reference</TableHead>
-                <TableHead>Description</TableHead>
                 <TableHead>Date</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Balance after</TableHead>
+                <TableHead>Notes</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(tx ?? []).length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="h-20 text-center">No transactions yet.</TableCell></TableRow>
+              {(ledgerLines ?? []).length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-20 text-center text-muted-foreground">
+                    No delivery charges yet. Add a prepaid budget above, then leads will appear here
+                    when delivered.
+                  </TableCell>
+                </TableRow>
               ) : (
-                (tx ?? []).map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell>
-                      <Badge className={t.tx_type === "credit" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}>
-                        {t.tx_type}
-                      </Badge>
+                (ledgerLines ?? []).map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(row.created_at).toLocaleString()}
                     </TableCell>
-                    <TableCell className="font-medium">{money(t.amount_cents)}</TableCell>
-                    <TableCell className="text-muted-foreground">{t.reference_type}</TableCell>
-                    <TableCell className="text-muted-foreground">{t.description || "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{new Date(t.created_at).toLocaleString()}</TableCell>
+                    <TableCell className="font-medium tabular-nums">{money(row.amount_cents)}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {(row as { categories?: { name?: string } | null }).categories?.name ?? "—"}
+                    </TableCell>
+                    <TableCell className="tabular-nums text-muted-foreground">
+                      {money(row.balance_after_cents)}
+                    </TableCell>
+                    <TableCell className="max-w-[220px] truncate text-muted-foreground">
+                      {row.description || "—"}
+                    </TableCell>
                   </TableRow>
                 ))
               )}

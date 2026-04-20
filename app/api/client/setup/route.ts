@@ -5,6 +5,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 
 const schema = z.object({
   organization_name: z.string().trim().min(2).max(150),
+  phone: z.string().trim().min(5).max(40),
 });
 
 export async function POST(request: Request) {
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
   const service = createServiceClient();
   const { data: org, error: orgErr } = await service
     .from("organizations")
-    .insert({ name: parsed.data.organization_name })
+    .insert({ name: parsed.data.organization_name, phone: parsed.data.phone })
     .select("id")
     .single();
   if (orgErr) return NextResponse.json({ error: orgErr.message }, { status: 400 });
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
     .update({
       organization_id: org.id,
       role: "customer_admin",
+      phone: parsed.data.phone,
     })
     .eq("id", user.id);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 400 });

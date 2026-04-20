@@ -15,8 +15,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useGetClientMeQuery } from "@/lib/api/client-api";
 
-const nav = [
+const baseNav = [
   { href: "/client", label: "Dashboard", icon: LayoutDashboard },
   { href: "/client/leads", label: "Leads", icon: Users },
   { href: "/client/billing", label: "Billing", icon: CreditCard },
@@ -28,6 +29,10 @@ const nav = [
 export function ClientSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { data: me } = useGetClientMeQuery();
+  const nav = me?.role === "customer_agent"
+    ? [...baseNav.slice(0, 2), { href: "/client/assigned", label: "Assigned", icon: Users }, ...baseNav.slice(2)]
+    : baseNav;
 
   async function signOut() {
     const supabase = createClient();

@@ -61,6 +61,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  PrepaidEntitlementsPanel,
+  PrepaidPricebookPanel,
+} from "@/components/admin/admin-prepaid-panels";
 
 export function AdminPricing() {
   return (
@@ -76,6 +80,7 @@ export function AdminPricing() {
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="packages">Packages</TabsTrigger>
           <TabsTrigger value="offers">Offers</TabsTrigger>
+          <TabsTrigger value="prepaid">Prepaid</TabsTrigger>
         </TabsList>
         <TabsContent value="categories" className="mt-6">
           <CategoriesPanel />
@@ -85,6 +90,10 @@ export function AdminPricing() {
         </TabsContent>
         <TabsContent value="offers" className="mt-6">
           <OffersPanel />
+        </TabsContent>
+        <TabsContent value="prepaid" className="mt-6 space-y-8">
+          <PrepaidPricebookPanel />
+          <PrepaidEntitlementsPanel />
         </TabsContent>
       </Tabs>
     </div>

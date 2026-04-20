@@ -1,8 +1,11 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import {
   useGetDashboardStatsQuery,
   useGetCategoriesQuery,
+  type AdminDashboardFilters,
+  type AdminLeadsAvailability,
 } from "@/lib/api/admin-api";
 import {
   Card,
@@ -13,6 +16,15 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -34,6 +46,7 @@ import {
   Cell,
 } from "recharts";
 import { TrendingUp, Users, Package, Layers } from "lucide-react";
+import { formatQueryError } from "@/lib/utils";
 
 const BAR_COLORS = [
   "var(--chart-1)",
@@ -44,17 +57,55 @@ const BAR_COLORS = [
 ];
 
 export function AdminDashboard() {
-  const { data: stats, isLoading, isError, error } = useGetDashboardStatsQuery();
+  const [daysBack, setDaysBack] = useState(30);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [categoryId, setCategoryId] = useState<string | "all">("all");
+  const [country, setCountry] = useState("");
+  const [availability, setAvailability] =
+    useState<AdminLeadsAvailability>("all");
+
+  const dashboardFilters = useMemo((): AdminDashboardFilters => {
+    const hasRange = Boolean(dateFrom && dateTo);
+    return {
+      daysBack,
+      dateFrom: hasRange ? dateFrom : null,
+      dateTo: hasRange ? dateTo : null,
+      categoryId: categoryId === "all" ? null : categoryId,
+      country,
+      availability,
+    };
+  }, [daysBack, dateFrom, dateTo, categoryId, country, availability]);
+
+  const { data: stats, isLoading, isError, error } =
+    useGetDashboardStatsQuery(dashboardFilters);
   const { data: categories } = useGetCategoriesQuery();
+
+  const periodLabel = useMemo(() => {
+    if (dateFrom && dateTo) return `${dateFrom} → ${dateTo} (UTC)`;
+    return `Rolling ${daysBack} days`;
+  }, [dateFrom, dateTo, daysBack]);
+
+  const avgCategoriesDenominator = useMemo(() => {
+    const rows = stats?.leadsByCategory;
+    if (!rows?.length) return 1;
+    const withLeads = rows.filter((r) => Number(r.lead_count) > 0).length;
+    return Math.max(1, withLeads);
+  }, [stats]);
 
   if (isError) {
     return (
-      <div className="p-8">
+      <div className="space-y-2 p-8">
         <p className="text-destructive">
-          Failed to load dashboard:{" "}
-          {error && typeof error === "object" && "data" in error
-            ? String((error as { data?: unknown }).data)
-            : "Unknown error"}
+          Failed to load dashboard: {formatQueryError(error)}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          If you see a database or function error, apply pending Supabase migrations
+          (e.g.{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">
+            supabase db push
+          </code>
+          ) so analytics RPCs match the app.
         </p>
       </div>
     );
@@ -62,10 +113,99 @@ export function AdminDashboard() {
 
   return (
     <div className="flex flex-1 flex-col gap-8 p-6 lg:p-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Company performance and lead inventory overview.
+      <header className="space-y-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Company performance and lead inventory overview.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border/70 bg-card/40 p-3">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Date from</Label>
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-[150px]"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Date to</Label>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-[150px]"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">
+              Rolling days (if no range)
+            </Label>
+            <Select
+              value={String(daysBack)}
+              onValueChange={(v) => setDaysBack(Number(v))}
+              disabled={Boolean(dateFrom && dateTo)}
+            >
+              <SelectTrigger className="w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">7 days</SelectItem>
+                <SelectItem value="30">30 days</SelectItem>
+                <SelectItem value="90">90 days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Category</Label>
+            <Select
+              value={categoryId}
+              onValueChange={(v) => setCategoryId(v as typeof categoryId)}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {(categories ?? []).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Country</Label>
+            <Input
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              placeholder="Contains…"
+              className="w-[150px]"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Availability</Label>
+            <Select
+              value={availability}
+              onValueChange={(v) => setAvailability(v as AdminLeadsAvailability)}
+            >
+              <SelectTrigger className="w-[150px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="available">Available</SelectItem>
+                <SelectItem value="sold">Sold</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Lead metrics and charts use the filters above. Active packages and total
+          categories are catalog-wide. Period: {periodLabel}.
         </p>
       </header>
 
@@ -102,7 +242,7 @@ export function AdminDashboard() {
             <MetricCard
               title="Active packages"
               value={stats.activePackages}
-              subtitle={`${stats.categoryCount} categories`}
+              subtitle={`${stats.categoryCount} categories (catalog-wide)`}
               icon={Package}
             />
           </div>
@@ -127,11 +267,7 @@ export function AdminDashboard() {
                 />
                 <SnapshotPill
                   label="Avg leads / category"
-                  value={
-                    stats.categoryCount > 0
-                      ? (stats.totalLeads / stats.categoryCount).toFixed(1)
-                      : "0"
-                  }
+                  value={(stats.totalLeads / avgCategoriesDenominator).toFixed(1)}
                   tone="violet"
                 />
               </CardContent>
@@ -157,7 +293,7 @@ export function AdminDashboard() {
               <CardHeader>
                 <CardTitle className="text-base">Leads flow</CardTitle>
                 <CardDescription>
-                  New inventory leads per day (last 30 days).
+                  New inventory leads per day ({periodLabel}).
                 </CardDescription>
               </CardHeader>
               <CardContent className="h-[280px] pt-0">
@@ -341,11 +477,12 @@ export function AdminDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="border-border/80 bg-card/50">
+            <Card className="border-border/80 bg-card/50">
             <CardHeader>
-              <CardTitle className="text-base">Staff activity (14 days)</CardTitle>
+              <CardTitle className="text-base">Staff activity</CardTitle>
               <CardDescription>
-                Admin actions captured in audit logs.
+                Admin actions in audit logs. Window length follows your lead
+                period (rolling backward from now, capped at 366 days).
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">

@@ -3,6 +3,18 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { requireStaffUser, writeAuditLog } from "@/lib/server/admin/auth";
 import { leadSchema } from "@/lib/validation/admin";
 
+function normalizeLeadPayload(
+  data: Partial<{ summary?: string; notes?: string }> & Record<string, unknown>
+) {
+  const summary =
+    typeof data.summary === "string"
+      ? data.summary
+      : typeof data.notes === "string"
+        ? data.notes
+        : "";
+  return { ...data, summary, notes: undefined };
+}
+
 export async function POST(request: Request) {
   const staff = await requireStaffUser();
   if ("error" in staff) return staff.error;
@@ -16,7 +28,7 @@ export async function POST(request: Request) {
   const service = createServiceClient();
   const { data, error } = await service
     .from("leads")
-    .insert(parsed.data)
+    .insert(normalizeLeadPayload(parsed.data as Record<string, unknown>))
     .select("*, categories(id, name, slug)")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -45,9 +57,10 @@ export async function PATCH(request: Request) {
   }
 
   const service = createServiceClient();
+  const patch = normalizeLeadPayload(parsed.data as Record<string, unknown>);
   const { data, error } = await service
     .from("leads")
-    .update(parsed.data)
+    .update(patch)
     .eq("id", id)
     .select("*, categories(id, name, slug)")
     .single();
@@ -58,7 +71,7 @@ export async function PATCH(request: Request) {
     action: "lead.update",
     entityType: "lead",
     entityId: id,
-    details: parsed.data as Record<string, unknown>,
+    details: patch as Record<string, unknown>,
   });
 
   return NextResponse.json({ data });

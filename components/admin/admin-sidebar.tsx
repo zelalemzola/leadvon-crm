@@ -10,6 +10,7 @@ import {
   UserCog,
   LogOut,
   LifeBuoy,
+  Contact,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import { useRouter } from "next/navigation";
 const nav = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/leads", label: "Leads", icon: Users },
+  { href: "/admin/customers", label: "Customers", icon: Contact },
   { href: "/admin/pricing", label: "Pricing", icon: Package },
   { href: "/admin/support", label: "Support", icon: LifeBuoy },
   { href: "/admin/staff", label: "Staff", icon: UserCog },

@@ -51,7 +51,18 @@ export async function POST(request: Request) {
         p_description: "Stripe wallet top-up",
       });
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 400 });
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+    }
+    if (purpose === "prepaid_entitlement" && orgId && amountTotal > 0) {
+      const ref = `checkout_session:${session.id}`;
+      const { error } = await service.rpc("create_delivery_entitlement", {
+        p_organization_id: orgId,
+        p_budget_cents: amountTotal,
+        p_stripe_payment_ref: ref,
+      });
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
       }
     }
   }

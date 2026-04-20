@@ -5,6 +5,9 @@ import { createClient } from "@/lib/supabase/client";
 import type {
   Category,
   CustomerAuditLog,
+  DeliveryEntitlement,
+  DeliveryLedgerLine,
+  LeadUnitType,
   OfferWithPackage,
   PackageWithCategory,
   Profile,
@@ -26,17 +29,21 @@ export type CustomerLead = {
   organization_id: string;
   source_lead_id: string;
   category_id: string;
-  purchase_id: string;
+  purchase_id: string | null;
   phone: string;
   first_name: string;
   last_name: string;
   country: string;
+  summary: string;
   notes: string;
   status: CustomerLeadStatus;
   assigned_to: string | null;
   status_updated_at: string;
   created_at: string;
   updated_at: string;
+  lead_unit_type?: LeadUnitType;
+  charged_amount_cents?: number | null;
+  entitlement_id?: string | null;
   categories: Pick<Category, "id" | "name" | "slug"> | null;
   assignee: Pick<Profile, "id" | "email" | "full_name"> | null;
 };
@@ -77,7 +84,10 @@ export type ClientCatalogPackage = PackageWithCategory & {
   available_unsold_leads: number;
 };
 
-export type ClientMe = Pick<Profile, "id" | "role" | "is_active" | "organization_id" | "email" | "full_name">;
+export type ClientMe = Pick<
+  Profile,
+  "id" | "role" | "is_active" | "organization_id" | "email" | "full_name" | "phone"
+>;
 export type OrgUserWithLastLogin = Profile & { last_sign_in_at: string | null };
 export type CustomerLeadFlow = {
   id: string;
@@ -86,6 +96,9 @@ export type CustomerLeadFlow = {
   is_active: boolean;
   next_run_at: string;
   last_run_at: string | null;
+  /** Leads queued for delivery (daily accrual + catch-up). */
+  pending_delivery_leads?: number;
+  last_obligation_date?: string | null;
   created_at: string;
   updated_at: string;
   lead_packages: { id: string; name: string; leads_count: number; category_id: string } | null;
@@ -129,6 +142,8 @@ export const clientApi = createApi({
     "LeadFlows",
     "ClientAudit",
     "SupportContacts",
+    "ClientEntitlements",
+    "ClientDeliveryLedger",
   ],
   endpoints: (builder) => ({
     getClientMe: builder.query<ClientMe | null, void>({
@@ -139,13 +154,26 @@ export const clientApi = createApi({
         } = await sb().auth.getUser();
         if (authError) return { error: authError };
         if (!user) return { data: null };
-        const { data, error } = await sb()
+        const primary = await sb()
           .from("profiles")
-          .select("id, role, is_active, organization_id, email, full_name")
+          .select("id, role, is_active, organization_id, email, full_name, phone")
           .eq("id", user.id)
           .maybeSingle();
-        if (error) return { error };
-        return { data: (data as ClientMe | null) ?? null };
+        if (primary.error && primary.error.message.includes("phone")) {
+          const fallback = await sb()
+            .from("profiles")
+            .select("id, role, is_active, organization_id, email, full_name")
+            .eq("id", user.id)
+            .maybeSingle();
+          if (fallback.error) return { error: fallback.error };
+          return {
+            data: ((fallback.data
+              ? { ...fallback.data, phone: null }
+              : null) as ClientMe | null) ?? null,
+          };
+        }
+        if (primary.error) return { error: primary.error };
+        return { data: (primary.data as ClientMe | null) ?? null };
       },
     }),
 
@@ -185,7 +213,7 @@ export const clientApi = createApi({
         if (search.trim()) {
           const term = search.trim();
           q = q.or(
-            `first_name.ilike.%${term}%,last_name.ilike.%${term}%,phone.ilike.%${term}%,notes.ilike.%${term}%`
+            `first_name.ilike.%${term}%,last_name.ilike.%${term}%,phone.ilike.%${term}%,summary.ilike.%${term}%,notes.ilike.%${term}%`
           );
         }
         const { data, error } = await q;
@@ -199,7 +227,7 @@ export const clientApi = createApi({
         if (search.trim()) {
           const term = search.trim();
           cq = cq.or(
-            `first_name.ilike.%${term}%,last_name.ilike.%${term}%,phone.ilike.%${term}%,notes.ilike.%${term}%`
+            `first_name.ilike.%${term}%,last_name.ilike.%${term}%,phone.ilike.%${term}%,summary.ilike.%${term}%,notes.ilike.%${term}%`
           );
         }
         const c = await cq;
@@ -383,6 +411,39 @@ export const clientApi = createApi({
       providesTags: ["Wallet"],
     }),
 
+    getMyDeliveryEntitlements: builder.query<DeliveryEntitlement[], void>({
+      queryFn: async () => {
+        const { data, error } = await sb()
+          .from("delivery_entitlements")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(50);
+        if (error) return { error };
+        return { data: (data ?? []) as DeliveryEntitlement[] };
+      },
+      providesTags: ["ClientEntitlements"],
+    }),
+
+    getMyDeliveryLedger: builder.query<
+      (DeliveryLedgerLine & { categories?: { name: string } | null })[],
+      void
+    >({
+      queryFn: async () => {
+        const { data, error } = await sb()
+          .from("delivery_ledger_lines")
+          .select("*, categories(name)")
+          .order("created_at", { ascending: false })
+          .limit(100);
+        if (error) return { error };
+        return {
+          data: (data ?? []) as (DeliveryLedgerLine & {
+            categories?: { name: string } | null;
+          })[],
+        };
+      },
+      providesTags: ["ClientDeliveryLedger"],
+    }),
+
     getClientPackages: builder.query<ClientCatalogPackage[], void>({
       queryFn: async () => {
         const res = await fetch("/api/client/packages");
@@ -439,6 +500,19 @@ export const clientApi = createApi({
         if (res.error) return { error: res.error };
         return { data: res.data! };
       },
+    }),
+
+    createPrepaidSession: builder.mutation<{ url: string }, { amount_cents: number }>({
+      queryFn: async (body) => {
+        const res = await requestJson<{ url: string }>(
+          "/api/client/billing/prepaid-session",
+          "POST",
+          body
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data! };
+      },
+      invalidatesTags: ["ClientEntitlements", "ClientDeliveryLedger"],
     }),
 
     getOrgUsers: builder.query<OrgUserWithLastLogin[], void>({
@@ -538,6 +612,7 @@ export const clientApi = createApi({
     runLeadFlowsNow: builder.mutation<
       {
         processed: number;
+        leads_delivered: number;
         failed: Array<{
           flow_id: string;
           package_id: string;
@@ -550,6 +625,7 @@ export const clientApi = createApi({
       queryFn: async () => {
         const res = await requestJson<{
           processed: number;
+          leads_delivered: number;
           failed: Array<{
             flow_id: string;
             package_id: string;
@@ -560,7 +636,15 @@ export const clientApi = createApi({
         if (res.error) return { error: res.error };
         return { data: res.data! };
       },
-      invalidatesTags: ["LeadFlows", "Wallet", "ClientLeads", "ClientDashboard", "ClientAudit"],
+      invalidatesTags: [
+        "LeadFlows",
+        "Wallet",
+        "ClientLeads",
+        "ClientDashboard",
+        "ClientAudit",
+        "ClientEntitlements",
+        "ClientDeliveryLedger",
+      ],
     }),
   }),
 });
@@ -579,6 +663,9 @@ export const {
   useGetClientOffersQuery,
   usePurchasePackageMutation,
   useCreateTopupSessionMutation,
+  useGetMyDeliveryEntitlementsQuery,
+  useGetMyDeliveryLedgerQuery,
+  useCreatePrepaidSessionMutation,
   useGetOrgUsersQuery,
   useCreateOrgUserMutation,
   useUpdateOrgUserMutation,

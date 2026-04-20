@@ -2,9 +2,13 @@ import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 import { createClient } from "@/lib/supabase/client";
 import type {
   Category,
+  CustomerDirectoryRow,
+  CustomerWithOrganization,
+  DeliveryEntitlement,
   Lead,
   LeadOffer,
   LeadPackage,
+  LeadPricebookRow,
   LeadWithCategory,
   OfferWithPackage,
   PackageWithCategory,
@@ -40,6 +44,82 @@ export type DashboardStats = {
 
 export type AdminLeadsAvailability = "all" | "available" | "sold";
 export type AdminLeadsSort = "newest" | "oldest";
+
+export type DeliverPrepaidLeadResult = {
+  customer_lead_id: string;
+  entitlement_id: string;
+  amount_cents: number;
+  balance_after_cents: number;
+};
+
+/** Tier 1 admin dashboard: lead analytics scope (catalog counts unchanged). */
+export type AdminDashboardFilters = {
+  /** Rolling window when dateFrom + dateTo are not both set. Default 30. */
+  daysBack?: number;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  categoryId?: string | null;
+  country?: string;
+  availability?: AdminLeadsAvailability;
+};
+
+const defaultAdminDashboardFilters: Required<
+  Pick<
+    AdminDashboardFilters,
+    "daysBack" | "dateFrom" | "dateTo" | "categoryId" | "country" | "availability"
+  >
+> = {
+  daysBack: 30,
+  dateFrom: null,
+  dateTo: null,
+  categoryId: null,
+  country: "",
+  availability: "all",
+};
+
+function resolveAdminDashboardFilters(
+  raw?: AdminDashboardFilters | void
+): typeof defaultAdminDashboardFilters {
+  return { ...defaultAdminDashboardFilters, ...raw };
+}
+
+/** Date / category / country — matches dashboard RPCs (not availability). */
+function applyDashboardScopeFilters<
+  T extends {
+    eq: (c: string, v: string) => T;
+    is: (c: string, v: null) => T;
+    not: (c: string, o: string, v: null) => T;
+    ilike: (c: string, p: string) => T;
+    gte: (c: string, v: string) => T;
+    lte: (c: string, v: string) => T;
+  },
+>(base: T, f: typeof defaultAdminDashboardFilters): T {
+  let q = base;
+  const hasRange = Boolean(f.dateFrom && f.dateTo);
+  if (hasRange) {
+    q = q
+      .gte("created_at", `${f.dateFrom}T00:00:00.000Z`)
+      .lte("created_at", `${f.dateTo}T23:59:59.999Z`);
+  } else {
+    const rollingFrom = new Date(
+      Date.now() - f.daysBack * 24 * 60 * 60 * 1000
+    ).toISOString();
+    q = q.gte("created_at", rollingFrom);
+  }
+  if (f.categoryId) q = q.eq("category_id", f.categoryId);
+  if (f.country.trim()) q = q.ilike("country", `%${f.country.trim()}%`);
+  return q;
+}
+
+function staffActivityDaysBack(f: typeof defaultAdminDashboardFilters): number {
+  if (f.dateFrom && f.dateTo) {
+    const a = new Date(`${f.dateFrom}T00:00:00.000Z`).getTime();
+    const b = new Date(`${f.dateTo}T23:59:59.999Z`).getTime();
+    const spanDays = Math.max(1, Math.ceil((b - a) / 86400000));
+    return Math.min(366, spanDays);
+  }
+  return Math.min(366, f.daysBack);
+}
 
 type LeadsQueryParams = {
   categoryId?: string | null;
@@ -88,37 +168,77 @@ async function jsonRequest<T>(
 export const adminApi = createApi({
   reducerPath: "adminApi",
   baseQuery: fakeBaseQuery(),
-  tagTypes: ["Leads", "Categories", "Packages", "Offers", "Staff", "Dashboard", "SupportContacts"],
+  tagTypes: [
+    "Leads",
+    "Categories",
+    "Packages",
+    "Offers",
+    "Staff",
+    "Customers",
+    "Dashboard",
+    "SupportContacts",
+    "Pricebook",
+    "Entitlements",
+  ],
   endpoints: (builder) => ({
-    getDashboardStats: builder.query<DashboardStats, void>({
-      queryFn: async () => {
+    getDashboardStats: builder.query<DashboardStats, AdminDashboardFilters | void>({
+      queryFn: async (raw) => {
+        const f = resolveAdminDashboardFilters(raw);
         const supabase = sb();
+        const rpcArgs = {
+          p_days_back: f.daysBack,
+          p_date_from: f.dateFrom,
+          p_date_to: f.dateTo,
+          p_filter_category_id: f.categoryId,
+          p_country_subtext: f.country.trim() || null,
+          p_availability: f.availability,
+        };
+        const head = () =>
+          supabase.from("leads").select("*", { count: "exact", head: true });
+        let totalQ = applyDashboardScopeFilters(head(), f);
+        if (f.availability === "available") totalQ = totalQ.is("sold_at", null);
+        else if (f.availability === "sold") totalQ = totalQ.not("sold_at", "is", null);
+
+        let soldQ = applyDashboardScopeFilters(head(), f).not("sold_at", "is", null);
+        if (f.availability === "available") soldQ = soldQ.is("sold_at", null);
+
+        let unsoldQ = applyDashboardScopeFilters(head(), f).is("sold_at", null);
+        if (f.availability === "sold") unsoldQ = unsoldQ.not("sold_at", "is", null);
+
         const [
-          byDay,
-          byCat,
+          byDayRes,
+          byCatRes,
           totalCountRow,
           soldRow,
           unsoldRow,
           pkgCountRow,
           catCountRow,
         ] = await Promise.all([
-          supabase.rpc("admin_leads_created_by_day", { days_back: 30 }),
-          supabase.rpc("admin_leads_by_category"),
-          supabase.from("leads").select("*", { count: "exact", head: true }),
-          supabase
-            .from("leads")
-            .select("*", { count: "exact", head: true })
-            .not("sold_at", "is", null),
-          supabase
-            .from("leads")
-            .select("*", { count: "exact", head: true })
-            .is("sold_at", null),
+          supabase.rpc("admin_leads_created_by_day", rpcArgs),
+          supabase.rpc("admin_leads_by_category", rpcArgs),
+          totalQ,
+          soldQ,
+          unsoldQ,
           supabase
             .from("lead_packages")
             .select("*", { count: "exact", head: true })
             .eq("active", true),
           supabase.from("categories").select("*", { count: "exact", head: true }),
         ]);
+
+        let byDay = byDayRes;
+        let byCat = byCatRes;
+        // Pre-migration DBs only expose legacy RPC signatures (`days_back`, no args).
+        if (byDay.error) {
+          const legacy = await supabase.rpc("admin_leads_created_by_day", {
+            days_back: f.daysBack,
+          });
+          if (!legacy.error) byDay = legacy;
+        }
+        if (byCat.error) {
+          const legacy = await supabase.rpc("admin_leads_by_category");
+          if (!legacy.error) byCat = legacy;
+        }
 
         if (byDay.error) return { error: byDay.error };
         if (byCat.error) return { error: byCat.error };
@@ -128,8 +248,9 @@ export const adminApi = createApi({
         if (pkgCountRow.error) return { error: pkgCountRow.error };
         if (catCountRow.error) return { error: catCountRow.error };
         const staffActivityRow = await supabase.rpc("admin_activity_by_staff", {
-          days_back: 14,
+          days_back: staffActivityDaysBack(f),
         });
+        if (staffActivityRow.error) return { error: staffActivityRow.error };
 
         const sold = soldRow.count ?? 0;
         const unsold = unsoldRow.count ?? 0;
@@ -202,7 +323,7 @@ export const adminApi = createApi({
         const ascending = sort === "oldest";
         const searchOr =
           search.trim() &&
-          `first_name.ilike.%${search.trim()}%,last_name.ilike.%${search.trim()}%,phone.ilike.%${search.trim()}%,notes.ilike.%${search.trim()}%,country.ilike.%${search.trim()}%`;
+          `first_name.ilike.%${search.trim()}%,last_name.ilike.%${search.trim()}%,phone.ilike.%${search.trim()}%,summary.ilike.%${search.trim()}%,country.ilike.%${search.trim()}%`;
 
         const supabase = sb();
         let listQuery = supabase
@@ -296,20 +417,78 @@ export const adminApi = createApi({
       providesTags: ["Staff"],
     }),
 
+    getCustomers: builder.query<CustomerDirectoryRow[], void>({
+      queryFn: async () => {
+        const supabase = sb();
+        const { data: profiles, error } = await supabase
+          .from("profiles")
+          .select("*, organizations(id, name)")
+          .in("role", ["customer_admin", "customer_agent"])
+          .order("created_at", { ascending: false });
+        if (error) return { error };
+
+        const { data: leadRows, error: leadErr } = await supabase
+          .from("customer_leads")
+          .select("organization_id");
+        if (leadErr) return { error: leadErr };
+
+        const countByOrg = new Map<string, number>();
+        for (const row of leadRows ?? []) {
+          const oid = row.organization_id as string;
+          countByOrg.set(oid, (countByOrg.get(oid) ?? 0) + 1);
+        }
+
+        const rows: CustomerDirectoryRow[] = (profiles ?? []).map((p) => {
+          const c = p as CustomerWithOrganization;
+          return {
+            ...c,
+            leadsPurchasedCount: c.organization_id
+              ? (countByOrg.get(c.organization_id) ?? 0)
+              : 0,
+          };
+        });
+
+        return { data: rows };
+      },
+      providesTags: ["Customers"],
+    }),
+
+    updateCustomer: builder.mutation<
+      Pick<Profile, "id" | "is_active">,
+      { id: string; is_active: boolean }
+    >({
+      queryFn: async ({ id, is_active }) => {
+        const { data, error } = await sb()
+          .from("profiles")
+          .update({ is_active })
+          .eq("id", id)
+          .in("role", ["customer_admin", "customer_agent"])
+          .select("id, is_active")
+          .single();
+        if (error) return { error };
+        return { data: data as Pick<Profile, "id" | "is_active"> };
+      },
+      invalidatesTags: ["Customers"],
+    }),
+
     createLead: builder.mutation<
       Lead,
-      Pick<Lead, "category_id" | "phone" | "first_name" | "last_name" | "country" | "notes"> & {
+      Pick<
+        Lead,
+        "category_id" | "lead_unit_type" | "phone" | "first_name" | "last_name" | "country" | "summary"
+      > & {
         sold_at?: string | null;
       }
     >({
       queryFn: async (body) => {
         const res = await jsonRequest<LeadWithCategory>("/api/admin/leads", "POST", {
           category_id: body.category_id,
+          lead_unit_type: body.lead_unit_type ?? "single",
           phone: body.phone,
           first_name: body.first_name,
           last_name: body.last_name,
           country: body.country,
-          notes: body.notes,
+          summary: body.summary,
           sold_at: body.sold_at ?? null,
         });
         if (res.error) return { error: res.error };
@@ -564,6 +743,64 @@ export const adminApi = createApi({
       },
       invalidatesTags: ["SupportContacts"],
     }),
+
+    getLeadPricebook: builder.query<LeadPricebookRow[], void>({
+      queryFn: async () => {
+        const { data, error } = await sb()
+          .from("lead_pricebook")
+          .select("*, categories(id, name, slug)")
+          .order("category_id");
+        if (error) return { error };
+        return { data: (data ?? []) as LeadPricebookRow[] };
+      },
+      providesTags: ["Pricebook"],
+    }),
+
+    updateLeadPricebook: builder.mutation<
+      LeadPricebookRow,
+      { id: string; price_cents?: number; label?: string; active?: boolean }
+    >({
+      queryFn: async ({ id, ...patch }) => {
+        const { data, error } = await sb()
+          .from("lead_pricebook")
+          .update(patch)
+          .eq("id", id)
+          .select("*, categories(id, name, slug)")
+          .single();
+        if (error) return { error };
+        return { data: data as LeadPricebookRow };
+      },
+      invalidatesTags: ["Pricebook"],
+    }),
+
+    getDeliveryEntitlements: builder.query<DeliveryEntitlement[], void>({
+      queryFn: async () => {
+        const { data, error } = await sb()
+          .from("delivery_entitlements")
+          .select("*, organizations(id, name)")
+          .order("created_at", { ascending: false })
+          .limit(100);
+        if (error) return { error };
+        return { data: (data ?? []) as DeliveryEntitlement[] };
+      },
+      providesTags: ["Entitlements"],
+    }),
+
+    deliverPrepaidLead: builder.mutation<
+      DeliverPrepaidLeadResult,
+      { organization_id: string; source_lead_id: string }
+    >({
+      queryFn: async (body) => {
+        const res = await jsonRequest<DeliverPrepaidLeadResult>(
+          "/api/admin/leads/deliver-prepaid",
+          "POST",
+          body
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data as DeliverPrepaidLeadResult };
+      },
+      invalidatesTags: ["Leads", "Dashboard", "Entitlements", "Customers"],
+    }),
   }),
 });
 
@@ -573,6 +810,8 @@ export const {
   useGetLeadsQuery,
   useGetPackagesQuery,
   useGetStaffQuery,
+  useGetCustomersQuery,
+  useUpdateCustomerMutation,
   useCreateLeadMutation,
   useUpdateLeadMutation,
   useDeleteLeadMutation,
@@ -592,4 +831,8 @@ export const {
   useCreateSupportContactMutation,
   useUpdateSupportContactMutation,
   useDeleteSupportContactMutation,
+  useGetLeadPricebookQuery,
+  useUpdateLeadPricebookMutation,
+  useGetDeliveryEntitlementsQuery,
+  useDeliverPrepaidLeadMutation,
 } = adminApi;

@@ -41,7 +41,7 @@ export async function POST(request: Request) {
         leads_per_week: parsed.data.leads_per_week,
         is_active: parsed.data.is_active,
         created_by: auth.userId,
-        next_run_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        next_run_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       },
       { onConflict: "organization_id,package_id" }
     )
