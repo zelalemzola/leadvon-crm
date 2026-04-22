@@ -24,10 +24,22 @@ export type CustomerWithOrganization = Profile & {
   organizations: Pick<Organization, "id" | "name"> | null;
 };
 
-/** Admin customers table: includes org-level purchased lead count. */
-export type CustomerDirectoryRow = CustomerWithOrganization & {
-  /** `customer_leads` rows for this profile's org (same for all members of an org). */
+/** Admin customers table: one row per client organization. */
+export type CustomerDirectoryRow = {
+  id: string;
+  organization_id: string;
+  organizations: Pick<Organization, "id" | "name">;
+  phone: string | null;
+  created_at: string;
   leadsPurchasedCount: number;
+  adminsCount: number;
+  agentsCount: number;
+  membersCount: number;
+  activeMembersCount: number;
+  is_active: boolean;
+  primary_admin_id: string | null;
+  primary_admin_email: string | null;
+  primary_admin_name: string | null;
 };
 
 export type Category = {
@@ -92,6 +104,7 @@ export type DeliveryEntitlement = {
 export type DeliveryLedgerLine = {
   id: string;
   entitlement_id: string;
+  invoice_id: string | null;
   organization_id: string;
   amount_cents: number;
   balance_after_cents: number;

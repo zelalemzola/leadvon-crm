@@ -56,13 +56,21 @@ export async function POST(request: Request) {
     }
     if (purpose === "prepaid_entitlement" && orgId && amountTotal > 0) {
       const ref = `checkout_session:${session.id}`;
-      const { error } = await service.rpc("create_delivery_entitlement", {
+      const ent = await service.rpc("create_delivery_entitlement", {
         p_organization_id: orgId,
         p_budget_cents: amountTotal,
         p_stripe_payment_ref: ref,
       });
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+      if (ent.error) {
+        return NextResponse.json({ error: ent.error.message }, { status: 500 });
+      }
+      const inv = await service.rpc("create_prepaid_purchase_invoice", {
+        p_organization_id: orgId,
+        p_amount_cents: amountTotal,
+        p_stripe_payment_ref: ref,
+      });
+      if (inv.error) {
+        return NextResponse.json({ error: inv.error.message }, { status: 500 });
       }
     }
   }

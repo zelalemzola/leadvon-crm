@@ -33,6 +33,42 @@ export async function POST(request: Request) {
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
+  // Ingest-triggered processing: when new inventory arrives, try immediate catch-up for this category.
+  // Idempotency key guarantees duplicate triggers for the same lead insert are harmless.
+  const ingestKey = `lead-insert:${data.id}`;
+  const runJob = await service.from("routing_job_runs").insert({
+    idempotency_key: ingestKey,
+    category_id: data.category_id,
+    trigger_source: "lead_insert",
+    status: "running",
+  });
+  if (!runJob.error) {
+    const routed = await service.rpc("run_due_customer_lead_flows", {
+      p_category_id: data.category_id,
+    });
+    if (routed.error) {
+      await service
+        .from("routing_job_runs")
+        .update({
+          status: "failed",
+          error_text: routed.error.message,
+          processed_at: new Date().toISOString(),
+        })
+        .eq("idempotency_key", ingestKey);
+    } else {
+      const delivered = typeof routed.data === "number" ? routed.data : Number(routed.data ?? 0);
+      await service
+        .from("routing_job_runs")
+        .update({
+          status: "completed",
+          delivered_count: delivered,
+          error_text: null,
+          processed_at: new Date().toISOString(),
+        })
+        .eq("idempotency_key", ingestKey);
+    }
+  }
+
   await writeAuditLog({
     actorId: staff.userId,
     action: "lead.create",

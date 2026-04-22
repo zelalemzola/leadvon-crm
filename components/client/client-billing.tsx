@@ -11,6 +11,7 @@ import {
   useGetLeadFlowsQuery,
   useGetMyDeliveryEntitlementsQuery,
   useGetMyDeliveryLedgerQuery,
+  useGetMyInvoicesQuery,
   useCreatePrepaidSessionMutation,
   useUpsertLeadFlowMutation,
   useRunLeadFlowsNowMutation,
@@ -33,6 +34,7 @@ export function ClientBilling() {
   const { data: entitlements, refetch: refetchEntitlements } =
     useGetMyDeliveryEntitlementsQuery();
   const { data: ledgerLines, refetch: refetchLedger } = useGetMyDeliveryLedgerQuery();
+  const { data: invoices } = useGetMyInvoicesQuery();
   const {
     data: packages,
     isLoading: packagesLoading,
@@ -47,6 +49,7 @@ export function ClientBilling() {
   const [prepaidAmount, setPrepaidAmount] = useState(100);
   const [selectedPackageId, setSelectedPackageId] = useState<string>("");
   const [leadsPerWeek, setLeadsPerWeek] = useState<number>(100);
+  const [monthlyTargetLeads, setMonthlyTargetLeads] = useState<number>(433);
   const canManageBilling = me?.role === "customer_admin" && me?.is_active;
 
   const offersByPackage = useMemo(() => {
@@ -63,6 +66,17 @@ export function ClientBilling() {
     () => (packages ?? []).find((p) => p.id === activePackageId) ?? null,
     [packages, activePackageId]
   );
+  const selectedFlow = useMemo(
+    () => (leadFlows ?? []).find((f) => f.package_id === activePackageId) ?? null,
+    [leadFlows, activePackageId]
+  );
+
+  useEffect(() => {
+    if (!selectedFlow) return;
+    setLeadsPerWeek(selectedFlow.leads_per_week);
+    const target = selectedFlow.customer_flow_commitments?.[0]?.monthly_target_leads;
+    if (target) setMonthlyTargetLeads(target);
+  }, [selectedFlow]);
 
   /** Rough daily target: spread weekly goal across 7 days (matches server accrual). */
   const dailyTargetLeads = useMemo(
@@ -77,6 +91,14 @@ export function ClientBilling() {
     [ledgerLines]
   );
   const avgCpl = leadsReceived > 0 ? totalDeliverySpend / leadsReceived : 0;
+  const totalRemainingBudget = useMemo(
+    () =>
+      (entitlements ?? [])
+        .filter((e) => e.status === "active")
+        .reduce((sum, e) => sum + Number(e.budget_cents_remaining || 0), 0),
+    [entitlements]
+  );
+  const estimatedLeadsLeft = avgCpl > 0 ? Math.floor(totalRemainingBudget / avgCpl) : null;
 
   const prepaidHandledRef = useRef<string | null>(null);
 
@@ -150,6 +172,8 @@ export function ClientBilling() {
       await upsertLeadFlow({
         package_id: selectedPackage.id,
         leads_per_week: leadsPerWeek,
+        monthly_target_leads: monthlyTargetLeads,
+        business_days_only: true,
         is_active: true,
       }).unwrap();
       toast.success("Lead flow activated");
@@ -213,7 +237,7 @@ export function ClientBilling() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 pt-4">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-4">
               <div className="space-y-2">
                 <Label>Product</Label>
                 <Select
@@ -254,18 +278,33 @@ export function ClientBilling() {
                   </p>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label>Leads per week (target)</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={leadsPerWeek}
-                  onChange={(e) => setLeadsPerWeek(Math.max(1, Number(e.target.value) || 1))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Roughly <strong>{dailyTargetLeads}</strong> leads accrue toward your queue each UTC day
-                  (rounded up). Actual deliveries depend on inventory and prepaid budget.
-                </p>
+              <div className="grid gap-4 md:grid-cols-2 md:items-start">
+                <div className="space-y-2 md:min-w-0">
+                  <Label>Leads per week (target)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={leadsPerWeek}
+                    onChange={(e) => setLeadsPerWeek(Math.max(1, Number(e.target.value) || 1))}
+                  />
+                  <p className="min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground">
+                    Roughly <strong>{dailyTargetLeads}</strong> leads accrue toward your queue each UTC day
+                    (rounded up). Actual deliveries depend on inventory and prepaid budget.
+                  </p>
+                </div>
+                <div className="space-y-2 md:min-w-0">
+                  <Label>Monthly target leads</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={monthlyTargetLeads}
+                    onChange={(e) => setMonthlyTargetLeads(Math.max(1, Number(e.target.value) || 1))}
+                  />
+                  <p className="min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground">
+                    Used for pace tracking and business-day commitments. If inventory is short, missed
+                    volume stays in queue and is made up automatically.
+                  </p>
+                </div>
               </div>
             </div>
             <Button
@@ -385,6 +424,35 @@ export function ClientBilling() {
                     . Last delivery:{" "}
                     {flow.last_run_at ? new Date(flow.last_run_at).toLocaleString() : "—"}.
                   </p>
+                  <p className="text-xs text-muted-foreground">
+                    Pace:{" "}
+                    <strong className="text-foreground">
+                      {flow.delivered_this_month ?? 0} /{" "}
+                      {flow.customer_flow_commitments?.[0]?.monthly_target_leads ??
+                        flow.accrued_this_month ??
+                        0}
+                    </strong>{" "}
+                    leads this month
+                    {flow.accrued_this_month
+                      ? ` (${Math.min(100, Math.round(((flow.delivered_this_month ?? 0) / Math.max(1, flow.accrued_this_month)) * 100))}% of accrued due so far)`
+                      : ""}
+                    .
+                  </p>
+                  {flow.accrued_this_month ? (
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.round(
+                              ((flow.delivered_this_month ?? 0) / Math.max(1, flow.accrued_this_month)) * 100
+                            )
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ))}
               {((leadFlows ?? []).filter((f) => f.is_active).length === 0) ? (
@@ -401,7 +469,7 @@ export function ClientBilling() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-2 gap-2 text-center md:grid-cols-4">
                 <div className="rounded-lg border border-border/60 bg-background/50 p-2">
                   <p className="text-xs text-muted-foreground">Leads Received</p>
                   <p className="text-lg font-semibold tabular-nums">{leadsReceived}</p>
@@ -413,6 +481,15 @@ export function ClientBilling() {
                 <div className="rounded-lg border border-border/60 bg-background/50 p-2">
                   <p className="text-xs text-muted-foreground">Avg CPL</p>
                   <p className="text-lg font-semibold tabular-nums">{money(Math.round(avgCpl))}</p>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-background/50 p-2">
+                  <p className="text-xs text-muted-foreground">Estimated leads left</p>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {estimatedLeadsLeft !== null ? estimatedLeadsLeft : "—"}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Based on current avg CPL and active budget.
+                  </p>
                 </div>
               </div>
               <div className="space-y-2">
@@ -446,6 +523,8 @@ export function ClientBilling() {
                 <TableHead>Date</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Category</TableHead>
+                <TableHead>Lead type</TableHead>
+                <TableHead>Invoice</TableHead>
                 <TableHead>Balance after</TableHead>
                 <TableHead>Notes</TableHead>
               </TableRow>
@@ -453,7 +532,7 @@ export function ClientBilling() {
             <TableBody>
               {(ledgerLines ?? []).length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-20 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="h-20 text-center text-muted-foreground">
                     No delivery charges yet. Add a prepaid budget above, then leads will appear here
                     when delivered.
                   </TableCell>
@@ -468,11 +547,81 @@ export function ClientBilling() {
                     <TableCell className="text-muted-foreground">
                       {(row as { categories?: { name?: string } | null }).categories?.name ?? "—"}
                     </TableCell>
+                    <TableCell className="text-muted-foreground capitalize">
+                      {row.unit_type ?? "—"}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {row.invoice_id ? row.invoice_id.slice(0, 8) : "—"}
+                    </TableCell>
                     <TableCell className="tabular-nums text-muted-foreground">
                       {money(row.balance_after_cents)}
                     </TableCell>
                     <TableCell className="max-w-[220px] truncate text-muted-foreground">
                       {row.description || "—"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/70 bg-card/50">
+        <CardHeader>
+          <CardTitle className="text-base">Invoices</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Formal billing records for prepaid purchases and month-end delivery usage.
+          </p>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Created</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Period</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Reference</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(invoices ?? []).length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
+                    No invoices yet.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                (invoices ?? []).map((inv) => (
+                  <TableRow key={inv.id}>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(inv.created_at).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="capitalize text-muted-foreground">
+                      {inv.invoice_type.replaceAll("_", " ")}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(inv.period_start).toLocaleDateString()} -{" "}
+                      {new Date(inv.period_end).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={
+                          inv.status === "paid"
+                            ? "bg-emerald-500/15 text-emerald-300"
+                            : inv.status === "open"
+                              ? "bg-amber-500/15 text-amber-300"
+                              : "bg-muted text-muted-foreground"
+                        }
+                      >
+                        {inv.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-medium tabular-nums">{money(inv.total_cents)}</TableCell>
+                    <TableCell className="max-w-[220px] truncate text-muted-foreground">
+                      {inv.stripe_payment_ref ?? "—"}
                     </TableCell>
                   </TableRow>
                 ))

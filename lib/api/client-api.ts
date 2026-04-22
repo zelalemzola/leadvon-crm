@@ -86,6 +86,21 @@ export type WalletTransaction = {
   created_at: string;
 };
 
+export type DeliveryInvoice = {
+  id: string;
+  organization_id: string;
+  invoice_type: "prepaid_purchase" | "month_end_usage";
+  status: "open" | "paid" | "void";
+  currency: string;
+  period_start: string;
+  period_end: string;
+  subtotal_cents: number;
+  total_cents: number;
+  stripe_payment_ref: string | null;
+  notes: string;
+  created_at: string;
+};
+
 export type ClientCatalogPackage = PackageWithCategory & {
   available_unsold_leads: number;
 };
@@ -105,6 +120,16 @@ export type CustomerLeadFlow = {
   /** Leads queued for delivery (daily accrual + catch-up). */
   pending_delivery_leads?: number;
   last_obligation_date?: string | null;
+  accrued_this_month?: number;
+  delivered_this_month?: number;
+  customer_flow_commitments?:
+    | {
+        monthly_target_leads: number;
+        business_days_only: boolean;
+        shortfall_policy: "carry_forward";
+        is_active: boolean;
+      }[]
+    | null;
   created_at: string;
   updated_at: string;
   lead_packages: { id: string; name: string; leads_count: number; category_id: string } | null;
@@ -150,6 +175,7 @@ export const clientApi = createApi({
     "SupportContacts",
     "ClientEntitlements",
     "ClientDeliveryLedger",
+    "ClientInvoices",
   ],
   endpoints: (builder) => ({
     getClientMe: builder.query<ClientMe | null, void>({
@@ -464,6 +490,19 @@ export const clientApi = createApi({
       providesTags: ["ClientDeliveryLedger"],
     }),
 
+    getMyInvoices: builder.query<DeliveryInvoice[], void>({
+      queryFn: async () => {
+        const { data, error } = await sb()
+          .from("delivery_invoices")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(100);
+        if (error) return { error };
+        return { data: (data ?? []) as DeliveryInvoice[] };
+      },
+      providesTags: ["ClientInvoices"],
+    }),
+
     getClientPackages: builder.query<ClientCatalogPackage[], void>({
       queryFn: async () => {
         const res = await fetch("/api/client/packages");
@@ -596,16 +635,17 @@ export const clientApi = createApi({
     }),
 
     upsertLeadFlow: builder.mutation<
-      { id: string; package_id: string; leads_per_week: number; is_active: boolean },
-      { package_id: string; leads_per_week: number; is_active?: boolean }
+      CustomerLeadFlow,
+      {
+        package_id: string;
+        leads_per_week: number;
+        monthly_target_leads?: number;
+        business_days_only?: boolean;
+        is_active?: boolean;
+      }
     >({
       queryFn: async (body) => {
-        const res = await requestJson<{
-          id: string;
-          package_id: string;
-          leads_per_week: number;
-          is_active: boolean;
-        }>("/api/client/lead-flows", "POST", body);
+        const res = await requestJson<CustomerLeadFlow>("/api/client/lead-flows", "POST", body);
         if (res.error) return { error: res.error };
         return { data: res.data! };
       },
@@ -613,16 +653,17 @@ export const clientApi = createApi({
     }),
 
     updateLeadFlow: builder.mutation<
-      { id: string; package_id: string; leads_per_week: number; is_active: boolean },
-      { id: string; leads_per_week?: number; is_active?: boolean }
+      CustomerLeadFlow,
+      {
+        id: string;
+        leads_per_week?: number;
+        monthly_target_leads?: number;
+        business_days_only?: boolean;
+        is_active?: boolean;
+      }
     >({
       queryFn: async ({ id, ...body }) => {
-        const res = await requestJson<{
-          id: string;
-          package_id: string;
-          leads_per_week: number;
-          is_active: boolean;
-        }>(`/api/client/lead-flows/${id}`, "PATCH", body);
+        const res = await requestJson<CustomerLeadFlow>(`/api/client/lead-flows/${id}`, "PATCH", body);
         if (res.error) return { error: res.error };
         return { data: res.data! };
       },
@@ -685,6 +726,7 @@ export const {
   useCreateTopupSessionMutation,
   useGetMyDeliveryEntitlementsQuery,
   useGetMyDeliveryLedgerQuery,
+  useGetMyInvoicesQuery,
   useCreatePrepaidSessionMutation,
   useGetOrgUsersQuery,
   useCreateOrgUserMutation,

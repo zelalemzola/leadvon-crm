@@ -12,7 +12,9 @@ export async function GET() {
   const service = createServiceClient();
   const { data, error } = await service
     .from("customer_lead_flows")
-    .select("*, lead_packages(id, name, leads_count, category_id)")
+    .select(
+      "*, lead_packages(id, name, leads_count, category_id), customer_flow_commitments(monthly_target_leads, business_days_only, shortfall_policy, is_active)"
+    )
     .eq("organization_id", auth.organizationId)
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -49,6 +51,30 @@ export async function POST(request: Request) {
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
+  if (parsed.data.monthly_target_leads !== undefined) {
+    const cRes = await service.from("customer_flow_commitments").upsert(
+      {
+        flow_id: data.id,
+        monthly_target_leads: parsed.data.monthly_target_leads,
+        business_days_only: parsed.data.business_days_only ?? true,
+        is_active: true,
+      },
+      { onConflict: "flow_id" }
+    );
+    if (cRes.error) {
+      return NextResponse.json({ error: cRes.error.message }, { status: 400 });
+    }
+  }
+
+  const shaped = await service
+    .from("customer_lead_flows")
+    .select(
+      "id, package_id, leads_per_week, is_active, pending_delivery_leads, accrued_this_month, delivered_this_month, last_obligation_date, customer_flow_commitments(monthly_target_leads, business_days_only, shortfall_policy, is_active)"
+    )
+    .eq("id", data.id)
+    .single();
+  if (shaped.error) return NextResponse.json({ error: shaped.error.message }, { status: 400 });
+
   await writeCustomerAuditLog({
     organizationId: auth.organizationId,
     actorId: auth.userId,
@@ -58,9 +84,11 @@ export async function POST(request: Request) {
     details: {
       package_id: parsed.data.package_id,
       leads_per_week: parsed.data.leads_per_week,
+      monthly_target_leads: parsed.data.monthly_target_leads,
+      business_days_only: parsed.data.business_days_only ?? true,
       is_active: parsed.data.is_active,
     },
   });
 
-  return NextResponse.json({ data });
+  return NextResponse.json({ data: shaped.data });
 }
