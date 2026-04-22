@@ -24,6 +24,12 @@ type CustomerLeadStatus =
   | "duplicate"
   | "closed";
 
+export type CustomerLeadSort =
+  | "newest_added"
+  | "oldest_added"
+  | "recently_updated"
+  | "oldest_updated";
+
 export type CustomerLead = {
   id: string;
   organization_id: string;
@@ -183,8 +189,10 @@ export const clientApi = createApi({
         search?: string;
         categoryId?: string;
         country?: string | "all";
+        unitType?: LeadUnitType | "all";
         status?: CustomerLeadStatus | "all";
         assignedTo?: string | "all";
+        sort?: CustomerLeadSort;
         page?: number;
         pageSize?: number;
       }
@@ -193,8 +201,10 @@ export const clientApi = createApi({
         search = "",
         categoryId,
         country = "all",
+        unitType = "all",
         status = "all",
         assignedTo = "all",
+        sort = "newest_added",
         page = 1,
         pageSize = 20,
       }) => {
@@ -204,10 +214,19 @@ export const clientApi = createApi({
         let q = sb()
           .from("customer_leads")
           .select("*, categories(id, name, slug), assignee:profiles!customer_leads_assigned_to_fkey(id, email, full_name)")
-          .order("created_at", { ascending: false })
           .range(from, to);
+        if (sort === "oldest_added") {
+          q = q.order("created_at", { ascending: true });
+        } else if (sort === "recently_updated") {
+          q = q.order("updated_at", { ascending: false });
+        } else if (sort === "oldest_updated") {
+          q = q.order("updated_at", { ascending: true });
+        } else {
+          q = q.order("created_at", { ascending: false });
+        }
         if (categoryId) q = q.eq("category_id", categoryId);
         if (country !== "all") q = q.eq("country", country);
+        if (unitType !== "all") q = q.eq("lead_unit_type", unitType);
         if (status !== "all") q = q.eq("status", status);
         if (assignedTo !== "all") q = q.eq("assigned_to", assignedTo);
         if (search.trim()) {
@@ -222,6 +241,7 @@ export const clientApi = createApi({
         let cq = sb().from("customer_leads").select("*", { head: true, count: "exact" });
         if (categoryId) cq = cq.eq("category_id", categoryId);
         if (country !== "all") cq = cq.eq("country", country);
+        if (unitType !== "all") cq = cq.eq("lead_unit_type", unitType);
         if (status !== "all") cq = cq.eq("status", status);
         if (assignedTo !== "all") cq = cq.eq("assigned_to", assignedTo);
         if (search.trim()) {
