@@ -6,10 +6,16 @@ export const dynamic = "force-dynamic";
 
 /** Call often (e.g. every 5–15 minutes) so queued leads deliver soon after inventory lands. */
 
-export async function POST(request: Request) {
+function isAuthorized(request: Request) {
   const auth = request.headers.get("authorization");
+  const xCron = request.headers.get("x-cron-secret");
   const secret = process.env.CRON_SECRET?.trim();
-  if (!secret || auth !== `Bearer ${secret}`) {
+  if (!secret) return false;
+  return auth === `Bearer ${secret}` || xCron === secret;
+}
+
+async function run(request: Request) {
+  if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -20,4 +26,12 @@ export async function POST(request: Request) {
   }
   const leadsDelivered = typeof data === "number" ? data : Number(data ?? 0);
   return NextResponse.json({ data: { leads_delivered: leadsDelivered, processed: leadsDelivered } });
+}
+
+export async function GET(request: Request) {
+  return run(request);
+}
+
+export async function POST(request: Request) {
+  return run(request);
 }

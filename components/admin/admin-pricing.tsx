@@ -184,15 +184,16 @@ function CategoriesPanel() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Slug</TableHead>
-                    <TableHead>Packages</TableHead>
-                    <TableHead>Avg package price</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Packages</TableHead>
+                  <TableHead>Avg package price</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(categories ?? []).length === 0 ? (
                   <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
+                    <TableCell colSpan={6} className="h-24 text-center">
                       No categories yet.
                     </TableCell>
                   </TableRow>
@@ -201,6 +202,13 @@ function CategoriesPanel() {
                     <TableRow key={c.id}>
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell className="text-muted-foreground">{c.slug}</TableCell>
+                      <TableCell>
+                        {c.source_system === "base44" ? (
+                          <Badge variant="secondary">Imported from Base44</Badge>
+                        ) : (
+                          <Badge variant="outline">Manual</Badge>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {
                           (packages ?? []).filter((p) => p.category_id === c.id)

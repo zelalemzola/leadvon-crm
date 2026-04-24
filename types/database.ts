@@ -47,6 +47,8 @@ export type Category = {
   name: string;
   slug: string;
   created_at: string;
+  source_system?: string | null;
+  source_external_value?: string | null;
 };
 
 /** Inventory / customer lead unit for prepaid drawdown pricing. */
@@ -65,6 +67,12 @@ export type Lead = {
   sold_at: string | null;
   /** Set after migration `20260418210000`; defaults to single in DB. */
   lead_unit_type?: LeadUnitType;
+  /** Source tracking for external lead providers (e.g. Base44). */
+  source_system?: string;
+  source_external_id?: string | null;
+  source_payload?: Record<string, unknown> | null;
+  source_created_at?: string | null;
+  source_updated_at?: string | null;
 };
 
 /** Per category × unit; USD cents. Drives budget drawdown when leads are delivered. */

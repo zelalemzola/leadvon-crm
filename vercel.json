@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/base44-sync",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/lead-flows",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/invoices",
+      "schedule": "5 0 * * *"
+    }
+  ]
+}
