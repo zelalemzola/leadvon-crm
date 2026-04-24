@@ -47,6 +47,7 @@ import {
 } from "recharts";
 import { TrendingUp, Users, Package, Layers } from "lucide-react";
 import { formatQueryError } from "@/lib/utils";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 const BAR_COLORS = [
   "var(--chart-1)",
@@ -57,6 +58,12 @@ const BAR_COLORS = [
 ];
 
 export function AdminDashboard() {
+  const { t } = useI18n();
+  const tr = (key: string, vars: Record<string, string>) =>
+    Object.entries(vars).reduce(
+      (msg, [varKey, varValue]) => msg.replaceAll(`{${varKey}}`, varValue),
+      t(key)
+    );
   const [daysBack, setDaysBack] = useState(30);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -83,8 +90,8 @@ export function AdminDashboard() {
 
   const periodLabel = useMemo(() => {
     if (dateFrom && dateTo) return `${dateFrom} → ${dateTo} (UTC)`;
-    return `Rolling ${daysBack} days`;
-  }, [dateFrom, dateTo, daysBack]);
+    return tr("admin.dashboard.rollingDays", { days: String(daysBack) });
+  }, [dateFrom, dateTo, daysBack, tr]);
 
   const avgCategoriesDenominator = useMemo(() => {
     const rows = stats?.leadsByCategory;
@@ -97,15 +104,14 @@ export function AdminDashboard() {
     return (
       <div className="space-y-2 p-8">
         <p className="text-destructive">
-          Failed to load dashboard: {formatQueryError(error)}
+          {t("admin.dashboard.failedToLoad")} {formatQueryError(error)}
         </p>
         <p className="text-sm text-muted-foreground">
-          If you see a database or function error, apply pending Supabase migrations
-          (e.g.{" "}
+          {t("admin.dashboard.errorHintBefore")}{" "}
           <code className="rounded bg-muted px-1 py-0.5 text-xs">
             supabase db push
           </code>
-          ) so analytics RPCs match the app.
+          {t("admin.dashboard.errorHintAfter")}
         </p>
       </div>
     );
@@ -115,14 +121,14 @@ export function AdminDashboard() {
     <div className="flex flex-1 flex-col gap-8 p-6 lg:p-8">
       <header className="space-y-4">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("admin.dashboard.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            Company performance and lead inventory overview.
+            {t("admin.dashboard.subtitle")}
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border/70 bg-card/40 p-3">
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Date from</Label>
+            <Label className="text-xs text-muted-foreground">{t("admin.dashboard.dateFrom")}</Label>
             <Input
               type="date"
               value={dateFrom}
@@ -131,7 +137,7 @@ export function AdminDashboard() {
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Date to</Label>
+            <Label className="text-xs text-muted-foreground">{t("admin.dashboard.dateTo")}</Label>
             <Input
               type="date"
               value={dateTo}
@@ -141,7 +147,7 @@ export function AdminDashboard() {
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">
-              Rolling days (if no range)
+              {t("admin.dashboard.rollingDaysLabel")}
             </Label>
             <Select
               value={String(daysBack)}
@@ -152,23 +158,23 @@ export function AdminDashboard() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="7">7 days</SelectItem>
-                <SelectItem value="30">30 days</SelectItem>
-                <SelectItem value="90">90 days</SelectItem>
+                <SelectItem value="7">{t("admin.dashboard.days7")}</SelectItem>
+                <SelectItem value="30">{t("admin.dashboard.days30")}</SelectItem>
+                <SelectItem value="90">{t("admin.dashboard.days90")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Category</Label>
+            <Label className="text-xs text-muted-foreground">{t("admin.dashboard.category")}</Label>
             <Select
               value={categoryId}
               onValueChange={(v) => setCategoryId(v as typeof categoryId)}
             >
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All" />
+                <SelectValue placeholder={t("admin.dashboard.all")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All categories</SelectItem>
+                <SelectItem value="all">{t("admin.dashboard.allCategories")}</SelectItem>
                 {(categories ?? []).map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
@@ -178,16 +184,16 @@ export function AdminDashboard() {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Country</Label>
+            <Label className="text-xs text-muted-foreground">{t("admin.dashboard.country")}</Label>
             <Input
               value={country}
               onChange={(e) => setCountry(e.target.value)}
-              placeholder="Contains…"
+              placeholder={t("admin.dashboard.contains")}
               className="w-[150px]"
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Availability</Label>
+            <Label className="text-xs text-muted-foreground">{t("admin.dashboard.availability")}</Label>
             <Select
               value={availability}
               onValueChange={(v) => setAvailability(v as AdminLeadsAvailability)}
@@ -196,16 +202,15 @@ export function AdminDashboard() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="available">Available</SelectItem>
-                <SelectItem value="sold">Sold</SelectItem>
+                <SelectItem value="all">{t("admin.dashboard.all")}</SelectItem>
+                <SelectItem value="available">{t("admin.dashboard.available")}</SelectItem>
+                <SelectItem value="sold">{t("admin.dashboard.sold")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Lead metrics and charts use the filters above. Active packages and total
-          categories are catalog-wide. Period: {periodLabel}.
+          {tr("admin.dashboard.filtersHint", { period: periodLabel })}
         </p>
       </header>
 
@@ -221,52 +226,54 @@ export function AdminDashboard() {
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <MetricCard
-              title="Total leads"
+              title={t("admin.dashboard.totalLeads")}
               value={stats.totalLeads}
-              subtitle="In inventory"
+              subtitle={t("admin.dashboard.inInventory")}
               icon={Users}
               highlight
             />
             <MetricCard
-              title="Available"
+              title={t("admin.dashboard.available")}
               value={stats.unsoldLeads}
-              subtitle="Not yet sold"
+              subtitle={t("admin.dashboard.notYetSold")}
               icon={Layers}
             />
             <MetricCard
-              title="Sold"
+              title={t("admin.dashboard.sold")}
               value={stats.soldLeads}
-              subtitle="Marked sold"
+              subtitle={t("admin.dashboard.markedSold")}
               icon={TrendingUp}
             />
             <MetricCard
-              title="Active packages"
+              title={t("admin.dashboard.activePackages")}
               value={stats.activePackages}
-              subtitle={`${stats.categoryCount} categories (catalog-wide)`}
+              subtitle={tr("admin.dashboard.categoriesCatalogWide", {
+                count: String(stats.categoryCount),
+              })}
               icon={Package}
             />
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
             <Card className="border-border/80 bg-card/50 lg:col-span-2">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Performance snapshot</CardTitle>
+                <CardTitle className="text-base">{t("admin.dashboard.performanceSnapshot")}</CardTitle>
                 <CardDescription>
-                  High-level conversion indicators from inventory state.
+                  {t("admin.dashboard.performanceSnapshotDesc")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-3">
                 <SnapshotPill
-                  label="Sell-through"
+                  label={t("admin.dashboard.sellThrough")}
                   value={percentage(stats.soldLeads, stats.totalLeads)}
                   tone="rose"
                 />
                 <SnapshotPill
-                  label="Availability rate"
+                  label={t("admin.dashboard.availabilityRate")}
                   value={percentage(stats.unsoldLeads, stats.totalLeads)}
                   tone="emerald"
                 />
                 <SnapshotPill
-                  label="Avg leads / category"
+                  label={t("admin.dashboard.avgLeadsPerCategory")}
                   value={(stats.totalLeads / avgCategoriesDenominator).toFixed(1)}
                   tone="violet"
                 />
@@ -274,15 +281,15 @@ export function AdminDashboard() {
             </Card>
             <Card className="border-border/80 bg-card/50">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Inventory health</CardTitle>
-                <CardDescription>Quick operational check.</CardDescription>
+                <CardTitle className="text-base">{t("admin.dashboard.inventoryHealth")}</CardTitle>
+                <CardDescription>{t("admin.dashboard.inventoryHealthDesc")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <HealthRow label="Total inventory" value={String(stats.totalLeads)} />
-                <HealthRow label="Available now" value={String(stats.unsoldLeads)} />
-                <HealthRow label="Sold records" value={String(stats.soldLeads)} />
+                <HealthRow label={t("admin.dashboard.totalInventory")} value={String(stats.totalLeads)} />
+                <HealthRow label={t("admin.dashboard.availableNow")} value={String(stats.unsoldLeads)} />
+                <HealthRow label={t("admin.dashboard.soldRecords")} value={String(stats.soldLeads)} />
                 <HealthRow
-                  label="Active packages"
+                  label={t("admin.dashboard.activePackages")}
                   value={String(stats.activePackages)}
                 />
               </CardContent>
@@ -291,15 +298,15 @@ export function AdminDashboard() {
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className="border-border/80 bg-card/50">
               <CardHeader>
-                <CardTitle className="text-base">Leads flow</CardTitle>
+                <CardTitle className="text-base">{t("admin.dashboard.leadsFlow")}</CardTitle>
                 <CardDescription>
-                  New inventory leads per day ({periodLabel}).
+                  {tr("admin.dashboard.newInventoryPerDay", { period: periodLabel })}
                 </CardDescription>
               </CardHeader>
               <CardContent className="h-[280px] pt-0">
                 {stats.leadsByDay.length === 0 ? (
                   <p className="py-12 text-center text-sm text-muted-foreground">
-                    No leads in this period. Add leads under Leads.
+                    {t("admin.dashboard.noLeadsInPeriod")}
                   </p>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
@@ -357,16 +364,16 @@ export function AdminDashboard() {
 
             <Card className="border-border/80 bg-card/50">
               <CardHeader>
-                <CardTitle className="text-base">By category</CardTitle>
+                <CardTitle className="text-base">{t("admin.dashboard.byCategory")}</CardTitle>
                 <CardDescription>
-                  Lead counts per category (including zero).
+                  {t("admin.dashboard.byCategoryDesc")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="h-[280px] pt-0">
                 {(!categories || categories.length === 0) &&
                 stats.leadsByCategory.length === 0 ? (
                   <p className="py-12 text-center text-sm text-muted-foreground">
-                    Create categories under Pricing, then add leads.
+                    {t("admin.dashboard.createCategoriesHint")}
                   </p>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
@@ -421,27 +428,27 @@ export function AdminDashboard() {
 
           <Card className="border-border/80 bg-card/50">
             <CardHeader>
-              <CardTitle className="text-base">Category performance table</CardTitle>
+              <CardTitle className="text-base">{t("admin.dashboard.categoryPerformanceTable")}</CardTitle>
               <CardDescription>
-                Detailed breakdown by category, including availability.
+                {t("admin.dashboard.categoryPerformanceDesc")}
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Total leads</TableHead>
-                    <TableHead>Available</TableHead>
-                    <TableHead>Sold</TableHead>
-                    <TableHead>Availability</TableHead>
+                    <TableHead>{t("admin.dashboard.category")}</TableHead>
+                    <TableHead>{t("admin.dashboard.totalLeads")}</TableHead>
+                    <TableHead>{t("admin.dashboard.available")}</TableHead>
+                    <TableHead>{t("admin.dashboard.sold")}</TableHead>
+                    <TableHead>{t("admin.dashboard.availability")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {stats.leadsByCategory.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-16 text-center">
-                        No category stats yet.
+                        {t("admin.dashboard.noCategoryStats")}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -479,36 +486,35 @@ export function AdminDashboard() {
 
             <Card className="border-border/80 bg-card/50">
             <CardHeader>
-              <CardTitle className="text-base">Staff activity</CardTitle>
+              <CardTitle className="text-base">{t("admin.dashboard.staffActivity")}</CardTitle>
               <CardDescription>
-                Admin actions in audit logs. Window length follows your lead
-                period (rolling backward from now, capped at 366 days).
+                {t("admin.dashboard.staffActivityDesc")}
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Staff</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t("admin.dashboard.staff")}</TableHead>
+                    <TableHead>{t("admin.dashboard.email")}</TableHead>
+                    <TableHead className="text-right">{t("admin.dashboard.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {stats.staffActivity.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={3} className="h-16 text-center">
-                        No activity yet.
+                        {t("admin.dashboard.noActivity")}
                       </TableCell>
                     </TableRow>
                   ) : (
                     stats.staffActivity.map((row) => (
                       <TableRow key={row.actor_id}>
                         <TableCell className="font-medium">
-                          {row.full_name || "Unnamed staff"}
+                          {row.full_name || t("admin.dashboard.unnamedStaff")}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {row.email ?? "—"}
+                          {row.email ?? t("admin.dashboard.na")}
                         </TableCell>
                         <TableCell className="text-right">
                           <Badge variant="outline">{row.action_count}</Badge>

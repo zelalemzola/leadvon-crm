@@ -18,30 +18,34 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 const nav = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/overview", label: "Client Overview", icon: BarChart3 },
-  { href: "/admin/distribution", label: "Distribution", icon: Activity },
-  { href: "/admin/margins", label: "Margins", icon: DollarSign },
-  { href: "/admin/finance", label: "Finance", icon: Landmark },
-  { href: "/admin/leads", label: "Leads", icon: Users },
-  { href: "/admin/customers", label: "Customers", icon: Contact },
-  { href: "/admin/pricing", label: "Pricing", icon: Package },
-  { href: "/admin/support", label: "Support", icon: LifeBuoy },
-  { href: "/admin/staff", label: "Staff", icon: UserCog },
+  { href: "/admin", key: "admin.nav.dashboard", icon: LayoutDashboard },
+  { href: "/admin/overview", key: "admin.nav.clientOverview", icon: BarChart3 },
+  { href: "/admin/distribution", key: "admin.nav.distribution", icon: Activity },
+  { href: "/admin/margins", key: "admin.nav.margins", icon: DollarSign },
+  { href: "/admin/finance", key: "admin.nav.finance", icon: Landmark },
+  { href: "/admin/leads", key: "admin.nav.leads", icon: Users },
+  { href: "/admin/customers", key: "admin.nav.customers", icon: Contact },
+  { href: "/admin/pricing", key: "admin.nav.pricing", icon: Package },
+  { href: "/admin/support", key: "admin.nav.support", icon: LifeBuoy },
+  { href: "/admin/staff", key: "admin.nav.staff", icon: UserCog },
 ];
 
 export function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { t, locale, localizePath } = useI18n();
+  const normalizedPath = pathname.replace(/^\/(en|fr)(?=\/|$)/, "") || "/";
 
   async function signOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push("/login");
+    router.push(localizePath("/login"));
     router.refresh();
   }
 
@@ -54,20 +58,20 @@ export function AdminSidebar() {
         <div>
           <p className="text-sm font-semibold tracking-tight">LeadVon</p>
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Admin
+            {t("admin.shell.subtitle")}
           </p>
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 p-3">
-        {nav.map(({ href, label, icon: Icon }) => {
+        {nav.map(({ href, key, icon: Icon }) => {
           const active =
             href === "/admin"
-              ? pathname === "/admin"
-              : pathname.startsWith(href);
+              ? normalizedPath === "/admin"
+              : normalizedPath.startsWith(href);
           return (
             <Link
               key={href}
-              href={href}
+              href={`/${locale}${href}`}
               className={cn(
                 "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 active
@@ -76,19 +80,20 @@ export function AdminSidebar() {
               )}
             >
               <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
-              {label}
+              {t(key)}
             </Link>
           );
         })}
       </nav>
       <div className="border-t border-border p-3">
+        <LanguageSwitcher />
         <Button
           variant="ghost"
           className="w-full justify-start gap-2 text-muted-foreground"
           onClick={() => void signOut()}
         >
           <LogOut className="size-4" aria-hidden />
-          Sign out
+          {t("common.signOut")}
         </Button>
       </div>
     </aside>

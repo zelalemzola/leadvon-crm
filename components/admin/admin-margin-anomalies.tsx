@@ -17,8 +17,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatQueryError } from "@/lib/utils";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function AdminMarginAnomalies() {
+  const { localizePath, t } = useI18n();
   const searchParams = useSearchParams();
   const [days, setDays] = useState(Number(searchParams.get("days") ?? 30));
   const [organizationId, setOrganizationId] = useState<string>(
@@ -57,17 +59,17 @@ export function AdminMarginAnomalies() {
   }, [customers]);
   const orgLabel =
     organizationId === "all"
-      ? "All"
+      ? t("adminMargins.all")
       : orgChoices.find((o) => o.id === organizationId)?.name ?? organizationId.slice(0, 8);
   const categoryLabel =
     categoryId === "all"
-      ? "All"
+      ? t("adminMargins.all")
       : (categories ?? []).find((c) => c.id === categoryId)?.name ?? categoryId.slice(0, 8);
 
   if (isError) {
     return (
       <div className="p-8">
-        <p className="text-destructive">Failed to load margin anomalies: {formatQueryError(error)}</p>
+        <p className="text-destructive">{t("adminMargins.failedToLoad")} {formatQueryError(error)}</p>
       </div>
     );
   }
@@ -75,40 +77,40 @@ export function AdminMarginAnomalies() {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 lg:p-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Margin Anomaly Monitor</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("adminMargins.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          Compares realized CPL against active pricebook baselines to flag drift.
+          {t("adminMargins.subtitle")}
         </p>
         <div className="flex flex-wrap gap-2 pt-1">
           <Link
             className="text-xs text-primary hover:underline"
-            href={`/admin/distribution?organization_id=${encodeURIComponent(organizationId)}${categoryId !== "all" ? `&category_id=${encodeURIComponent(categoryId)}` : ""}`}
+            href={`${localizePath("/admin/distribution")}?organization_id=${encodeURIComponent(organizationId)}${categoryId !== "all" ? `&category_id=${encodeURIComponent(categoryId)}` : ""}`}
           >
-            Open Distribution Console
+            {t("adminMargins.openDistribution")}
           </Link>
           <Link
             className="text-xs text-primary hover:underline"
-            href={`/admin/overview${organizationId !== "all" ? `?organization_id=${encodeURIComponent(organizationId)}` : ""}`}
+            href={`${localizePath("/admin/overview")}${organizationId !== "all" ? `?organization_id=${encodeURIComponent(organizationId)}` : ""}`}
           >
-            Open Client Overview
+            {t("adminMargins.openOverview")}
           </Link>
-          <Link className="text-xs text-primary hover:underline" href="/admin/finance">
-            Open Finance Snapshot
+          <Link className="text-xs text-primary hover:underline" href={localizePath("/admin/finance")}>
+            {t("adminMargins.openFinance")}
           </Link>
         </div>
         <AdminContextPills
           pills={[
-            { label: "Window", value: `${days}d` },
-            { label: "Organization", value: orgLabel },
-            { label: "Category", value: categoryLabel },
+            { label: t("adminMargins.window"), value: `${days}d` },
+            { label: t("adminMargins.organization"), value: orgLabel },
+            { label: t("adminMargins.category"), value: categoryLabel },
           ]}
         />
       </header>
 
       <Card className="border-border/80 bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base">Scope</CardTitle>
-          <CardDescription>Filter by window, organization, and category.</CardDescription>
+          <CardTitle className="text-base">{t("adminMargins.scope")}</CardTitle>
+          <CardDescription>{t("adminMargins.scopeDesc")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
@@ -116,17 +118,17 @@ export function AdminMarginAnomalies() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7">7 days</SelectItem>
-              <SelectItem value="30">30 days</SelectItem>
-              <SelectItem value="90">90 days</SelectItem>
+              <SelectItem value="7">{t("admin.dashboard.days7")}</SelectItem>
+              <SelectItem value="30">{t("admin.dashboard.days30")}</SelectItem>
+              <SelectItem value="90">{t("admin.dashboard.days90")}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={organizationId} onValueChange={setOrganizationId}>
             <SelectTrigger className="w-[280px]">
-              <SelectValue placeholder="All organizations" />
+              <SelectValue placeholder={t("adminMargins.allOrganizations")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All organizations</SelectItem>
+              <SelectItem value="all">{t("adminMargins.allOrganizations")}</SelectItem>
               {orgChoices.map((o) => (
                 <SelectItem key={o.id} value={o.id}>
                   {o.name}
@@ -136,10 +138,10 @@ export function AdminMarginAnomalies() {
           </Select>
           <Select value={categoryId} onValueChange={setCategoryId}>
             <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="All categories" />
+              <SelectValue placeholder={t("adminMargins.allCategories")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All categories</SelectItem>
+              <SelectItem value="all">{t("adminMargins.allCategories")}</SelectItem>
               {(categories ?? []).map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.name}
@@ -155,19 +157,19 @@ export function AdminMarginAnomalies() {
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
         ) : (
           <>
-            <Kpi title="Total monitored buckets" value={String(summary.total)} />
-            <Kpi title="Critical" value={String(summary.critical)} tone="critical" />
-            <Kpi title="Warning" value={String(summary.warn)} tone="warn" />
-            <Kpi title="OK" value={String(summary.ok)} tone="ok" />
+            <Kpi title={t("adminMargins.totalBuckets")} value={String(summary.total)} />
+            <Kpi title={t("adminMargins.critical")} value={String(summary.critical)} tone="critical" />
+            <Kpi title={t("adminMargins.warning")} value={String(summary.warn)} tone="warn" />
+            <Kpi title={t("adminMargins.ok")} value={String(summary.ok)} tone="ok" />
           </>
         )}
       </div>
 
       <Card className="border-border/80 bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base">Anomaly table</CardTitle>
+          <CardTitle className="text-base">{t("adminMargins.anomalyTable")}</CardTitle>
           <CardDescription>
-            Sorted by severity and delta magnitude. Window: last {data?.days ?? days} days.
+            {t("adminMargins.anomalyTableDesc")} {data?.days ?? days} {t("adminMargins.days")}.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -181,21 +183,21 @@ export function AdminMarginAnomalies() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Organization</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Unit</TableHead>
-                  <TableHead>Leads</TableHead>
-                  <TableHead>Effective CPL</TableHead>
-                  <TableHead>Baseline CPL</TableHead>
-                  <TableHead>Delta</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>{t("adminMargins.organization")}</TableHead>
+                  <TableHead>{t("adminMargins.category")}</TableHead>
+                  <TableHead>{t("adminMargins.unit")}</TableHead>
+                  <TableHead>{t("adminMargins.leads")}</TableHead>
+                  <TableHead>{t("adminMargins.effectiveCpl")}</TableHead>
+                  <TableHead>{t("adminMargins.baselineCpl")}</TableHead>
+                  <TableHead>{t("adminMargins.delta")}</TableHead>
+                  <TableHead>{t("adminMargins.status")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="h-20 text-center text-muted-foreground">
-                      No anomalies in current scope.
+                      {t("adminMargins.noAnomalies")}
                     </TableCell>
                   </TableRow>
                 ) : (

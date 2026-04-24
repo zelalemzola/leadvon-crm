@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { formatQueryError } from "@/lib/utils";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 function usd(cents: number) {
   return new Intl.NumberFormat("en-US", {
@@ -37,6 +38,7 @@ function usd(cents: number) {
 }
 
 export function PrepaidPricebookPanel() {
+  const { t } = useI18n();
   const { data: rows, isLoading, isError, error } = useGetLeadPricebookQuery();
   const [updateRow, { isLoading: saving }] = useUpdateLeadPricebookMutation();
   const [overrides, setOverrides] = useState<
@@ -55,7 +57,7 @@ export function PrepaidPricebookPanel() {
     const d = draft(row);
     const parsed = Number.parseFloat(d.priceUsd);
     if (!Number.isFinite(parsed) || parsed < 0) {
-      toast.error("Enter a valid USD amount.");
+      toast.error(t("adminPrepaid.enterValidUsd"));
       return;
     }
     const price_cents = Math.round(parsed * 100);
@@ -70,7 +72,7 @@ export function PrepaidPricebookPanel() {
         delete rest[row.id];
         return rest;
       });
-      toast.success("Saved");
+      toast.success(t("adminPrepaid.saved"));
     } catch (e) {
       toast.error(formatQueryError(e));
     }
@@ -87,10 +89,9 @@ export function PrepaidPricebookPanel() {
   return (
     <Card className="border-border/80 bg-card/50">
       <CardHeader>
-        <CardTitle className="text-base">Lead unit prices (drawdown)</CardTitle>
+        <CardTitle className="text-base">{t("adminPrepaid.leadUnitPrices")}</CardTitle>
         <CardDescription>
-          Each delivered lead charges this amount (USD) from the customer&apos;s prepaid
-          budget for that category. Family rows typically cost more than single.
+          {t("adminPrepaid.leadUnitPricesDesc")}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
@@ -103,11 +104,11 @@ export function PrepaidPricebookPanel() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Category</TableHead>
-                <TableHead>Unit type</TableHead>
-                <TableHead>Label</TableHead>
-                <TableHead>Price (USD)</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>{t("adminPrepaid.category")}</TableHead>
+                <TableHead>{t("adminPrepaid.unitType")}</TableHead>
+                <TableHead>{t("adminPrepaid.label")}</TableHead>
+                <TableHead>{t("adminPrepaid.priceUsd")}</TableHead>
+                <TableHead className="text-right">{t("adminPrepaid.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -156,7 +157,7 @@ export function PrepaidPricebookPanel() {
                         disabled={saving}
                         onClick={() => void save(row)}
                       >
-                        Save
+                        {t("adminPrepaid.save")}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -171,6 +172,7 @@ export function PrepaidPricebookPanel() {
 }
 
 export function PrepaidEntitlementsPanel() {
+  const { t } = useI18n();
   const { data: rows, isLoading, isError, error } = useGetDeliveryEntitlementsQuery();
 
   if (isError) {
@@ -182,15 +184,15 @@ export function PrepaidEntitlementsPanel() {
   return (
     <Card className="border-border/80 bg-card/50">
       <CardHeader>
-        <CardTitle className="text-base">Prepaid delivery periods</CardTitle>
+        <CardTitle className="text-base">{t("adminPrepaid.prepaidPeriods")}</CardTitle>
         <CardDescription>
-          Rolling <strong>30 calendar days</strong> from{" "}
-          <code className="rounded bg-muted px-1 text-xs">period_start</code> (created when
-          payment is confirmed — wire your Stripe webhook to{" "}
+          {t("adminPrepaid.prepaidPeriodsDescBefore")} <strong>30 {t("adminPrepaid.calendarDays")}</strong>{" "}
+          <code className="rounded bg-muted px-1 text-xs">period_start</code> {t("adminPrepaid.createdWhen")}
+          {t("adminPrepaid.prepaidPeriodsDescMiddle")}{" "}
           <code className="rounded bg-muted px-1 text-xs">
             create_delivery_entitlement
           </code>
-          ).
+          {t("adminPrepaid.prepaidPeriodsDescAfter")}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
@@ -201,19 +203,18 @@ export function PrepaidEntitlementsPanel() {
           </div>
         ) : (rows ?? []).length === 0 ? (
           <p className="p-6 text-sm text-muted-foreground">
-            No entitlements yet. After Stripe integration, successful payments will create
-            rows here.
+            {t("adminPrepaid.noEntitlements")}
           </p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Organization</TableHead>
-                <TableHead>Budget</TableHead>
-                <TableHead>Remaining</TableHead>
-                <TableHead>Period (UTC)</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Stripe ref</TableHead>
+                <TableHead>{t("adminPrepaid.organization")}</TableHead>
+                <TableHead>{t("adminPrepaid.budget")}</TableHead>
+                <TableHead>{t("adminPrepaid.remaining")}</TableHead>
+                <TableHead>{t("adminPrepaid.periodUtc")}</TableHead>
+                <TableHead>{t("adminPrepaid.status")}</TableHead>
+                <TableHead>{t("adminPrepaid.stripeRef")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -234,7 +235,7 @@ export function PrepaidEntitlementsPanel() {
                     <Badge variant="outline">{r.status}</Badge>
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
-                    {r.stripe_payment_ref ?? "—"}
+                    {r.stripe_payment_ref ?? t("admin.dashboard.na")}
                   </TableCell>
                 </TableRow>
               ))}

@@ -4,24 +4,26 @@ import type { ComponentType } from "react";
 import { useGetSupportContactsQuery } from "@/lib/api/client-api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mail, Phone, MessageSquareText } from "lucide-react";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function ClientSupport() {
+  const { t } = useI18n();
   const { data: contacts, isLoading } = useGetSupportContactsQuery();
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 lg:p-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Support</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("client.support.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          Reach us quickly for lead issues, billing questions, or account help.
+          {t("client.support.subtitle")}
         </p>
       </header>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading contacts…</p>
+        <p className="text-sm text-muted-foreground">{t("client.support.loading")}</p>
       ) : (contacts ?? []).length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No support contacts are configured yet. Please check back later.
+          {t("client.support.empty")}
         </p>
       ) : (
         <div className="grid gap-4 md:grid-cols-3">
@@ -30,8 +32,8 @@ export function ClientSupport() {
               key={c.id}
               icon={pickIcon(c)}
               title={c.title}
-              value={c.email || c.phone || "—"}
-              description={c.description || "—"}
+              value={c.email || c.phone || t("client.support.noValue")}
+              description={c.description || t("client.support.noValue")}
             />
           ))}
         </div>

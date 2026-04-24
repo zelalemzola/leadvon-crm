@@ -1,19 +1,25 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { isLocale } from "@/lib/i18n/messages";
 
 export default async function AdminSegmentLayout({
   children,
+  params,
 }: {
   children: React.ReactNode;
+  params: Promise<{ locale: string }>;
 }) {
+  const { locale } = await params;
+  const safeLocale = isLocale(locale) ? locale : "en";
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login");
+    redirect(`/${safeLocale}/login`);
   }
 
   const profileRes = await supabase
@@ -39,7 +45,7 @@ export default async function AdminSegmentLayout({
     (profile as { is_active?: boolean }).is_active === false;
 
   if (profile?.role !== "staff" || isInactive) {
-    redirect("/login?error=forbidden");
+    redirect(`/${safeLocale}/login?error=forbidden`);
   }
 
   return <AdminShell>{children}</AdminShell>;

@@ -15,9 +15,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function SetupForm() {
   const router = useRouter();
+  const { t, localizePath } = useI18n();
   const [checking, setChecking] = useState(true);
   const [allowed, setAllowed] = useState(false);
   const [reason, setReason] = useState<string | null>(null);
@@ -41,13 +43,13 @@ export function SetupForm() {
         if (cancelled) return;
         if (!res.ok) {
           setAllowed(false);
-          setReason("Could not check setup status.");
+          setReason(t("auth.setup.checkFailed"));
           return;
         }
         if (data.reason === "missing_service_key") {
           setAllowed(false);
           setReason(
-            "Add SUPABASE_SERVICE_ROLE_KEY to .env.local (server only), then restart the dev server."
+            t("auth.setup.missingServiceKey")
           );
           return;
         }
@@ -59,13 +61,13 @@ export function SetupForm() {
         setAllowed(Boolean(data.allowed));
         if (!data.allowed) {
           setReason(
-            "A staff account already exists. Sign in at the login page, or add more users from Admin → Staff."
+            t("auth.setup.staffExists")
           );
         }
       } catch {
         if (!cancelled) {
           setAllowed(false);
-          setReason("Network error while checking setup.");
+          setReason(t("auth.setup.networkError"));
         }
       } finally {
         if (!cancelled) setChecking(false);
@@ -81,7 +83,7 @@ export function SetupForm() {
     e.preventDefault();
     setError(null);
     if (password !== confirm) {
-      setError("Passwords do not match.");
+      setError(t("auth.setup.passwordMismatch"));
       return;
     }
     setLoading(true);
@@ -97,7 +99,7 @@ export function SetupForm() {
     const json = (await res.json()) as { error?: string; ok?: boolean };
     setLoading(false);
     if (!res.ok) {
-      setError(json.error ?? "Setup failed.");
+      setError(json.error ?? t("auth.setup.setupFailed"));
       return;
     }
     const supabase = createClient();
@@ -107,12 +109,12 @@ export function SetupForm() {
     });
     if (signError) {
       setError(
-        `Account created. Sign in manually: ${signError.message}`
+        `${t("auth.setup.createdSignInManually")} ${signError.message}`
       );
-      router.push("/login");
+      router.push(localizePath("/login"));
       return;
     }
-    router.push("/admin");
+    router.push(localizePath("/admin"));
     router.refresh();
   }
 
@@ -120,7 +122,7 @@ export function SetupForm() {
     return (
       <Card className="w-full max-w-md border-border/80 bg-card/60 shadow-lg">
         <CardContent className="py-12 text-center text-sm text-muted-foreground">
-          Checking setup…
+          {t("auth.setup.checking")}
         </CardContent>
       </Card>
     );
@@ -130,12 +132,12 @@ export function SetupForm() {
     return (
       <Card className="w-full max-w-md border-border/80 bg-card/60 shadow-lg">
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">Setup unavailable</CardTitle>
+          <CardTitle className="text-xl">{t("auth.setup.unavailableTitle")}</CardTitle>
           <CardDescription>{reason}</CardDescription>
         </CardHeader>
         <CardContent className="text-center">
           <Button asChild variant="outline">
-            <Link href="/login">Back to sign in</Link>
+            <Link href={localizePath("/login")}>{t("auth.setup.backToSignIn")}</Link>
           </Button>
         </CardContent>
       </Card>
@@ -149,10 +151,9 @@ export function SetupForm() {
           <Zap className="size-7" aria-hidden />
         </div>
         <div>
-          <CardTitle className="text-xl">Create first admin</CardTitle>
+          <CardTitle className="text-xl">{t("auth.setup.title")}</CardTitle>
           <CardDescription>
-            One-time setup. Choose the email and password you will use to sign
-            in.
+            {t("auth.setup.subtitle")}
           </CardDescription>
         </div>
       </CardHeader>
@@ -164,7 +165,7 @@ export function SetupForm() {
             </p>
           ) : null}
           <div className="space-y-2">
-            <Label htmlFor="setup-email">Work email</Label>
+            <Label htmlFor="setup-email">{t("auth.setup.workEmail")}</Label>
             <Input
               id="setup-email"
               type="email"
@@ -175,7 +176,7 @@ export function SetupForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="setup-name">Full name (optional)</Label>
+            <Label htmlFor="setup-name">{t("auth.setup.fullNameOptional")}</Label>
             <Input
               id="setup-name"
               value={fullName}
@@ -183,7 +184,7 @@ export function SetupForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="setup-pass">Password</Label>
+            <Label htmlFor="setup-pass">{t("auth.login.password")}</Label>
             <Input
               id="setup-pass"
               type="password"
@@ -195,7 +196,7 @@ export function SetupForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="setup-confirm">Confirm password</Label>
+            <Label htmlFor="setup-confirm">{t("auth.setup.confirmPassword")}</Label>
             <Input
               id="setup-confirm"
               type="password"
@@ -206,12 +207,12 @@ export function SetupForm() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Creating…" : "Create admin & continue"}
+            {loading ? t("auth.setup.creating") : t("auth.setup.createContinue")}
           </Button>
         </form>
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          <Link href="/login" className="underline underline-offset-2">
-            Already have an account? Sign in
+          <Link href={localizePath("/login")} className="underline underline-offset-2">
+            {t("auth.setup.alreadyHaveAccountSignIn")}
           </Link>
         </p>
       </CardContent>

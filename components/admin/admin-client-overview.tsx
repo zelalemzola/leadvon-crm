@@ -17,8 +17,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatQueryError } from "@/lib/utils";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function AdminClientOverview() {
+  const { localizePath, t } = useI18n();
   const searchParams = useSearchParams();
   const [organizationId, setOrganizationId] = useState<string>(
     searchParams.get("organization_id") ?? "all"
@@ -65,7 +67,7 @@ export function AdminClientOverview() {
   if (isError) {
     return (
       <div className="p-8">
-        <p className="text-destructive">Failed to load client overview: {formatQueryError(error)}</p>
+        <p className="text-destructive">{t("adminOverview.failedToLoad")} {formatQueryError(error)}</p>
       </div>
     );
   }
@@ -73,42 +75,42 @@ export function AdminClientOverview() {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 lg:p-8">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Client Overview</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("adminOverview.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          Organization-level delivery, pacing, budget, and invoice snapshot.
+          {t("adminOverview.subtitle")}
         </p>
         <div className="flex flex-wrap gap-2 pt-1">
-          <Link className="text-xs text-primary hover:underline" href="/admin/distribution">
-            Open Distribution Console
+          <Link className="text-xs text-primary hover:underline" href={localizePath("/admin/distribution")}>
+            {t("adminOverview.openDistribution")}
           </Link>
-          <Link className="text-xs text-primary hover:underline" href="/admin/margins">
-            Open Margin Monitor
+          <Link className="text-xs text-primary hover:underline" href={localizePath("/admin/margins")}>
+            {t("adminOverview.openMargins")}
           </Link>
-          <Link className="text-xs text-primary hover:underline" href="/admin/finance">
-            Open Finance Snapshot
+          <Link className="text-xs text-primary hover:underline" href={localizePath("/admin/finance")}>
+            {t("adminOverview.openFinance")}
           </Link>
         </div>
         <AdminContextPills
           pills={
             organizationId !== "all"
-              ? [{ label: "Organization", value: rows.find((r) => r.organization_id === organizationId)?.organization_name ?? organizationId.slice(0, 8) }]
-              : [{ label: "Organization", value: "All" }]
+              ? [{ label: t("adminOverview.organization"), value: rows.find((r) => r.organization_id === organizationId)?.organization_name ?? organizationId.slice(0, 8) }]
+              : [{ label: t("adminOverview.organization"), value: t("adminOverview.all") }]
           }
         />
       </header>
 
       <Card className="border-border/80 bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base">Filters</CardTitle>
-          <CardDescription>Focus on a single client company or review all.</CardDescription>
+          <CardTitle className="text-base">{t("adminOverview.filters")}</CardTitle>
+          <CardDescription>{t("adminOverview.filtersDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
           <Select value={organizationId} onValueChange={setOrganizationId}>
             <SelectTrigger className="w-[360px]">
-              <SelectValue placeholder="Select organization" />
+              <SelectValue placeholder={t("adminOverview.selectOrganization")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All organizations</SelectItem>
+              <SelectItem value="all">{t("adminOverview.allOrganizations")}</SelectItem>
               {orgChoices.map((o) => (
                 <SelectItem key={o.id} value={o.id}>
                   {o.name}
@@ -124,17 +126,17 @@ export function AdminClientOverview() {
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
         ) : (
           <>
-            <Kpi title="Organizations" value={String(totals.orgs)} />
-            <Kpi title="Pending queue leads" value={String(totals.queue)} />
-            <Kpi title="Open invoices" value={`${totals.openInvoices} (${money(totals.openInvoiceCents)})`} />
-            <Kpi title="Month pace" value={`${totals.delivered} / ${totals.accrued} (${pacePct}%)`} />
+            <Kpi title={t("adminOverview.organizations")} value={String(totals.orgs)} />
+            <Kpi title={t("adminOverview.pendingQueueLeads")} value={String(totals.queue)} />
+            <Kpi title={t("adminOverview.openInvoices")} value={`${totals.openInvoices} (${money(totals.openInvoiceCents)})`} />
+            <Kpi title={t("adminOverview.monthPace")} value={`${totals.delivered} / ${totals.accrued} (${pacePct}%)`} />
           </>
         )}
       </div>
 
       <Card className="border-border/80 bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base">Client health table</CardTitle>
+          <CardTitle className="text-base">{t("adminOverview.clientHealthTable")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -147,22 +149,22 @@ export function AdminClientOverview() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Organization</TableHead>
-                  <TableHead>Primary admin</TableHead>
-                  <TableHead>Members</TableHead>
-                  <TableHead>Queue</TableHead>
-                  <TableHead>Pace</TableHead>
-                  <TableHead>Active budget</TableHead>
-                  <TableHead>Open invoices</TableHead>
-                  <TableHead>Last delivery</TableHead>
-                  <TableHead className="text-right">Drill</TableHead>
+                  <TableHead>{t("adminOverview.organization")}</TableHead>
+                  <TableHead>{t("adminOverview.primaryAdmin")}</TableHead>
+                  <TableHead>{t("adminOverview.members")}</TableHead>
+                  <TableHead>{t("adminOverview.queue")}</TableHead>
+                  <TableHead>{t("adminOverview.pace")}</TableHead>
+                  <TableHead>{t("adminOverview.activeBudget")}</TableHead>
+                  <TableHead>{t("adminOverview.openInvoices")}</TableHead>
+                  <TableHead>{t("adminOverview.lastDelivery")}</TableHead>
+                  <TableHead className="text-right">{t("adminOverview.drill")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="h-20 text-center text-muted-foreground">
-                      No client organizations found.
+                      {t("adminOverview.noClients")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -170,12 +172,12 @@ export function AdminClientOverview() {
                     <TableRow key={r.organization_id}>
                       <TableCell className="font-medium">{r.organization_name}</TableCell>
                       <TableCell className="text-muted-foreground">
-                        {r.primary_admin_name ?? "—"}
-                        <div className="text-xs">{r.primary_admin_email ?? "—"}</div>
+                        {r.primary_admin_name ?? t("admin.dashboard.na")}
+                        <div className="text-xs">{r.primary_admin_email ?? t("admin.dashboard.na")}</div>
                       </TableCell>
                       <TableCell>
                         {r.members_count}{" "}
-                        <span className="text-xs text-muted-foreground">({r.active_members_count} active)</span>
+                        <span className="text-xs text-muted-foreground">({r.active_members_count} {t("adminOverview.active")})</span>
                       </TableCell>
                       <TableCell className="tabular-nums">{r.pending_queue_leads}</TableCell>
                       <TableCell>
@@ -196,21 +198,21 @@ export function AdminClientOverview() {
                         {r.open_invoices_count} ({money(r.open_invoices_cents)})
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {r.last_delivery_at ? new Date(r.last_delivery_at).toLocaleString() : "—"}
+                        {r.last_delivery_at ? new Date(r.last_delivery_at).toLocaleString() : t("admin.dashboard.na")}
                       </TableCell>
                       <TableCell className="text-right">
                         <Link
                           className="text-xs text-primary hover:underline"
-                          href={`/admin/distribution?organization_id=${encodeURIComponent(r.organization_id)}`}
+                          href={`${localizePath("/admin/distribution")}?organization_id=${encodeURIComponent(r.organization_id)}`}
                         >
-                          Distribution
+                          {t("adminOverview.distribution")}
                         </Link>
                         <span className="mx-1 text-muted-foreground">|</span>
                         <Link
                           className="text-xs text-primary hover:underline"
-                          href={`/admin/margins?organization_id=${encodeURIComponent(r.organization_id)}`}
+                          href={`${localizePath("/admin/margins")}?organization_id=${encodeURIComponent(r.organization_id)}`}
                         >
-                          Margins
+                          {t("adminOverview.margins")}
                         </Link>
                       </TableCell>
                     </TableRow>

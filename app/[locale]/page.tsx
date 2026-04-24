@@ -1,14 +1,22 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isLocale } from "@/lib/i18n/messages";
 
-export default async function Home() {
+export default async function Home({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  const safeLocale = isLocale(locale) ? locale : "en";
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login");
+    redirect(`/${safeLocale}/login`);
   }
 
   const { data: profile } = await supabase
@@ -18,11 +26,11 @@ export default async function Home() {
     .maybeSingle();
 
   if (!profile?.is_active) {
-    redirect("/login?error=forbidden");
+    redirect(`/${safeLocale}/login?error=forbidden`);
   }
 
   if (profile.role === "staff") {
-    redirect("/admin");
+    redirect(`/${safeLocale}/admin`);
   }
 
   if (profile.role === "customer_admin" || profile.role === "customer_agent") {
@@ -31,8 +39,8 @@ export default async function Home() {
       profile !== null &&
       "organization_id" in profile &&
       Boolean((profile as { organization_id?: string | null }).organization_id);
-    redirect(hasOrg ? "/client" : "/client/setup");
+    redirect(hasOrg ? `/${safeLocale}/client` : `/${safeLocale}/client/setup`);
   }
 
-  redirect("/login?error=forbidden");
+  redirect(`/${safeLocale}/login?error=forbidden`);
 }

@@ -20,8 +20,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Trash2 } from "lucide-react";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function AdminSupport() {
+  const { t } = useI18n();
   const { data: rows, isLoading } = useGetSupportContactsQuery();
   const [createRow, { isLoading: creating }] = useCreateSupportContactMutation();
   const [updateRow] = useUpdateSupportContactMutation();
@@ -44,7 +46,7 @@ export function AdminSupport() {
         sort_order: sortOrder,
         organization_id: null,
       }).unwrap();
-      toast.success("Contact added");
+      toast.success(t("admin.support.toastAdded"));
       setTitle("");
       setEmail("");
       setPhone("");
@@ -54,7 +56,7 @@ export function AdminSupport() {
       const msg =
         err && typeof err === "object" && "data" in err
           ? String((err as { data?: unknown }).data)
-          : "Could not create";
+          : t("admin.support.toastCreateFailed");
       toast.error(msg);
     }
   }
@@ -62,37 +64,37 @@ export function AdminSupport() {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 lg:p-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Support contacts</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("admin.support.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          Shown to all customer organizations (global contacts).
+          {t("admin.support.subtitle")}
         </p>
       </header>
 
       <Card className="max-w-2xl border-border/70 bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base">Add contact</CardTitle>
-          <CardDescription>Email or phone can be empty if not applicable.</CardDescription>
+          <CardTitle className="text-base">{t("admin.support.addContact")}</CardTitle>
+          <CardDescription>{t("admin.support.addContactHint")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={(e) => void onCreate(e)} className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
-              <Label>Title</Label>
+              <Label>{t("admin.support.fieldTitle")}</Label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label>Email</Label>
+              <Label>{t("admin.support.fieldEmail")}</Label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Phone</Label>
+              <Label>{t("admin.support.fieldPhone")}</Label>
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label>Description</Label>
+              <Label>{t("admin.support.fieldDescription")}</Label>
               <Input value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Sort order</Label>
+              <Label>{t("admin.support.fieldSortOrder")}</Label>
               <Input
                 type="number"
                 value={sortOrder}
@@ -101,7 +103,7 @@ export function AdminSupport() {
             </div>
             <div className="flex items-end">
               <Button type="submit" disabled={creating}>
-                {creating ? "Saving..." : "Add"}
+                {creating ? t("admin.support.saving") : t("admin.support.add")}
               </Button>
             </div>
           </form>
@@ -110,17 +112,17 @@ export function AdminSupport() {
 
       <Card className="border-border/70 bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base">Contacts</CardTitle>
+          <CardTitle className="text-base">{t("admin.support.contacts")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Order</TableHead>
+                <TableHead>{t("admin.support.fieldTitle")}</TableHead>
+                <TableHead>{t("admin.support.fieldEmail")}</TableHead>
+                <TableHead>{t("admin.support.fieldPhone")}</TableHead>
+                <TableHead>{t("admin.support.fieldDescription")}</TableHead>
+                <TableHead>{t("admin.support.colOrder")}</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -128,13 +130,13 @@ export function AdminSupport() {
               {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-16 text-center">
-                    Loading...
+                    {t("admin.support.loading")}
                   </TableCell>
                 </TableRow>
               ) : (rows ?? []).length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-16 text-center">
-                    No contacts yet.
+                    {t("admin.support.empty")}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -145,24 +147,24 @@ export function AdminSupport() {
                     onSave={async (patch) => {
                       try {
                         await updateRow({ id: r.id, ...patch }).unwrap();
-                        toast.success("Updated");
+                        toast.success(t("admin.support.toastUpdated"));
                       } catch (err: unknown) {
                         const msg =
                           err && typeof err === "object" && "data" in err
                             ? String((err as { data?: unknown }).data)
-                            : "Update failed";
+                            : t("admin.support.toastUpdateFailed");
                         toast.error(msg);
                       }
                     }}
                     onDelete={async () => {
                       try {
                         await deleteRow(r.id).unwrap();
-                        toast.success("Deleted");
+                        toast.success(t("admin.support.toastDeleted"));
                       } catch (err: unknown) {
                         const msg =
                           err && typeof err === "object" && "data" in err
                             ? String((err as { data?: unknown }).data)
-                            : "Delete failed";
+                            : t("admin.support.toastDeleteFailed");
                         toast.error(msg);
                       }
                     }}
@@ -193,6 +195,7 @@ function SupportRow({
   onSave: (patch: Partial<typeof row>) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [title, setTitle] = useState(row.title);
   const [email, setEmail] = useState(row.email ?? "");
   const [phone, setPhone] = useState(row.phone ?? "");
@@ -244,11 +247,11 @@ function SupportRow({
                 })
               }
             >
-              Save changes
+              {t("admin.support.saveChanges")}
             </DropdownMenuItem>
             <DropdownMenuItem className="text-destructive" onClick={() => void onDelete()}>
               <Trash2 className="mr-2 size-4" />
-              Delete
+              {t("admin.support.delete")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

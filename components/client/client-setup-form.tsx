@@ -8,9 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function ClientSetupForm() {
   const router = useRouter();
+  const { t, localizePath } = useI18n();
   const [organizationName, setOrganizationName] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,46 +44,46 @@ export function ClientSetupForm() {
     const json = (await res.json().catch(() => ({}))) as { error?: string };
     setLoading(false);
     if (!res.ok) {
-      toast.error(json.error ?? "Could not complete setup");
+      toast.error(json.error ?? t("auth.clientSetup.workspaceFailed"));
       return;
     }
-    toast.success("Workspace ready");
-    router.push("/client");
+    toast.success(t("auth.clientSetup.workspaceReady"));
+    router.push(localizePath("/client"));
     router.refresh();
   }
 
   return (
     <Card className="w-full max-w-lg border-border/80 bg-card/60 shadow-lg">
       <CardHeader>
-        <CardTitle>Set up your customer workspace</CardTitle>
+        <CardTitle>{t("auth.clientSetup.title")}</CardTitle>
         <CardDescription>
-          Choose your company/organization name to start managing purchased leads.
+          {t("auth.clientSetup.subtitle")}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="org-name">Organization name</Label>
+            <Label htmlFor="org-name">{t("auth.clientSetup.organizationName")}</Label>
             <Input
               id="org-name"
               value={organizationName}
               onChange={(e) => setOrganizationName(e.target.value)}
-              placeholder="Acme Insurance LLC"
+              placeholder={t("auth.clientSetup.organizationPlaceholder")}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="phone">Phone number</Label>
+            <Label htmlFor="phone">{t("auth.clientSetup.phone")}</Label>
             <Input
               id="phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+1 555 010 2233"
+              placeholder={t("auth.clientSetup.phonePlaceholder")}
               required
             />
           </div>
           <Button type="submit" disabled={loading}>
-            {loading ? "Saving..." : "Continue to dashboard"}
+            {loading ? t("auth.clientSetup.saving") : t("auth.clientSetup.continueDashboard")}
           </Button>
         </form>
       </CardContent>

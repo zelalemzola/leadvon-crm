@@ -46,26 +46,28 @@ import {
   Copy,
   Calendar,
 } from "lucide-react";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 const statusCards = [
-  { key: "new", label: "New", icon: Flame, color: "#f59e0b" },
-  { key: "no_answer", label: "No Answer", icon: PhoneOff, color: "#f97316" },
-  { key: "call_back", label: "Call Back", icon: PhoneCall, color: "#eab308" },
-  { key: "qualified", label: "Qualified", icon: CheckCircle2, color: "#22c55e" },
-  { key: "not_interested", label: "Not Interested", icon: XCircle, color: "#f43f5e" },
-  { key: "unqualified", label: "Unqualified", icon: Ban, color: "#ef4444" },
-  { key: "duplicate", label: "Duplicate", icon: Copy, color: "#8b5cf6" },
+  { key: "new", icon: Flame, color: "#f59e0b" },
+  { key: "no_answer", icon: PhoneOff, color: "#f97316" },
+  { key: "call_back", icon: PhoneCall, color: "#eab308" },
+  { key: "qualified", icon: CheckCircle2, color: "#22c55e" },
+  { key: "not_interested", icon: XCircle, color: "#f43f5e" },
+  { key: "unqualified", icon: Ban, color: "#ef4444" },
+  { key: "duplicate", icon: Copy, color: "#8b5cf6" },
 ] as const;
 
-const datePresetLabels: Record<"7" | "30" | "90" | "all", string> = {
-  "7": "Last 7 days",
-  "30": "Last 30 days",
-  "90": "Last 90 days",
-  all: "All time",
-};
-
 export function ClientDashboard() {
+  const { t } = useI18n();
   const [datePreset, setDatePreset] = useState<"7" | "30" | "90" | "all">("30");
+  const datePresetLabels: Record<"7" | "30" | "90" | "all", string> = {
+    "7": t("clientDashboard.date7"),
+    "30": t("clientDashboard.date30"),
+    "90": t("clientDashboard.date90"),
+    all: t("clientDashboard.dateAll"),
+  };
+
   const [categoryId, setCategoryId] = useState<string>("all");
   const [country, setCountry] = useState<string>("all");
   const [assignedTo, setAssignedTo] = useState<string>("all");
@@ -102,10 +104,10 @@ export function ClientDashboard() {
   if (isError) {
     return (
       <div className="p-8 text-destructive">
-        Failed to load dashboard:{" "}
+        {t("clientDashboard.failed")}{" "}
         {error && typeof error === "object" && "data" in error
           ? String((error as { data?: unknown }).data)
-          : "Unknown error"}
+          : t("clientDashboard.unknownError")}
       </div>
     );
   }
@@ -117,8 +119,8 @@ export function ClientDashboard() {
     <div className="flex flex-1 flex-col gap-6 p-6 lg:p-8">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Lead pipeline overview</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("clientDashboard.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("clientDashboard.subtitle")}</p>
         </div>
         <div className="flex w-full flex-wrap items-center justify-end gap-2 lg:w-auto lg:flex-nowrap">
           <DropdownMenu>
@@ -148,10 +150,10 @@ export function ClientDashboard() {
 
           <Select value={categoryId} onValueChange={setCategoryId}>
             <SelectTrigger className={filterSelectClass}>
-              <SelectValue placeholder="All Products" />
+              <SelectValue placeholder={t("clientDashboard.allProducts")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Products</SelectItem>
+              <SelectItem value="all">{t("clientDashboard.allProducts")}</SelectItem>
               {(categories ?? []).map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.name}
@@ -162,10 +164,10 @@ export function ClientDashboard() {
 
           <Select value={country} onValueChange={setCountry}>
             <SelectTrigger className={filterSelectClass}>
-              <SelectValue placeholder="All Countries" />
+              <SelectValue placeholder={t("clientDashboard.allCountries")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Countries</SelectItem>
+              <SelectItem value="all">{t("clientDashboard.allCountries")}</SelectItem>
               {(countries ?? []).map((c) => (
                 <SelectItem key={c} value={c}>
                   {c}
@@ -176,10 +178,10 @@ export function ClientDashboard() {
 
           <Select value={assignedTo} onValueChange={setAssignedTo}>
             <SelectTrigger className={filterSelectClass}>
-              <SelectValue placeholder="All Agents" />
+              <SelectValue placeholder={t("clientDashboard.allAgents")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Agents</SelectItem>
+              <SelectItem value="all">{t("clientDashboard.allAgents")}</SelectItem>
               {agentOptions.map((u) => (
                 <SelectItem key={u.id} value={u.id}>
                   {u.full_name || u.email}
@@ -200,12 +202,12 @@ export function ClientDashboard() {
         <>
           <Card className="overflow-hidden border-primary/20 bg-gradient-to-r from-violet-600/70 to-indigo-500/60">
             <CardContent className="space-y-2 p-5">
-              <p className="text-xs uppercase tracking-wide text-white/80">Total Leads</p>
+              <p className="text-xs uppercase tracking-wide text-white/80">{t("clientDashboard.totalLeads")}</p>
               <p className="text-4xl font-bold text-white">{data.totalLeads}</p>
               <div className="flex flex-wrap gap-2">
                 {statusCards.slice(0, 6).map((s) => (
                   <Badge key={s.key} variant="secondary" className="bg-white/10 text-white">
-                    {s.label}: {data.byStatus[s.key]}
+                    {t(`clientDashboard.status.${s.key}`)}: {data.byStatus[s.key]}
                   </Badge>
                 ))}
               </div>
@@ -213,7 +215,7 @@ export function ClientDashboard() {
           </Card>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
-            {statusCards.map(({ key, label, icon: Icon, color }) => (
+            {statusCards.map(({ key, icon: Icon, color }) => (
               <Card key={key} className="border-border/70 bg-card/50">
                 <CardContent className="space-y-2 p-4">
                   <div className="flex items-center justify-between">
@@ -224,7 +226,7 @@ export function ClientDashboard() {
                     />
                   </div>
                   <p className="text-2xl font-semibold tabular-nums">{data.byStatus[key]}</p>
-                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="text-xs text-muted-foreground">{t(`clientDashboard.status.${key}`)}</p>
                 </CardContent>
               </Card>
             ))}
@@ -233,7 +235,7 @@ export function ClientDashboard() {
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className="border-border/70 bg-card/50">
               <CardHeader>
-                <CardTitle className="text-base">Leads flow</CardTitle>
+                <CardTitle className="text-base">{t("clientDashboard.leadsFlow")}</CardTitle>
               </CardHeader>
               <CardContent className="h-[280px] pt-0">
                 <ResponsiveContainer width="100%" height="100%">
@@ -268,13 +270,13 @@ export function ClientDashboard() {
 
             <Card className="border-border/70 bg-card/50">
               <CardHeader>
-                <CardTitle className="text-base">Pipeline funnel</CardTitle>
+                <CardTitle className="text-base">{t("clientDashboard.pipelineFunnel")}</CardTitle>
               </CardHeader>
               <CardContent className="h-[280px] pt-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={statusCards
-                      .map((s) => ({ name: s.label, count: data.byStatus[s.key] }))
+                      .map((s) => ({ name: t(`clientDashboard.status.${s.key}`), count: data.byStatus[s.key] }))
                       .filter((r) => r.count > 0)}
                     layout="vertical"
                     margin={{ left: 10, right: 16 }}
@@ -310,19 +312,19 @@ export function ClientDashboard() {
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <Card className="border-border/70 bg-card/50">
                   <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground">Contacted Leads</p>
+                    <p className="text-xs text-muted-foreground">{t("clientDashboard.contactedLeads")}</p>
                     <p className="mt-1 text-2xl font-semibold tabular-nums">{contacted}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-border/70 bg-card/50">
                   <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground">Qualified + Closed Rate</p>
+                    <p className="text-xs text-muted-foreground">{t("clientDashboard.qualifiedClosedRate")}</p>
                     <p className="mt-1 text-2xl font-semibold tabular-nums">{conversionRate.toFixed(1)}%</p>
                   </CardContent>
                 </Card>
                 <Card className="border-border/70 bg-card/50">
                   <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground">Open Pipeline</p>
+                    <p className="text-xs text-muted-foreground">{t("clientDashboard.openPipeline")}</p>
                     <p className="mt-1 text-2xl font-semibold tabular-nums">
                       {data.byStatus.new + data.byStatus.no_answer + data.byStatus.call_back}
                     </p>
@@ -330,9 +332,9 @@ export function ClientDashboard() {
                 </Card>
                 <Card className="border-border/70 bg-card/50">
                   <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground">Top Category</p>
+                    <p className="text-xs text-muted-foreground">{t("clientDashboard.topCategory")}</p>
                     <p className="mt-1 text-2xl font-semibold tabular-nums">
-                      {topCategory ? topCategory.name : "—"}
+                      {topCategory ? topCategory.name : t("clientDashboard.na")}
                     </p>
                   </CardContent>
                 </Card>

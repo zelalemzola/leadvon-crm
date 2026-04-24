@@ -9,4 +9,3 @@ export default async function ClientAssignedPage() {
   await requireCustomerOrg();
   return <ClientAssignedLeads />;
 }
-

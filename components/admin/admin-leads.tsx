@@ -66,6 +66,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 const emptyForm = {
   category_id: "",
@@ -79,6 +80,7 @@ const emptyForm = {
 };
 
 export function AdminLeads() {
+  const { localizePath, t } = useI18n();
   const [categoryFilter, setCategoryFilter] = useState<string | "all">("all");
   const [search, setSearch] = useState("");
   const [availabilityFilter, setAvailabilityFilter] =
@@ -174,7 +176,7 @@ export function AdminLeads() {
   async function handlePrepaidDeliver(e: React.FormEvent) {
     e.preventDefault();
     if (!prepaidLead || !prepaidOrgId) {
-      toast.error("Select a customer organization.");
+      toast.error(t("adminLeads.selectOrganization"));
       return;
     }
     try {
@@ -183,7 +185,7 @@ export function AdminLeads() {
         source_lead_id: prepaidLead.id,
       }).unwrap();
       toast.success(
-        `Delivered to customer. Charged $${(res.amount_cents / 100).toFixed(2)} from prepaid budget.`
+        `${t("adminLeads.deliveredToCustomer")} $${(res.amount_cents / 100).toFixed(2)} ${t("adminLeads.fromPrepaidBudget")}`
       );
       setPrepaidDialogOpen(false);
       setPrepaidLead(null);
@@ -191,7 +193,7 @@ export function AdminLeads() {
       const msg =
         err && typeof err === "object" && "data" in err
           ? String((err as { data?: { message?: string } }).data)
-          : "Delivery failed";
+          : t("adminLeads.deliveryFailed");
       toast.error(msg);
     }
   }
@@ -199,7 +201,7 @@ export function AdminLeads() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.category_id) {
-      toast.error("Select a category (create one under Pricing first).");
+      toast.error(t("adminLeads.selectCategoryFirst"));
       return;
     }
     const payload = {
@@ -219,7 +221,7 @@ export function AdminLeads() {
           id: editing.id,
           ...payload,
         }).unwrap();
-        toast.success("Lead updated");
+        toast.success(t("adminLeads.leadUpdated"));
       } else {
         await createLead({
           category_id: payload.category_id,
@@ -231,7 +233,7 @@ export function AdminLeads() {
           summary: payload.summary,
           sold_at: payload.sold_at,
         }).unwrap();
-        toast.success("Lead created");
+        toast.success(t("adminLeads.leadCreated"));
       }
       setDialogOpen(false);
       setForm(emptyForm);
@@ -239,18 +241,18 @@ export function AdminLeads() {
       const msg =
         err && typeof err === "object" && "data" in err
           ? String((err as { data?: { message?: string } }).data)
-          : "Request failed";
+          : t("adminLeads.requestFailed");
       toast.error(msg);
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this lead permanently?")) return;
+    if (!confirm(t("adminLeads.confirmDelete"))) return;
     try {
       await deleteLead(id).unwrap();
-      toast.success("Lead deleted");
+      toast.success(t("adminLeads.leadDeleted"));
     } catch {
-      toast.error("Could not delete lead");
+      toast.error(t("adminLeads.couldNotDelete"));
     }
   }
 
@@ -296,7 +298,7 @@ export function AdminLeads() {
     const text = await file.text();
     const lines = text.split(/\r?\n/).filter(Boolean);
     if (lines.length < 2) {
-      toast.error("CSV appears empty.");
+      toast.error(t("adminLeads.csvEmpty"));
       return;
     }
     const header = lines[0].split(",").map((h) => h.trim().replaceAll('"', "").toLowerCase());
@@ -305,7 +307,7 @@ export function AdminLeads() {
     const countryIdx = header.indexOf("country");
     for (const req of required) {
       if (!header.includes(req)) {
-        toast.error(`Missing required CSV column: ${req}`);
+        toast.error(`${t("adminLeads.missingRequiredColumn")} ${req}`);
         return;
       }
     }
@@ -336,17 +338,17 @@ export function AdminLeads() {
       }).unwrap();
       imported++;
     }
-    toast.success(`Imported ${imported} leads`);
+    toast.success(`${t("adminLeads.imported")} ${imported} ${t("adminLeads.leads")}`);
   }
 
   if (isError) {
     return (
       <div className="p-8">
         <p className="text-destructive">
-          Failed to load leads:{" "}
+          {t("adminLeads.failedToLoad")}{" "}
           {error && typeof error === "object" && "data" in error
             ? String((error as { data?: unknown }).data)
-            : "Unknown error"}
+            : t("adminLeads.unknownError")}
         </p>
       </div>
     );
@@ -357,19 +359,19 @@ export function AdminLeads() {
       <header className="flex flex-col gap-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">{t("adminLeads.title")}</h1>
             <p className="text-sm text-muted-foreground">
-              Inventory leads you can later sell to customers.
+              {t("adminLeads.subtitle")}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={exportCsv}>
               <Download className="size-4" />
-              Export CSV
+              {t("adminLeads.exportCsv")}
             </Button>
             <Button variant="outline" onClick={() => importRef.current?.click()}>
               <Upload className="size-4" />
-              Import CSV
+              {t("adminLeads.importCsv")}
             </Button>
             <input
               ref={importRef}
@@ -384,25 +386,25 @@ export function AdminLeads() {
             />
             <Button onClick={openCreate} disabled={!categories?.length}>
               <Plus className="size-4" aria-hidden />
-              New lead
+              {t("adminLeads.newLead")}
             </Button>
           </div>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Search</Label>
+            <Label className="text-xs text-muted-foreground">{t("adminLeads.search")}</Label>
             <Input
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Name, phone, summary, country"
+              placeholder={t("adminLeads.searchPlaceholder")}
               className="w-[220px]"
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Category</Label>
+            <Label className="text-xs text-muted-foreground">{t("adminLeads.category")}</Label>
             <Select
               value={categoryFilter}
               onValueChange={(v) => {
@@ -411,10 +413,10 @@ export function AdminLeads() {
               }}
             >
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Category" />
+                <SelectValue placeholder={t("adminLeads.category")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All categories</SelectItem>
+                <SelectItem value="all">{t("adminLeads.allCategories")}</SelectItem>
                 {(categories ?? []).map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
@@ -424,7 +426,7 @@ export function AdminLeads() {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Availability</Label>
+            <Label className="text-xs text-muted-foreground">{t("adminLeads.availability")}</Label>
             <Select
               value={availabilityFilter}
               onValueChange={(v) => {
@@ -436,26 +438,26 @@ export function AdminLeads() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="available">Available</SelectItem>
-                <SelectItem value="sold">Sold</SelectItem>
+                <SelectItem value="all">{t("adminLeads.all")}</SelectItem>
+                <SelectItem value="available">{t("adminLeads.available")}</SelectItem>
+                <SelectItem value="sold">{t("adminLeads.sold")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Country</Label>
+            <Label className="text-xs text-muted-foreground">{t("adminLeads.country")}</Label>
             <Input
               value={countryFilter}
               onChange={(e) => {
                 setCountryFilter(e.target.value);
                 setPage(1);
               }}
-              placeholder="Filter by country"
+              placeholder={t("adminLeads.filterByCountry")}
               className="w-[160px]"
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Created from</Label>
+            <Label className="text-xs text-muted-foreground">{t("adminLeads.createdFrom")}</Label>
             <Input
               type="date"
               value={createdFrom}
@@ -467,7 +469,7 @@ export function AdminLeads() {
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Created to</Label>
+            <Label className="text-xs text-muted-foreground">{t("adminLeads.createdTo")}</Label>
             <Input
               type="date"
               value={createdTo}
@@ -479,7 +481,7 @@ export function AdminLeads() {
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Sort</Label>
+            <Label className="text-xs text-muted-foreground">{t("adminLeads.sort")}</Label>
             <Select
               value={sort}
               onValueChange={(v) => {
@@ -491,8 +493,8 @@ export function AdminLeads() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="newest">Newest first</SelectItem>
-                <SelectItem value="oldest">Oldest first</SelectItem>
+                <SelectItem value="newest">{t("adminLeads.newestFirst")}</SelectItem>
+                <SelectItem value="oldest">{t("adminLeads.oldestFirst")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -502,13 +504,13 @@ export function AdminLeads() {
       {!categories?.length ? (
         <Card className="border-dashed">
           <CardHeader>
-            <CardTitle className="text-base">No categories yet</CardTitle>
+            <CardTitle className="text-base">{t("adminLeads.noCategoriesYet")}</CardTitle>
             <CardDescription>
-              Create at least one category under{" "}
-              <Link href="/admin/pricing" className="text-primary underline">
-                Pricing
+              {t("adminLeads.createCategoryUnder")}{" "}
+              <Link href={localizePath("/admin/pricing")} className="text-primary underline">
+                {t("admin.nav.pricing")}
               </Link>{" "}
-              before adding leads.
+              {t("adminLeads.beforeAddingLeads")}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -517,13 +519,13 @@ export function AdminLeads() {
           <CardHeader className="border-b border-border/70 py-4">
             <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
               <Badge variant="outline" className="border-primary/40 text-primary">
-                Total: {totalLeads}
+                {t("adminLeads.total")}: {totalLeads}
               </Badge>
               <Badge className="bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
-                Available (page): {availableLeads}
+                {t("adminLeads.availablePage")}: {availableLeads}
               </Badge>
               <Badge className="bg-rose-500/15 text-rose-300 hover:bg-rose-500/25">
-                Sold (page): {soldLeads}
+                {t("adminLeads.soldPage")}: {soldLeads}
               </Badge>
             </div>
           </CardHeader>
@@ -539,22 +541,22 @@ export function AdminLeads() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Country</TableHead>
-                    <TableHead>Unit</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Summary</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t("adminLeads.name")}</TableHead>
+                    <TableHead>{t("adminLeads.phone")}</TableHead>
+                    <TableHead>{t("adminLeads.country")}</TableHead>
+                    <TableHead>{t("adminLeads.unit")}</TableHead>
+                    <TableHead>{t("adminLeads.category")}</TableHead>
+                    <TableHead>{t("adminLeads.summary")}</TableHead>
+                    <TableHead>{t("adminLeads.created")}</TableHead>
+                    <TableHead>{t("adminLeads.status")}</TableHead>
+                    <TableHead className="text-right">{t("adminLeads.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rows.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={10} className="h-24 text-center">
-                        No leads match this filter.
+                        {t("adminLeads.noLeadsMatch")}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -570,16 +572,16 @@ export function AdminLeads() {
                           {row.phone}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {row.country || "—"}
+                          {row.country || t("admin.dashboard.na")}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {(row.lead_unit_type ?? "single") === "family" ? "Family" : "Single"}
+                          {(row.lead_unit_type ?? "single") === "family" ? t("adminLeads.family") : t("adminLeads.single")}
                         </TableCell>
                         <TableCell>
-                          {row.categories?.name ?? "—"}
+                          {row.categories?.name ?? t("admin.dashboard.na")}
                         </TableCell>
                         <TableCell className="max-w-[240px] truncate text-muted-foreground">
-                          {row.summary || "—"}
+                          {row.summary || t("admin.dashboard.na")}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {new Date(row.created_at).toLocaleDateString()}
@@ -587,11 +589,11 @@ export function AdminLeads() {
                         <TableCell>
                           {row.sold_at ? (
                             <Badge className="bg-rose-500/15 text-rose-300 hover:bg-rose-500/25">
-                              Sold
+                              {t("adminLeads.sold")}
                             </Badge>
                           ) : (
                             <Badge className="bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
-                              Available
+                              {t("adminLeads.available")}
                             </Badge>
                           )}
                         </TableCell>
@@ -601,7 +603,7 @@ export function AdminLeads() {
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label="Lead actions"
+                                aria-label={t("adminLeads.leadActions")}
                               >
                                 <MoreHorizontal className="size-4" />
                               </Button>
@@ -612,12 +614,12 @@ export function AdminLeads() {
                                   onClick={() => openPrepaidDeliver(row)}
                                 >
                                   <CreditCard className="size-4" />
-                                  Deliver (prepaid)
+                                  {t("adminLeads.deliverPrepaid")}
                                 </DropdownMenuItem>
                               ) : null}
                               <DropdownMenuItem onClick={() => openEdit(row)}>
                                 <Pencil className="size-4" />
-                                Edit
+                                {t("adminLeads.edit")}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
@@ -625,7 +627,7 @@ export function AdminLeads() {
                                 disabled={deleting}
                               >
                                 <Trash2 className="size-4" />
-                                Delete
+                                {t("adminLeads.delete")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -639,7 +641,7 @@ export function AdminLeads() {
           </CardContent>
           <div className="flex items-center justify-between border-t border-border/70 px-4 py-3 text-sm">
             <p className="text-muted-foreground">
-              Showing {rows.length} of {totalLeads} leads
+              {t("adminLeads.showing")} {rows.length} {t("adminLeads.of")} {totalLeads} {t("adminLeads.leads")}
             </p>
             <div className="flex items-center gap-2">
               <Button
@@ -648,16 +650,16 @@ export function AdminLeads() {
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
-                Prev
+                {t("adminLeads.prev")}
               </Button>
-              <span className="text-muted-foreground">Page {page}</span>
+              <span className="text-muted-foreground">{t("adminLeads.page")} {page}</span>
               <Button
                 variant="outline"
                 size="sm"
                 disabled={page * 20 >= totalLeads}
                 onClick={() => setPage((p) => p + 1)}
               >
-                Next
+                {t("adminLeads.next")}
               </Button>
             </div>
           </div>
@@ -674,23 +676,21 @@ export function AdminLeads() {
         <DialogContent className="sm:max-w-md">
           <form onSubmit={(e) => void handlePrepaidDeliver(e)}>
             <DialogHeader>
-              <DialogTitle>Deliver lead (prepaid)</DialogTitle>
+              <DialogTitle>{t("adminLeads.deliverLeadPrepaid")}</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4 text-sm">
               <p className="text-muted-foreground">
-                Charges the org&apos;s active prepaid delivery budget using the
-                pricebook (category × unit type). The inventory lead is marked
-                sold and copied to the customer.
+                {t("adminLeads.deliverLeadPrepaidDesc")}
               </p>
               {prepaidLead ? (
                 <p className="rounded-md border border-border/80 bg-muted/40 px-3 py-2 text-xs">
                   {prepaidLead.first_name} {prepaidLead.last_name} ·{" "}
-                  {prepaidLead.categories?.name ?? "—"} · unit:{" "}
+                  {prepaidLead.categories?.name ?? t("admin.dashboard.na")} · {t("adminLeads.unit")}:{" "}
                   {prepaidLead.lead_unit_type ?? "single"}
                 </p>
               ) : null}
               <div className="space-y-2">
-                <Label>Organization</Label>
+                <Label>{t("adminLeads.organization")}</Label>
                 <Select
                   value={prepaidOrgId}
                   onValueChange={setPrepaidOrgId}
@@ -700,8 +700,8 @@ export function AdminLeads() {
                     <SelectValue
                       placeholder={
                         orgChoices.length === 0
-                          ? "No customers with orgs"
-                          : "Select organization"
+                          ? t("adminLeads.noCustomersWithOrgs")
+                          : t("adminLeads.selectOrganizationLabel")
                       }
                     />
                   </SelectTrigger>
@@ -721,7 +721,7 @@ export function AdminLeads() {
                 variant="outline"
                 onClick={() => setPrepaidDialogOpen(false)}
               >
-                Cancel
+                {t("adminLeads.cancel")}
               </Button>
               <Button
                 type="submit"
@@ -731,7 +731,7 @@ export function AdminLeads() {
                   orgChoices.length === 0
                 }
               >
-                Deliver
+                {t("adminLeads.deliver")}
               </Button>
             </DialogFooter>
           </form>
@@ -743,12 +743,12 @@ export function AdminLeads() {
           <form onSubmit={(e) => void handleSubmit(e)}>
             <DialogHeader>
               <DialogTitle>
-                {editing ? "Edit lead" : "New lead"}
+                {editing ? t("adminLeads.editLead") : t("adminLeads.newLead")}
               </DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
-                <Label>Category</Label>
+                <Label>{t("adminLeads.category")}</Label>
                 <Select
                   value={form.category_id}
                   onValueChange={(v) =>
@@ -756,7 +756,7 @@ export function AdminLeads() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
+                    <SelectValue placeholder={t("adminLeads.selectCategory")} />
                   </SelectTrigger>
                   <SelectContent>
                     {(categories ?? []).map((c) => (
@@ -768,7 +768,7 @@ export function AdminLeads() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Lead type</Label>
+                <Label>{t("adminLeads.leadType")}</Label>
                 <Select
                   value={form.lead_unit_type}
                   onValueChange={(v) =>
@@ -776,17 +776,17 @@ export function AdminLeads() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Lead type" />
+                    <SelectValue placeholder={t("adminLeads.leadType")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="single">Single</SelectItem>
-                    <SelectItem value="family">Family</SelectItem>
+                    <SelectItem value="single">{t("adminLeads.single")}</SelectItem>
+                    <SelectItem value="family">{t("adminLeads.family")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="first_name">First name</Label>
+                  <Label htmlFor="first_name">{t("adminLeads.firstName")}</Label>
                   <Input
                     id="first_name"
                     value={form.first_name}
@@ -797,7 +797,7 @@ export function AdminLeads() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="last_name">Last name</Label>
+                  <Label htmlFor="last_name">{t("adminLeads.lastName")}</Label>
                   <Input
                     id="last_name"
                     value={form.last_name}
@@ -809,7 +809,7 @@ export function AdminLeads() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">{t("adminLeads.phone")}</Label>
                 <Input
                   id="phone"
                   value={form.phone}
@@ -820,19 +820,19 @@ export function AdminLeads() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="country">Country</Label>
+                <Label htmlFor="country">{t("adminLeads.country")}</Label>
                 <Input
                   id="country"
                   value={form.country}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, country: e.target.value }))
                   }
-                  placeholder="e.g. United States"
+                  placeholder={t("adminLeads.countryExample")}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="summary">Summary</Label>
+                <Label htmlFor="summary">{t("adminLeads.summary")}</Label>
                 <Textarea
                   id="summary"
                   value={form.summary}
@@ -851,7 +851,7 @@ export function AdminLeads() {
                   }
                 />
                 <Label htmlFor="sold" className="font-normal">
-                  Mark as sold (inventory no longer available)
+                  {t("adminLeads.markAsSold")}
                 </Label>
               </div>
             </div>
@@ -861,10 +861,10 @@ export function AdminLeads() {
                 variant="outline"
                 onClick={() => setDialogOpen(false)}
               >
-                Cancel
+                {t("adminLeads.cancel")}
               </Button>
               <Button type="submit" disabled={creating || updating}>
-                {editing ? "Save" : "Create"}
+                {editing ? t("adminLeads.save") : t("adminLeads.create")}
               </Button>
             </DialogFooter>
           </form>

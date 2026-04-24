@@ -17,8 +17,10 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatQueryError } from "@/lib/utils";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function AdminDistributionConsole() {
+  const { t, localizePath } = useI18n();
   const searchParams = useSearchParams();
   const [organizationId, setOrganizationId] = useState<string>(
     searchParams.get("organization_id") ?? "all"
@@ -62,17 +64,17 @@ export function AdminDistributionConsole() {
   }, [customers]);
   const orgLabel =
     organizationId === "all"
-      ? "All"
+      ? t("adminDistribution.all")
       : orgChoices.find((o) => o.id === organizationId)?.name ?? organizationId.slice(0, 8);
   const categoryLabel =
     categoryId === "all"
-      ? "All"
+      ? t("adminDistribution.all")
       : (categories ?? []).find((c) => c.id === categoryId)?.name ?? categoryId.slice(0, 8);
 
   if (isError) {
     return (
       <div className="p-8">
-        <p className="text-destructive">Failed to load distribution console: {formatQueryError(error)}</p>
+        <p className="text-destructive">{t("adminDistribution.failedToLoad")} {formatQueryError(error)}</p>
       </div>
     );
   }
@@ -80,45 +82,45 @@ export function AdminDistributionConsole() {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 lg:p-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Live Distribution Console</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("adminDistribution.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          Auto-refreshing routing stream with queue and catch-up behavior visibility.
+          {t("adminDistribution.subtitle")}
         </p>
         <div className="flex flex-wrap gap-2 pt-1">
           <Link
             className="text-xs text-primary hover:underline"
-            href={`/admin/overview${organizationId !== "all" ? `?organization_id=${encodeURIComponent(organizationId)}` : ""}`}
+            href={`${localizePath("/admin/overview")}${organizationId !== "all" ? `?organization_id=${encodeURIComponent(organizationId)}` : ""}`}
           >
-            Open Client Overview
+            {t("adminDistribution.openClientOverview")}
           </Link>
           <Link
             className="text-xs text-primary hover:underline"
-            href={`/admin/margins?organization_id=${encodeURIComponent(organizationId)}${categoryId !== "all" ? `&category_id=${encodeURIComponent(categoryId)}` : ""}`}
+            href={`${localizePath("/admin/margins")}?organization_id=${encodeURIComponent(organizationId)}${categoryId !== "all" ? `&category_id=${encodeURIComponent(categoryId)}` : ""}`}
           >
-            Open Margin Monitor
+            {t("adminDistribution.openMarginMonitor")}
           </Link>
         </div>
         <AdminContextPills
           pills={[
-            { label: "Organization", value: orgLabel },
-            { label: "Category", value: categoryLabel },
-            { label: "Auto-refresh", value: "15s" },
+            { label: t("adminDistribution.organization"), value: orgLabel },
+            { label: t("adminDistribution.category"), value: categoryLabel },
+            { label: t("adminDistribution.autoRefresh"), value: "15s" },
           ]}
         />
       </header>
 
       <Card className="border-border/80 bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base">Scope</CardTitle>
-          <CardDescription>Filter by organization/category. Refreshes every 15 seconds.</CardDescription>
+          <CardTitle className="text-base">{t("adminDistribution.scope")}</CardTitle>
+          <CardDescription>{t("adminDistribution.scopeDesc")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           <Select value={organizationId} onValueChange={setOrganizationId}>
             <SelectTrigger className="w-[280px]">
-              <SelectValue placeholder="All organizations" />
+              <SelectValue placeholder={t("adminDistribution.allOrganizations")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All organizations</SelectItem>
+              <SelectItem value="all">{t("adminDistribution.allOrganizations")}</SelectItem>
               {orgChoices.map((o) => (
                 <SelectItem key={o.id} value={o.id}>
                   {o.name}
@@ -128,10 +130,10 @@ export function AdminDistributionConsole() {
           </Select>
           <Select value={categoryId} onValueChange={setCategoryId}>
             <SelectTrigger className="w-[240px]">
-              <SelectValue placeholder="All categories" />
+              <SelectValue placeholder={t("adminDistribution.allCategories")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All categories</SelectItem>
+              <SelectItem value="all">{t("adminDistribution.allCategories")}</SelectItem>
               {(categories ?? []).map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.name}
@@ -147,36 +149,36 @@ export function AdminDistributionConsole() {
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
         ) : (
           <>
-            <Kpi title="Active flows" value={String(summary.active_flows)} />
-            <Kpi title="Queue backlog" value={String(summary.queued_leads)} />
-            <Kpi title="Delivered this month" value={String(summary.delivered_this_month)} />
-            <Kpi title="Pace" value={`${summary.delivered_this_month} / ${summary.accrued_this_month} (${pacePct}%)`} />
+            <Kpi title={t("adminDistribution.activeFlows")} value={String(summary.active_flows)} />
+            <Kpi title={t("adminDistribution.queueBacklog")} value={String(summary.queued_leads)} />
+            <Kpi title={t("adminDistribution.deliveredThisMonth")} value={String(summary.delivered_this_month)} />
+            <Kpi title={t("adminDistribution.pace")} value={`${summary.delivered_this_month} / ${summary.accrued_this_month} (${pacePct}%)`} />
           </>
         )}
       </div>
 
       <Card className="border-border/80 bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base">Recent routing events</CardTitle>
+          <CardTitle className="text-base">{t("adminDistribution.recentRoutingEvents")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead>Organization</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Reason</TableHead>
-                <TableHead>Deficit</TableHead>
-                <TableHead>Rank</TableHead>
-                <TableHead>Lead type</TableHead>
+                <TableHead>{t("adminDistribution.time")}</TableHead>
+                <TableHead>{t("adminDistribution.organization")}</TableHead>
+                <TableHead>{t("adminDistribution.category")}</TableHead>
+                <TableHead>{t("adminDistribution.reason")}</TableHead>
+                <TableHead>{t("adminDistribution.deficit")}</TableHead>
+                <TableHead>{t("adminDistribution.rank")}</TableHead>
+                <TableHead>{t("adminDistribution.leadType")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {events.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="h-20 text-center text-muted-foreground">
-                    No routing events for current scope yet.
+                    {t("adminDistribution.noRoutingEvents")}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -184,7 +186,7 @@ export function AdminDistributionConsole() {
                   <TableRow key={e.id}>
                     <TableCell className="text-muted-foreground">{new Date(e.created_at).toLocaleString()}</TableCell>
                     <TableCell>{e.organizations?.name ?? e.organization_id.slice(0, 8)}</TableCell>
-                    <TableCell>{e.categories?.name ?? "—"}</TableCell>
+                    <TableCell>{e.categories?.name ?? t("admin.dashboard.na")}</TableCell>
                     <TableCell>
                       <Badge
                         className={
@@ -211,25 +213,25 @@ export function AdminDistributionConsole() {
 
       <Card className="border-border/80 bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base">Recent processing runs</CardTitle>
+          <CardTitle className="text-base">{t("adminDistribution.recentProcessingRuns")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Started</TableHead>
-                <TableHead>Trigger</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Delivered</TableHead>
-                <TableHead>Processed at</TableHead>
-                <TableHead>Idempotency key</TableHead>
+                <TableHead>{t("adminDistribution.started")}</TableHead>
+                <TableHead>{t("adminDistribution.trigger")}</TableHead>
+                <TableHead>{t("adminDistribution.status")}</TableHead>
+                <TableHead>{t("adminDistribution.delivered")}</TableHead>
+                <TableHead>{t("adminDistribution.processedAt")}</TableHead>
+                <TableHead>{t("adminDistribution.idempotencyKey")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {runs.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
-                    No runs in this scope yet.
+                    {t("adminDistribution.noRuns")}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -252,7 +254,7 @@ export function AdminDistributionConsole() {
                     </TableCell>
                     <TableCell className="tabular-nums">{r.delivered_count}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {r.processed_at ? new Date(r.processed_at).toLocaleString() : "—"}
+                      {r.processed_at ? new Date(r.processed_at).toLocaleString() : t("admin.dashboard.na")}
                     </TableCell>
                     <TableCell className="max-w-[260px] truncate font-mono text-xs text-muted-foreground">
                       {r.idempotency_key}

@@ -17,28 +17,36 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useGetClientMeQuery } from "@/lib/api/client-api";
+import { useI18n } from "@/components/providers/i18n-provider";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
 
 const baseNav = [
-  { href: "/client", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/client/leads", label: "Leads", icon: Users },
-  { href: "/client/billing", label: "Billing", icon: CreditCard },
-  { href: "/client/activity", label: "Activity", icon: ScrollText },
-  { href: "/client/support", label: "Support", icon: LifeBuoy },
-  { href: "/client/settings", label: "Settings", icon: Settings },
+  { href: "/client", key: "client.nav.dashboard", icon: LayoutDashboard },
+  { href: "/client/leads", key: "client.nav.leads", icon: Users },
+  { href: "/client/billing", key: "client.nav.billing", icon: CreditCard },
+  { href: "/client/activity", key: "client.nav.activity", icon: ScrollText },
+  { href: "/client/support", key: "client.nav.support", icon: LifeBuoy },
+  { href: "/client/settings", key: "client.nav.settings", icon: Settings },
 ];
 
 export function ClientSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { data: me } = useGetClientMeQuery();
+  const { t, locale, localizePath } = useI18n();
+  const normalizedPath = pathname.replace(/^\/(en|fr)(?=\/|$)/, "") || "/";
   const nav = me?.role === "customer_agent"
-    ? [...baseNav.slice(0, 2), { href: "/client/assigned", label: "Assigned", icon: Users }, ...baseNav.slice(2)]
+    ? [
+        ...baseNav.slice(0, 2),
+        { href: "/client/assigned", key: "client.nav.assigned", icon: Users },
+        ...baseNav.slice(2),
+      ]
     : baseNav;
 
   async function signOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push("/login");
+    router.push(localizePath("/login"));
     router.refresh();
   }
 
@@ -51,17 +59,17 @@ export function ClientSidebar() {
         <div>
           <p className="text-sm font-semibold">LeadVon</p>
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Client Portal
+            {t("client.shell.subtitle")}
           </p>
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 p-3">
-        {nav.map(({ href, label, icon: Icon }) => {
-          const active = href === "/client" ? pathname === href : pathname.startsWith(href);
+        {nav.map(({ href, key, icon: Icon }) => {
+          const active = href === "/client" ? normalizedPath === href : normalizedPath.startsWith(href);
           return (
             <Link
               key={href}
-              href={href}
+              href={`/${locale}${href}`}
               className={cn(
                 "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 active
@@ -70,12 +78,13 @@ export function ClientSidebar() {
               )}
             >
               <Icon className="size-4 opacity-80" />
-              {label}
+              {t(key)}
             </Link>
           );
         })}
       </nav>
       <div className="border-t border-border/60 p-3">
+        <LanguageSwitcher />
         <Button
           variant="ghost"
           className="mb-1 h-auto w-full justify-start gap-2 px-2 py-2 text-left text-muted-foreground hover:bg-muted/40"
@@ -84,10 +93,10 @@ export function ClientSidebar() {
           <User className="size-4 shrink-0" />
           <span className="min-w-0">
             <span className="block truncate text-xs font-medium text-foreground">
-              {me?.full_name?.trim() || "Signed in user"}
+              {me?.full_name?.trim() || t("common.signedInUser")}
             </span>
             <span className="block truncate text-[11px]">
-              {me?.email || (me?.role ? me.role.replace("customer_", "") : "account")}
+              {me?.email || (me?.role ? me.role.replace("customer_", "") : t("common.account"))}
             </span>
           </span>
         </Button>
@@ -97,7 +106,7 @@ export function ClientSidebar() {
           onClick={() => void signOut()}
         >
           <LogOut className="size-4" />
-          Sign out
+          {t("common.signOut")}
         </Button>
       </div>
     </aside>

@@ -51,6 +51,7 @@ import {
 import { AlertTriangle, Building2, Clock3, Download, Gauge, MoreHorizontal, Users } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatQueryError } from "@/lib/utils";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 type StatusFilter = "all" | "active" | "inactive";
 type SortKey = "joined" | "org" | "contact" | "members" | "leads";
@@ -133,6 +134,7 @@ function sortCustomers(
 }
 
 export function AdminCustomers() {
+  const { t } = useI18n();
   const { data: customers, isLoading, isError, error } = useGetCustomersQuery();
   const { data: flowOverview } = useGetFlowCommitmentsOverviewQuery();
   const [upsertFlowCommitment, { isLoading: savingCommitment }] =
@@ -254,25 +256,25 @@ export function AdminCustomers() {
     a.download = "customers-export.csv";
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Exported CSV");
+    toast.success(t("adminCustomers.exportedCsv"));
   }
 
   async function copyEmail(email: string | null) {
     if (!email?.trim()) {
-      toast.error("No email on file");
+      toast.error(t("adminCustomers.noEmail"));
       return;
     }
     try {
       await navigator.clipboard.writeText(email);
-      toast.success("Email copied");
+      toast.success(t("adminCustomers.emailCopied"));
     } catch {
-      toast.error("Could not copy");
+      toast.error(t("adminCustomers.couldNotCopy"));
     }
   }
 
   function openPaceDialog(row: CustomerDirectoryRow) {
     setPaceOrgId(row.organization_id);
-    setPaceOrgName(row.organizations?.name ?? "Customer organization");
+    setPaceOrgName(row.organizations?.name ?? t("adminCustomers.customerOrganization"));
     setPaceOpen(true);
   }
 
@@ -288,7 +290,7 @@ export function AdminCustomers() {
         monthly_target_leads: Math.max(1, draft.monthly_target_leads),
         business_days_only: draft.business_days_only,
       }).unwrap();
-      toast.success("Delivery commitment saved");
+      toast.success(t("adminCustomers.deliveryCommitmentSaved"));
     } catch (err: unknown) {
       toast.error(formatQueryError(err));
     }
@@ -298,7 +300,7 @@ export function AdminCustomers() {
     return (
       <div className="p-8">
         <p className="text-destructive">
-          Failed to load customers: {formatQueryError(error)}
+          {t("adminCustomers.failedToLoad")} {formatQueryError(error)}
         </p>
       </div>
     );
@@ -307,17 +309,17 @@ export function AdminCustomers() {
   return (
     <div className="flex flex-1 flex-col gap-8 p-6 lg:p-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Customers</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("adminCustomers.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          Client organizations only (one row per company), with primary admin contact and delivery controls.
+          {t("adminCustomers.subtitle")}
         </p>
       </header>
 
       <Card className="border-border/80 bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base">Delivery Health</CardTitle>
+          <CardTitle className="text-base">{t("adminCustomers.deliveryHealth")}</CardTitle>
           <CardDescription>
-            Real-time pacing overview across all active customer lead flows.
+            {t("adminCustomers.deliveryHealthDesc")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -325,14 +327,14 @@ export function AdminCustomers() {
             <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-4">
               <p className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                 <Building2 className="size-4 text-emerald-300" />
-                Active lead flows
+                {t("adminCustomers.activeLeadFlows")}
               </p>
               <p className="mt-2 text-2xl font-semibold tabular-nums">{flowOverview?.activeFlows ?? 0}</p>
             </div>
             <div className="rounded-lg border border-sky-500/25 bg-sky-500/5 p-4">
               <p className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                 <Clock3 className="size-4 text-sky-300" />
-                Queued for delivery
+                {t("adminCustomers.queuedForDelivery")}
               </p>
               <p className="mt-2 text-2xl font-semibold tabular-nums">{flowOverview?.queuedLeads ?? 0}</p>
             </div>
@@ -357,12 +359,12 @@ export function AdminCustomers() {
                         : "text-rose-300"
                   )}
                 />
-                Delivered vs accrued (month)
+                {t("adminCustomers.deliveredVsAccrued")}
               </p>
               <p className="mt-2 text-2xl font-semibold tabular-nums">
                 {flowOverview?.deliveredThisMonth ?? 0} / {flowOverview?.accruedThisMonth ?? 0}
               </p>
-              <p className="text-xs text-muted-foreground">{deliveryPacePct}% pace</p>
+              <p className="text-xs text-muted-foreground">{deliveryPacePct}% {t("adminCustomers.pace")}</p>
             </div>
             <div
               className={cn(
@@ -385,11 +387,11 @@ export function AdminCustomers() {
                         : "text-rose-300"
                   )}
                 />
-                Flows behind pace
+                {t("adminCustomers.flowsBehindPace")}
               </p>
               <p className="mt-2 text-2xl font-semibold tabular-nums">{flowOverview?.behindFlows ?? 0}</p>
               <p className="text-xs text-muted-foreground">
-                Target month total: {flowOverview?.monthlyTargetLeads ?? 0}
+                {t("adminCustomers.targetMonthTotal")}: {flowOverview?.monthlyTargetLeads ?? 0}
               </p>
             </div>
           </div>
@@ -400,10 +402,9 @@ export function AdminCustomers() {
         <CardHeader>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <CardTitle className="text-base">Directory</CardTitle>
+              <CardTitle className="text-base">{t("adminCustomers.directory")}</CardTitle>
               <CardDescription>
-                Purchased leads counts are per organization (shared by everyone in
-                that org).
+                {t("adminCustomers.directoryDesc")}
               </CardDescription>
             </div>
             <Button
@@ -415,21 +416,21 @@ export function AdminCustomers() {
               disabled={!filteredSorted.length}
             >
               <Download className="size-4" aria-hidden />
-              Export CSV
+              {t("adminCustomers.exportCsv")}
             </Button>
           </div>
           <div className="flex flex-wrap items-end gap-3 pt-2">
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Search</Label>
+              <Label className="text-xs text-muted-foreground">{t("adminCustomers.search")}</Label>
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Organization, contact email/name, phone, org id"
+                placeholder={t("adminCustomers.searchPlaceholder")}
                 className="w-[260px]"
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Status</Label>
+              <Label className="text-xs text-muted-foreground">{t("adminCustomers.status")}</Label>
               <Select
                 value={statusFilter}
                 onValueChange={(v) => setStatusFilter(v as StatusFilter)}
@@ -438,9 +439,9 @@ export function AdminCustomers() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="all">{t("adminCustomers.all")}</SelectItem>
+                  <SelectItem value="active">{t("adminCustomers.active")}</SelectItem>
+                  <SelectItem value="inactive">{t("adminCustomers.inactive")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -457,45 +458,45 @@ export function AdminCustomers() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[100px]">Org ID</TableHead>
+                  <TableHead className="w-[100px]">{t("adminCustomers.orgId")}</TableHead>
                   <CustomerSortHead
-                    label="Organization"
+                    label={t("adminCustomers.organization")}
                     column="org"
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onSort={setSort}
                   />
                   <CustomerSortHead
-                    label="Primary Contact"
+                    label={t("adminCustomers.primaryContact")}
                     column="contact"
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onSort={setSort}
                   />
-                  <TableHead>Phone</TableHead>
+                  <TableHead>{t("adminCustomers.phone")}</TableHead>
                   <CustomerSortHead
-                    label="Members"
+                    label={t("adminCustomers.members")}
                     column="members"
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onSort={setSort}
                   />
                   <CustomerSortHead
-                    label="Purchased leads"
+                    label={t("adminCustomers.purchasedLeads")}
                     column="leads"
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onSort={setSort}
                   />
-                  <TableHead>Status</TableHead>
+                  <TableHead>{t("adminCustomers.status")}</TableHead>
                   <CustomerSortHead
-                    label="Joined"
+                    label={t("adminCustomers.joined")}
                     column="joined"
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onSort={setSort}
                   />
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right">{t("adminCustomers.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -506,8 +507,8 @@ export function AdminCustomers() {
                       className="h-24 text-center text-muted-foreground"
                     >
                       {total === 0
-                        ? "No client organizations yet."
-                        : "No rows match your filters or search."}
+                        ? t("adminCustomers.noClientOrganizations")
+                        : t("adminCustomers.noRowsMatch")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -517,19 +518,19 @@ export function AdminCustomers() {
                         {row.organization_id.slice(0, 8)}
                       </TableCell>
                       <TableCell className="max-w-[220px] truncate font-medium">
-                        {row.organizations?.name ?? "—"}
+                        {row.organizations?.name ?? t("admin.dashboard.na")}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        <div>{row.primary_admin_name ?? "—"}</div>
-                        <div className="text-xs">{row.primary_admin_email ?? "—"}</div>
+                        <div>{row.primary_admin_name ?? t("admin.dashboard.na")}</div>
+                        <div className="text-xs">{row.primary_admin_email ?? t("admin.dashboard.na")}</div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {row.phone ?? "—"}
+                        {row.phone ?? t("admin.dashboard.na")}
                       </TableCell>
                       <TableCell>
                         <Badge className="bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
                           <Users className="mr-1 size-3" />
-                          {row.membersCount} ({row.activeMembersCount} active)
+                          {row.membersCount} ({row.activeMembersCount} {t("adminCustomers.active")})
                         </Badge>
                       </TableCell>
                       <TableCell className="tabular-nums text-muted-foreground">
@@ -538,15 +539,15 @@ export function AdminCustomers() {
                       <TableCell>
                         {typeof row.is_active !== "boolean" ? (
                           <Badge className="bg-amber-500/15 text-amber-300 hover:bg-amber-500/25">
-                            Unknown
+                            {t("adminCustomers.unknown")}
                           </Badge>
                         ) : row.is_active ? (
                           <Badge className="bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
-                            Active
+                            {t("adminCustomers.active")}
                           </Badge>
                         ) : (
                           <Badge className="bg-rose-500/15 text-rose-300 hover:bg-rose-500/25">
-                            Inactive
+                            {t("adminCustomers.inactive")}
                           </Badge>
                         )}
                       </TableCell>
@@ -559,7 +560,7 @@ export function AdminCustomers() {
                             <Button
                               variant="ghost"
                               size="icon-sm"
-                              aria-label="Customer actions"
+                              aria-label={t("adminCustomers.customerActions")}
                             >
                               <MoreHorizontal className="size-4" />
                             </Button>
@@ -568,12 +569,12 @@ export function AdminCustomers() {
                             <DropdownMenuItem
                               onClick={() => void copyEmail(row.primary_admin_email)}
                             >
-                              Copy email
+                              {t("adminCustomers.copyEmail")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => openPaceDialog(row)}
                             >
-                              Manage delivery pace
+                              {t("adminCustomers.manageDeliveryPace")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -589,13 +590,13 @@ export function AdminCustomers() {
       <Dialog open={paceOpen} onOpenChange={setPaceOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Delivery pace and commitments</DialogTitle>
+            <DialogTitle>{t("adminCustomers.deliveryPaceCommitments")}</DialogTitle>
             <DialogDescription>
-              Configure monthly targets and business-day mode for active flows in {paceOrgName}.
+              {t("adminCustomers.configureTargets")} {paceOrgName}.
             </DialogDescription>
           </DialogHeader>
           {flowsError ? (
-            <p className="text-sm text-destructive">Failed to load flows: {formatQueryError(flowsErrorObj)}</p>
+            <p className="text-sm text-destructive">{t("adminCustomers.failedToLoadFlows")} {formatQueryError(flowsErrorObj)}</p>
           ) : flowsLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -604,19 +605,19 @@ export function AdminCustomers() {
             </div>
           ) : (orgFlows ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No lead flows found for this organization yet.
+              {t("adminCustomers.noLeadFlowsYet")}
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Package</TableHead>
-                  <TableHead>Queue</TableHead>
-                  <TableHead>Pace</TableHead>
-                  <TableHead>Leads/week</TableHead>
-                  <TableHead>Monthly target</TableHead>
-                  <TableHead>Business days only</TableHead>
-                  <TableHead className="text-right">Save</TableHead>
+                  <TableHead>{t("adminCustomers.package")}</TableHead>
+                  <TableHead>{t("adminCustomers.queue")}</TableHead>
+                  <TableHead>{t("adminCustomers.paceCol")}</TableHead>
+                  <TableHead>{t("adminCustomers.leadsPerWeek")}</TableHead>
+                  <TableHead>{t("adminCustomers.monthlyTarget")}</TableHead>
+                  <TableHead>{t("adminCustomers.businessDaysOnly")}</TableHead>
+                  <TableHead className="text-right">{t("adminCustomers.save")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -635,14 +636,14 @@ export function AdminCustomers() {
                   return (
                     <TableRow key={flow.id}>
                       <TableCell className="font-medium">
-                        {packageName ?? "Package"}
+                        {packageName ?? t("adminCustomers.package")}
                       </TableCell>
                       <TableCell className="tabular-nums text-muted-foreground">
                         {flow.pending_delivery_leads ?? 0}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {delivered} / {target}
-                        {accrued > 0 ? ` (${Math.min(100, pct)}% of accrued due)` : ""}
+                        {accrued > 0 ? ` (${Math.min(100, pct)}% ${t("adminCustomers.ofAccruedDue")})` : ""}
                         {accrued > 0 ? (
                           <span
                             className={cn(
@@ -654,7 +655,7 @@ export function AdminCustomers() {
                                   : "bg-rose-500/15 text-rose-300"
                             )}
                           >
-                            {pct >= 90 ? "On track" : pct >= 70 ? "Watch" : "Behind"}
+                            {pct >= 90 ? t("adminCustomers.onTrack") : pct >= 70 ? t("adminCustomers.watch") : t("adminCustomers.behind")}
                           </span>
                         ) : null}
                       </TableCell>
@@ -722,8 +723,8 @@ export function AdminCustomers() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="yes">Yes</SelectItem>
-                            <SelectItem value="no">No</SelectItem>
+                            <SelectItem value="yes">{t("adminCustomers.yes")}</SelectItem>
+                            <SelectItem value="no">{t("adminCustomers.no")}</SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>
@@ -733,7 +734,7 @@ export function AdminCustomers() {
                           onClick={() => void saveFlowCommitment(flow.id)}
                           disabled={savingCommitment}
                         >
-                          Save
+                          {t("adminCustomers.save")}
                         </Button>
                       </TableCell>
                     </TableRow>

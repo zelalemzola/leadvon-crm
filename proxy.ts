@@ -1,7 +1,37 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { defaultLocale, isLocale, localeCookieKey } from "@/lib/i18n/messages";
+
+function hasFileExtension(pathname: string) {
+  return /\.[^/]+$/.test(pathname);
+}
 
 export async function proxy(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+
+  if (
+    !pathname.startsWith("/api/") &&
+    !pathname.startsWith("/_next/") &&
+    pathname !== "/favicon.ico" &&
+    !hasFileExtension(pathname)
+  ) {
+    const parts = pathname.split("/").filter(Boolean);
+    const maybeLocale = parts[0];
+
+    if (isLocale(maybeLocale)) {
+      const response = NextResponse.next({ request });
+      response.cookies.set(localeCookieKey, maybeLocale, { path: "/" });
+      return response;
+    }
+
+    const cookieLocale = request.cookies.get(localeCookieKey)?.value;
+    const activeLocale = isLocale(cookieLocale) ? cookieLocale : defaultLocale;
+    const redirectTo = request.nextUrl.clone();
+    redirectTo.pathname = `/${activeLocale}${pathname === "/" ? "" : pathname}`;
+    redirectTo.search = search;
+    return NextResponse.redirect(redirectTo);
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });

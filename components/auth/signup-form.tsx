@@ -15,9 +15,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function SignupForm() {
   const router = useRouter();
+  const { t, localizePath } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -56,11 +58,11 @@ export function SignupForm() {
     setLoading(false);
     if (signInError) {
       setError(
-        "Account created. Please sign in from the login page after confirming your email."
+        t("auth.signup.confirmLater")
       );
       return;
     }
-    router.push("/client/setup");
+    router.push(localizePath("/client/setup"));
     router.refresh();
   }
 
@@ -71,8 +73,8 @@ export function SignupForm() {
           <Zap className="size-7" aria-hidden />
         </div>
         <div>
-          <CardTitle className="text-xl">Create customer account</CardTitle>
-          <CardDescription>Start buying and managing leads.</CardDescription>
+          <CardTitle className="text-xl">{t("auth.signup.title")}</CardTitle>
+          <CardDescription>{t("auth.signup.subtitle")}</CardDescription>
         </div>
       </CardHeader>
       <CardContent>
@@ -83,7 +85,7 @@ export function SignupForm() {
             </p>
           ) : null}
           <div className="space-y-2">
-            <Label htmlFor="full_name">Full name</Label>
+            <Label htmlFor="full_name">{t("auth.signup.fullName")}</Label>
             <Input
               id="full_name"
               value={fullName}
@@ -93,7 +95,7 @@ export function SignupForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("auth.login.email")}</Label>
             <Input
               id="email"
               type="email"
@@ -103,7 +105,7 @@ export function SignupForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="organization_name">Organization name</Label>
+            <Label htmlFor="organization_name">{t("auth.signup.organizationName")}</Label>
             <Input
               id="organization_name"
               value={organizationName}
@@ -113,7 +115,7 @@ export function SignupForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="phone">Phone number</Label>
+            <Label htmlFor="phone">{t("auth.signup.phone")}</Label>
             <Input
               id="phone"
               value={phone}
@@ -123,7 +125,7 @@ export function SignupForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t("auth.signup.password")}</Label>
             <Input
               id="password"
               type="password"
@@ -134,13 +136,13 @@ export function SignupForm() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Creating..." : "Create account"}
+            {loading ? t("auth.signup.creating") : t("auth.signup.createAccount")}
           </Button>
         </form>
         <p className="mt-5 text-center text-xs text-muted-foreground">
-          Already have an account?{" "}
-          <Link href="/login" className="font-medium text-primary underline underline-offset-2">
-            Sign in
+          {t("auth.signup.alreadyHaveAccount")}{" "}
+          <Link href={localizePath("/login")} className="font-medium text-primary underline underline-offset-2">
+            {t("auth.signup.signIn")}
           </Link>
         </p>
       </CardContent>

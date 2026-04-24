@@ -4,48 +4,50 @@ import { useGetCustomerAuditLogsQuery } from "@/lib/api/client-api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function ClientActivity() {
+  const { t } = useI18n();
   const { data: logs, isLoading, isError } = useGetCustomerAuditLogsQuery();
 
   if (isError) {
-    return <div className="p-8 text-destructive">Could not load activity.</div>;
+    return <div className="p-8 text-destructive">{t("clientActivity.couldNotLoad")}</div>;
   }
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 lg:p-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Activity</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("clientActivity.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          Recent actions for your organization (leads, team, billing flows).
+          {t("clientActivity.subtitle")}
         </p>
       </header>
 
       <Card className="border-border/70 bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base">Audit log</CardTitle>
+          <CardTitle className="text-base">{t("clientActivity.auditLog")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>When</TableHead>
-                <TableHead>Action</TableHead>
-                <TableHead>Entity</TableHead>
-                <TableHead>Details</TableHead>
+                <TableHead>{t("clientActivity.when")}</TableHead>
+                <TableHead>{t("clientActivity.action")}</TableHead>
+                <TableHead>{t("clientActivity.entity")}</TableHead>
+                <TableHead>{t("clientActivity.details")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={4} className="h-16 text-center">
-                    Loading...
+                    {t("clientActivity.loading")}
                   </TableCell>
                 </TableRow>
               ) : (logs ?? []).length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="h-16 text-center text-muted-foreground">
-                    No activity yet.
+                    {t("clientActivity.empty")}
                   </TableCell>
                 </TableRow>
               ) : (

@@ -65,22 +65,24 @@ import {
   PrepaidEntitlementsPanel,
   PrepaidPricebookPanel,
 } from "@/components/admin/admin-prepaid-panels";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function AdminPricing() {
+  const { t } = useI18n();
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 lg:p-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Pricing</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("adminPricing.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          Lead categories and customer-facing packages (USD).
+          {t("adminPricing.subtitle")}
         </p>
       </header>
       <Tabs defaultValue="categories" className="w-full">
         <TabsList>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-          <TabsTrigger value="packages">Packages</TabsTrigger>
-          <TabsTrigger value="offers">Offers</TabsTrigger>
-          <TabsTrigger value="prepaid">Prepaid</TabsTrigger>
+          <TabsTrigger value="categories">{t("adminPricing.categories")}</TabsTrigger>
+          <TabsTrigger value="packages">{t("adminPricing.packages")}</TabsTrigger>
+          <TabsTrigger value="offers">{t("adminPricing.offers")}</TabsTrigger>
+          <TabsTrigger value="prepaid">{t("adminPricing.prepaid")}</TabsTrigger>
         </TabsList>
         <TabsContent value="categories" className="mt-6">
           <CategoriesPanel />
@@ -101,6 +103,7 @@ export function AdminPricing() {
 }
 
 function CategoriesPanel() {
+  const { t } = useI18n();
   const { data: categories, isLoading } = useGetCategoriesQuery();
   const { data: packages } = useGetPackagesQuery();
   const [createCategory, { isLoading: creating }] = useCreateCategoryMutation();
@@ -130,7 +133,7 @@ function CategoriesPanel() {
     e.preventDefault();
     const s = slug.trim() || slugify(name);
     if (!name.trim() || !s) {
-      toast.error("Name and slug are required");
+      toast.error(t("adminPricing.nameSlugRequired"));
       return;
     }
     try {
@@ -140,25 +143,25 @@ function CategoriesPanel() {
           name: name.trim(),
           slug: s,
         }).unwrap();
-        toast.success("Category updated");
+        toast.success(t("adminPricing.categoryUpdated"));
       } else {
         await createCategory({ name: name.trim(), slug: s }).unwrap();
-        toast.success("Category created");
+        toast.success(t("adminPricing.categoryCreated"));
       }
       setOpen(false);
     } catch {
-      toast.error("Could not save category (slug may already exist).");
+      toast.error(t("adminPricing.couldNotSaveCategory"));
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this category? Packages referencing it may be affected."))
+    if (!confirm(t("adminPricing.confirmDeleteCategory")))
       return;
     try {
       await deleteCategory(id).unwrap();
-      toast.success("Category deleted");
+      toast.success(t("adminPricing.categoryDeleted"));
     } catch {
-      toast.error("Delete failed — remove dependent packages first.");
+      toast.error(t("adminPricing.deleteCategoryFailed"));
     }
   }
 
@@ -167,7 +170,7 @@ function CategoriesPanel() {
       <div className="flex justify-end">
         <Button onClick={openCreate}>
           <Plus className="size-4" aria-hidden />
-          New category
+          {t("adminPricing.newCategory")}
         </Button>
       </div>
       <Card className="border-border/80 bg-card/50">
@@ -182,19 +185,19 @@ function CategoriesPanel() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Slug</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Packages</TableHead>
-                  <TableHead>Avg package price</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t("adminPricing.name")}</TableHead>
+                  <TableHead>{t("adminPricing.slug")}</TableHead>
+                  <TableHead>{t("adminPricing.source")}</TableHead>
+                  <TableHead>{t("adminPricing.packages")}</TableHead>
+                  <TableHead>{t("adminPricing.avgPackagePrice")}</TableHead>
+                  <TableHead className="text-right">{t("adminPricing.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(categories ?? []).length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">
-                      No categories yet.
+                      {t("adminPricing.noCategoriesYet")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -204,9 +207,9 @@ function CategoriesPanel() {
                       <TableCell className="text-muted-foreground">{c.slug}</TableCell>
                       <TableCell>
                         {c.source_system === "base44" ? (
-                          <Badge variant="secondary">Imported from Base44</Badge>
+                          <Badge variant="secondary">{t("adminPricing.importedFromBase44")}</Badge>
                         ) : (
-                          <Badge variant="outline">Manual</Badge>
+                          <Badge variant="outline">{t("adminPricing.manual")}</Badge>
                         )}
                       </TableCell>
                       <TableCell>
@@ -224,7 +227,7 @@ function CategoriesPanel() {
                             <Button
                               variant="ghost"
                               size="icon-sm"
-                              aria-label="Category actions"
+                                aria-label={t("adminPricing.categoryActions")}
                             >
                               <MoreHorizontal className="size-4" />
                             </Button>
@@ -232,7 +235,7 @@ function CategoriesPanel() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => openEdit(c)}>
                               <Pencil className="size-4" />
-                              Edit
+                              {t("adminPricing.edit")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
@@ -240,7 +243,7 @@ function CategoriesPanel() {
                               disabled={deleting}
                             >
                               <Trash2 className="size-4" />
-                              Delete
+                              {t("adminPricing.delete")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -259,12 +262,12 @@ function CategoriesPanel() {
           <form onSubmit={(e) => void handleSave(e)}>
             <DialogHeader>
               <DialogTitle>
-                {editing ? "Edit category" : "New category"}
+                {editing ? t("adminPricing.editCategory") : t("adminPricing.newCategory")}
               </DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="cat-name">Name</Label>
+                <Label htmlFor="cat-name">{t("adminPricing.name")}</Label>
                 <Input
                   id="cat-name"
                   value={name}
@@ -276,7 +279,7 @@ function CategoriesPanel() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cat-slug">Slug</Label>
+                <Label htmlFor="cat-slug">{t("adminPricing.slug")}</Label>
                 <Input
                   id="cat-slug"
                   value={slug}
@@ -287,10 +290,10 @@ function CategoriesPanel() {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
+                {t("adminPricing.cancel")}
               </Button>
               <Button type="submit" disabled={creating || updating}>
-                Save
+                {t("adminPricing.save")}
               </Button>
             </DialogFooter>
           </form>
@@ -301,6 +304,7 @@ function CategoriesPanel() {
 }
 
 function PackagesPanel() {
+  const { t } = useI18n();
   const { data: categories } = useGetCategoriesQuery();
   const { data: packages, isLoading } = useGetPackagesQuery();
   const [createPackage, { isLoading: creating }] = useCreatePackageMutation();
@@ -354,11 +358,11 @@ function PackagesPanel() {
     const price = Math.round(parseFloat(form.price_dollars) * 100);
     const count = parseInt(form.leads_count, 10);
     if (!form.category_id || !form.name.trim() || Number.isNaN(price) || price < 0) {
-      toast.error("Check category, name, and price.");
+      toast.error(t("adminPricing.checkCategoryNamePrice"));
       return;
     }
     if (Number.isNaN(count) || count < 1) {
-      toast.error("Leads count must be at least 1.");
+      toast.error(t("adminPricing.leadsCountMin"));
       return;
     }
     const payload: Omit<
@@ -377,24 +381,24 @@ function PackagesPanel() {
     try {
       if (editing) {
         await updatePackage({ id: editing.id, ...payload }).unwrap();
-        toast.success("Package updated");
+        toast.success(t("adminPricing.packageUpdated"));
       } else {
         await createPackage(payload).unwrap();
-        toast.success("Package created");
+        toast.success(t("adminPricing.packageCreated"));
       }
       setOpen(false);
     } catch {
-      toast.error("Could not save package.");
+      toast.error(t("adminPricing.couldNotSavePackage"));
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this package?")) return;
+    if (!confirm(t("adminPricing.confirmDeletePackage"))) return;
     try {
       await deletePackage(id).unwrap();
-      toast.success("Package deleted");
+      toast.success(t("adminPricing.packageDeleted"));
     } catch {
-      toast.error("Could not delete package.");
+      toast.error(t("adminPricing.couldNotDeletePackage"));
     }
   }
 
@@ -410,16 +414,16 @@ function PackagesPanel() {
       <div className="flex justify-end">
         <Button onClick={openCreate} disabled={!categories?.length}>
           <Plus className="size-4" aria-hidden />
-          New package
+          {t("adminPricing.newPackage")}
         </Button>
       </div>
 
       {!categories?.length ? (
         <Card className="border-dashed">
           <CardHeader>
-            <CardTitle className="text-base">Add a category first</CardTitle>
+            <CardTitle className="text-base">{t("adminPricing.addCategoryFirst")}</CardTitle>
             <CardDescription>
-              Packages belong to a category. Create one in the Categories tab.
+              {t("adminPricing.packagesBelongToCategory")}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -436,29 +440,29 @@ function PackagesPanel() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Package</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Leads</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Unit price</TableHead>
-                    <TableHead>Stripe price ID</TableHead>
-                    <TableHead>Updated</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t("adminPricing.package")}</TableHead>
+                    <TableHead>{t("adminPricing.category")}</TableHead>
+                    <TableHead>{t("adminPricing.leads")}</TableHead>
+                    <TableHead>{t("adminPricing.price")}</TableHead>
+                    <TableHead>{t("adminPricing.unitPrice")}</TableHead>
+                    <TableHead>{t("adminPricing.stripePriceId")}</TableHead>
+                    <TableHead>{t("adminPricing.updated")}</TableHead>
+                    <TableHead>{t("adminPricing.status")}</TableHead>
+                    <TableHead className="text-right">{t("adminPricing.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {(packages ?? []).length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={9} className="h-24 text-center">
-                        No packages yet.
+                        {t("adminPricing.noPackagesYet")}
                       </TableCell>
                     </TableRow>
                   ) : (
                     (packages ?? []).map((p) => (
                       <TableRow key={p.id}>
                         <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell>{p.categories?.name ?? "—"}</TableCell>
+                        <TableCell>{p.categories?.name ?? t("admin.dashboard.na")}</TableCell>
                         <TableCell>{p.leads_count}</TableCell>
                         <TableCell>
                           {formatMoney(p.price_cents, p.currency)}
@@ -470,7 +474,7 @@ function PackagesPanel() {
                           )}
                         </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">
-                          {p.stripe_price_id ?? "—"}
+                          {p.stripe_price_id ?? t("admin.dashboard.na")}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {new Date(p.updated_at).toLocaleDateString()}
@@ -478,11 +482,11 @@ function PackagesPanel() {
                         <TableCell>
                           {p.active ? (
                             <Badge className="bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
-                              Active
+                              {t("adminPricing.active")}
                             </Badge>
                           ) : (
                             <Badge className="bg-rose-500/15 text-rose-300 hover:bg-rose-500/25">
-                              Inactive
+                              {t("adminPricing.inactive")}
                             </Badge>
                           )}
                         </TableCell>
@@ -492,7 +496,7 @@ function PackagesPanel() {
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label="Package actions"
+                                aria-label={t("adminPricing.packageActions")}
                               >
                                 <MoreHorizontal className="size-4" />
                               </Button>
@@ -500,7 +504,7 @@ function PackagesPanel() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => openEdit(p)}>
                                 <Pencil className="size-4" />
-                                Edit
+                                {t("adminPricing.edit")}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
@@ -508,7 +512,7 @@ function PackagesPanel() {
                                 disabled={deleting}
                               >
                                 <Trash2 className="size-4" />
-                                Delete
+                                {t("adminPricing.delete")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -528,12 +532,12 @@ function PackagesPanel() {
           <form onSubmit={(e) => void handleSave(e)}>
             <DialogHeader>
               <DialogTitle>
-                {editing ? "Edit package" : "New package"}
+                {editing ? t("adminPricing.editPackage") : t("adminPricing.newPackage")}
               </DialogTitle>
             </DialogHeader>
             <div className="grid max-h-[70vh] gap-4 overflow-y-auto py-4 pr-1">
               <div className="space-y-2">
-                <Label>Category</Label>
+                <Label>{t("adminPricing.category")}</Label>
                 <Select
                   value={form.category_id}
                   onValueChange={(v) =>
@@ -541,7 +545,7 @@ function PackagesPanel() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Category" />
+                    <SelectValue placeholder={t("adminPricing.category")} />
                   </SelectTrigger>
                   <SelectContent>
                     {(categories ?? []).map((c) => (
@@ -553,7 +557,7 @@ function PackagesPanel() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pkg-name">Name</Label>
+                <Label htmlFor="pkg-name">{t("adminPricing.name")}</Label>
                 <Input
                   id="pkg-name"
                   value={form.name}
@@ -564,7 +568,7 @@ function PackagesPanel() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pkg-desc">Description</Label>
+                <Label htmlFor="pkg-desc">{t("adminPricing.description")}</Label>
                 <Textarea
                   id="pkg-desc"
                   value={form.description}
@@ -576,7 +580,7 @@ function PackagesPanel() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="pkg-price">Price (USD)</Label>
+                  <Label htmlFor="pkg-price">{t("adminPricing.priceUsd")}</Label>
                   <Input
                     id="pkg-price"
                     type="number"
@@ -590,7 +594,7 @@ function PackagesPanel() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="pkg-count">Leads in bundle</Label>
+                  <Label htmlFor="pkg-count">{t("adminPricing.leadsInBundle")}</Label>
                   <Input
                     id="pkg-count"
                     type="number"
@@ -604,7 +608,7 @@ function PackagesPanel() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="stripe-pid">Stripe price ID (optional)</Label>
+                <Label htmlFor="stripe-pid">{t("adminPricing.stripePriceIdOptional")}</Label>
                 <Input
                   id="stripe-pid"
                   value={form.stripe_price_id}
@@ -614,7 +618,7 @@ function PackagesPanel() {
                       stripe_price_id: e.target.value,
                     }))
                   }
-                  placeholder="price_..."
+                  placeholder={t("adminPricing.stripePricePlaceholder")}
                 />
               </div>
               <div className="flex items-center gap-2">
@@ -628,16 +632,16 @@ function PackagesPanel() {
                   }
                 />
                 <Label htmlFor="pkg-active" className="font-normal">
-                  Active (visible to customers later)
+                  {t("adminPricing.activeVisibleLater")}
                 </Label>
               </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
+                {t("adminPricing.cancel")}
               </Button>
               <Button type="submit" disabled={creating || updating}>
-                Save
+                {t("adminPricing.save")}
               </Button>
             </DialogFooter>
           </form>
@@ -659,6 +663,7 @@ function formatCategoryAvgPrice(packages: PackageWithCategory[], categoryId: str
 }
 
 function OffersPanel() {
+  const { t } = useI18n();
   const { data: packages } = useGetPackagesQuery();
   const { data: offers, isLoading } = useGetOffersQuery();
   const [createOffer, { isLoading: creating }] = useCreateOfferMutation();
@@ -718,24 +723,24 @@ function OffersPanel() {
     try {
       if (editing) {
         await updateOffer({ id: editing.id, ...payload }).unwrap();
-        toast.success("Offer updated");
+        toast.success(t("adminPricing.offerUpdated"));
       } else {
         await createOffer(payload).unwrap();
-        toast.success("Offer created");
+        toast.success(t("adminPricing.offerCreated"));
       }
       setOpen(false);
     } catch {
-      toast.error("Could not save offer.");
+      toast.error(t("adminPricing.couldNotSaveOffer"));
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this offer?")) return;
+    if (!confirm(t("adminPricing.confirmDeleteOffer"))) return;
     try {
       await deleteOffer(id).unwrap();
-      toast.success("Offer deleted");
+      toast.success(t("adminPricing.offerDeleted"));
     } catch {
-      toast.error("Could not delete offer.");
+      toast.error(t("adminPricing.couldNotDeleteOffer"));
     }
   }
 
@@ -744,7 +749,7 @@ function OffersPanel() {
       <div className="flex justify-end">
         <Button onClick={openCreate} disabled={!packages?.length}>
           <Plus className="size-4" aria-hidden />
-          New offer
+          {t("adminPricing.newOffer")}
         </Button>
       </div>
       <Card className="border-border/80 bg-card/50">
@@ -759,53 +764,53 @@ function OffersPanel() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Package</TableHead>
-                  <TableHead>Discount</TableHead>
-                  <TableHead>Window</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t("adminPricing.titleCol")}</TableHead>
+                  <TableHead>{t("adminPricing.package")}</TableHead>
+                  <TableHead>{t("adminPricing.discount")}</TableHead>
+                  <TableHead>{t("adminPricing.window")}</TableHead>
+                  <TableHead>{t("adminPricing.status")}</TableHead>
+                  <TableHead className="text-right">{t("adminPricing.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(offers ?? []).length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">
-                      No offers yet.
+                      {t("adminPricing.noOffersYet")}
                     </TableCell>
                   </TableRow>
                 ) : (
                   (offers ?? []).map((o) => (
                     <TableRow key={o.id}>
                       <TableCell className="font-medium">{o.title}</TableCell>
-                      <TableCell>{o.lead_packages?.name ?? "—"}</TableCell>
+                      <TableCell>{o.lead_packages?.name ?? t("admin.dashboard.na")}</TableCell>
                       <TableCell>{o.discount_percent}%</TableCell>
                       <TableCell className="text-muted-foreground">
-                        {o.starts_at ? new Date(o.starts_at).toLocaleDateString() : "Any"} -{" "}
-                        {o.ends_at ? new Date(o.ends_at).toLocaleDateString() : "Open"}
+                        {o.starts_at ? new Date(o.starts_at).toLocaleDateString() : t("adminPricing.any")} -{" "}
+                        {o.ends_at ? new Date(o.ends_at).toLocaleDateString() : t("adminPricing.open")}
                       </TableCell>
                       <TableCell>
                         {o.active ? (
                           <Badge className="bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
-                            Active
+                            {t("adminPricing.active")}
                           </Badge>
                         ) : (
                           <Badge className="bg-rose-500/15 text-rose-300 hover:bg-rose-500/25">
-                            Inactive
+                            {t("adminPricing.inactive")}
                           </Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon-sm" aria-label="Offer actions">
+                            <Button variant="ghost" size="icon-sm" aria-label={t("adminPricing.offerActions")}>
                               <MoreHorizontal className="size-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => openEdit(o)}>
                               <Pencil className="size-4" />
-                              Edit
+                              {t("adminPricing.edit")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
@@ -813,7 +818,7 @@ function OffersPanel() {
                               disabled={deleting}
                             >
                               <Trash2 className="size-4" />
-                              Delete
+                              {t("adminPricing.delete")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -831,17 +836,17 @@ function OffersPanel() {
         <DialogContent className="sm:max-w-lg">
           <form onSubmit={(e) => void handleSave(e)}>
             <DialogHeader>
-              <DialogTitle>{editing ? "Edit offer" : "New offer"}</DialogTitle>
+              <DialogTitle>{editing ? t("adminPricing.editOffer") : t("adminPricing.newOffer")}</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
-                <Label>Package</Label>
+                <Label>{t("adminPricing.package")}</Label>
                 <Select
                   value={form.package_id}
                   onValueChange={(v) => setForm((f) => ({ ...f, package_id: v }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Package" />
+                    <SelectValue placeholder={t("adminPricing.package")} />
                   </SelectTrigger>
                   <SelectContent>
                     {(packages ?? []).map((p) => (
@@ -853,7 +858,7 @@ function OffersPanel() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Title</Label>
+                <Label>{t("adminPricing.titleCol")}</Label>
                 <Input
                   value={form.title}
                   onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
@@ -861,7 +866,7 @@ function OffersPanel() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Description</Label>
+                <Label>{t("adminPricing.description")}</Label>
                 <Textarea
                   value={form.description}
                   onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
@@ -869,7 +874,7 @@ function OffersPanel() {
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2 sm:col-span-1">
-                  <Label>Discount %</Label>
+                  <Label>{t("adminPricing.discountPercent")}</Label>
                   <Input
                     type="number"
                     min="0"
@@ -881,7 +886,7 @@ function OffersPanel() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Starts</Label>
+                  <Label>{t("adminPricing.starts")}</Label>
                   <Input
                     type="datetime-local"
                     value={form.starts_at}
@@ -889,7 +894,7 @@ function OffersPanel() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Ends</Label>
+                  <Label>{t("adminPricing.ends")}</Label>
                   <Input
                     type="datetime-local"
                     value={form.ends_at}
@@ -903,15 +908,15 @@ function OffersPanel() {
                   checked={form.active}
                   onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
                 />
-                <Label className="font-normal">Active</Label>
+                <Label className="font-normal">{t("adminPricing.active")}</Label>
               </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
+                {t("adminPricing.cancel")}
               </Button>
               <Button type="submit" disabled={creating || updating}>
-                Save
+                {t("adminPricing.save")}
               </Button>
             </DialogFooter>
           </form>

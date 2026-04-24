@@ -35,8 +35,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function AdminStaff() {
+  const { t } = useI18n();
   const { data: staff, isLoading, isError, error } = useGetStaffQuery();
   const [invite, { isLoading: inviting }] = useInviteStaffMutation();
   const [updateStaff, { isLoading: updatingStaff }] = useUpdateStaffMutation();
@@ -61,7 +63,7 @@ export function AdminStaff() {
     e.preventDefault();
     try {
       await invite({ email, password, full_name: fullName }).unwrap();
-      toast.success("Staff user created");
+      toast.success(t("adminStaff.staffCreated"));
       setEmail("");
       setPassword("");
       setFullName("");
@@ -69,7 +71,7 @@ export function AdminStaff() {
       const msg =
         err && typeof err === "object" && "data" in err
           ? String((err as { data?: unknown }).data)
-          : "Could not create user";
+          : t("adminStaff.couldNotCreateUser");
       toast.error(msg);
     }
   }
@@ -77,12 +79,12 @@ export function AdminStaff() {
   async function toggleActive(id: string, current: boolean) {
     try {
       await updateStaff({ id, is_active: !current }).unwrap();
-      toast.success(!current ? "Staff activated" : "Staff deactivated");
+      toast.success(!current ? t("adminStaff.staffActivated") : t("adminStaff.staffDeactivated"));
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object" && "data" in err
           ? String((err as { data?: unknown }).data)
-          : "Could not update staff status";
+          : t("adminStaff.couldNotUpdateStatus");
       toast.error(msg);
     }
   }
@@ -90,15 +92,15 @@ export function AdminStaff() {
   async function resetPassword(id: string) {
     const next = newPasswordById[id]?.trim();
     if (!next || next.length < 8) {
-      toast.error("Password must be at least 8 characters.");
+      toast.error(t("adminStaff.passwordMin"));
       return;
     }
     try {
       await updateStaff({ id, password: next }).unwrap();
-      toast.success("Password updated");
+      toast.success(t("adminStaff.passwordUpdated"));
       setNewPasswordById((m) => ({ ...m, [id]: "" }));
     } catch {
-      toast.error("Could not reset password");
+      toast.error(t("adminStaff.couldNotResetPassword"));
     }
   }
 
@@ -106,10 +108,10 @@ export function AdminStaff() {
     return (
       <div className="p-8">
         <p className="text-destructive">
-          Failed to load staff:{" "}
+          {t("adminStaff.failedToLoad")}{" "}
           {error && typeof error === "object" && "data" in error
             ? String((error as { data?: unknown }).data)
-            : "Unknown error"}
+            : t("adminStaff.unknownError")}
         </p>
       </div>
     );
@@ -118,7 +120,7 @@ export function AdminStaff() {
   return (
     <div className="flex flex-1 flex-col gap-8 p-6 lg:p-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Staff</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("adminStaff.title")}</h1>
         {/* <p className="text-sm text-muted-foreground">
           Create admin accounts with the staff role. Requires{" "}
           <code className="rounded bg-muted px-1 py-0.5 text-xs">
@@ -132,13 +134,13 @@ export function AdminStaff() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Card className="border-border/80 bg-card/50">
           <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Total staff</p>
+            <p className="text-xs text-muted-foreground">{t("adminStaff.totalStaff")}</p>
             <p className="text-2xl font-semibold">{staff?.length ?? 0}</p>
           </CardContent>
         </Card>
         <Card className="border-border/80 bg-card/50">
           <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Accounts with name</p>
+            <p className="text-xs text-muted-foreground">{t("adminStaff.accountsWithName")}</p>
             <p className="text-2xl font-semibold">
               {(staff ?? []).filter((s) => Boolean(s.full_name)).length}
             </p>
@@ -146,7 +148,7 @@ export function AdminStaff() {
         </Card>
         <Card className="border-border/80 bg-card/50">
           <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Missing names</p>
+            <p className="text-xs text-muted-foreground">{t("adminStaff.missingNames")}</p>
             <p className="text-2xl font-semibold">
               {(staff ?? []).filter((s) => !s.full_name).length}
             </p>
@@ -158,16 +160,16 @@ export function AdminStaff() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <UserPlus className="size-4" aria-hidden />
-            Invite staff user
+            {t("adminStaff.inviteStaffUser")}
           </CardTitle>
           <CardDescription>
-            Creates a confirmed user with password sign-in and staff access.
+            {t("adminStaff.inviteHint")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={(e) => void handleInvite(e)} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="st-email">Email</Label>
+              <Label htmlFor="st-email">{t("adminStaff.email")}</Label>
               <Input
                 id="st-email"
                 type="email"
@@ -178,7 +180,7 @@ export function AdminStaff() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="st-pass">Temporary password</Label>
+              <Label htmlFor="st-pass">{t("adminStaff.temporaryPassword")}</Label>
               <Input
                 id="st-pass"
                 type="password"
@@ -190,7 +192,7 @@ export function AdminStaff() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="st-name">Full name (optional)</Label>
+              <Label htmlFor="st-name">{t("adminStaff.fullNameOptional")}</Label>
               <Input
                 id="st-name"
                 value={fullName}
@@ -198,7 +200,7 @@ export function AdminStaff() {
               />
             </div>
             <Button type="submit" disabled={inviting}>
-              {inviting ? "Creating…" : "Create staff user"}
+              {inviting ? t("adminStaff.creating") : t("adminStaff.createStaffUser")}
             </Button>
           </form>
         </CardContent>
@@ -206,13 +208,13 @@ export function AdminStaff() {
 
       <Card className="border-border/80 bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base">Staff accounts</CardTitle>
-          <CardDescription>Users with the staff role in your project.</CardDescription>
+          <CardTitle className="text-base">{t("adminStaff.staffAccounts")}</CardTitle>
+          <CardDescription>{t("adminStaff.staffAccountsDesc")}</CardDescription>
           <div className="pt-2">
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search staff by email, name, or id"
+              placeholder={t("adminStaff.searchPlaceholder")}
               className="max-w-sm"
             />
           </div>
@@ -228,23 +230,22 @@ export function AdminStaff() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>User ID</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Reset password</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Updated</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t("adminStaff.userId")}</TableHead>
+                  <TableHead>{t("adminStaff.email")}</TableHead>
+                  <TableHead>{t("adminStaff.name")}</TableHead>
+                  <TableHead>{t("adminStaff.role")}</TableHead>
+                  <TableHead>{t("adminStaff.status")}</TableHead>
+                  <TableHead>{t("adminStaff.resetPassword")}</TableHead>
+                  <TableHead>{t("adminStaff.created")}</TableHead>
+                  <TableHead>{t("adminStaff.updated")}</TableHead>
+                  <TableHead className="text-right">{t("adminStaff.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredStaff.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="h-24 text-center">
-                      No staff rows yet — promote your first user in SQL or
-                      create one above.
+                      {t("adminStaff.noRowsYet")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -254,26 +255,26 @@ export function AdminStaff() {
                         {s.id.slice(0, 8)}
                       </TableCell>
                       <TableCell className="font-medium">
-                        {s.email ?? "—"}
+                        {s.email ?? t("admin.dashboard.na")}
                       </TableCell>
-                      <TableCell>{s.full_name ?? "—"}</TableCell>
+                      <TableCell>{s.full_name ?? t("admin.dashboard.na")}</TableCell>
                       <TableCell>
                         <Badge className="bg-violet-500/15 text-violet-300 hover:bg-violet-500/25">
-                          Staff
+                          {t("adminStaff.staff")}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         {typeof s.is_active !== "boolean" ? (
                           <Badge className="bg-amber-500/15 text-amber-300 hover:bg-amber-500/25">
-                            Unknown
+                            {t("adminStaff.unknown")}
                           </Badge>
                         ) : s.is_active ? (
                           <Badge className="bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
-                            Active
+                            {t("adminStaff.active")}
                           </Badge>
                         ) : (
                           <Badge className="bg-rose-500/15 text-rose-300 hover:bg-rose-500/25">
-                            Inactive
+                            {t("adminStaff.inactive")}
                           </Badge>
                         )}
                       </TableCell>
@@ -281,7 +282,7 @@ export function AdminStaff() {
                         <div className="flex items-center gap-2">
                           <Input
                             type="password"
-                            placeholder="new password"
+                            placeholder={t("adminStaff.newPassword")}
                             value={newPasswordById[s.id] ?? ""}
                             onChange={(e) =>
                               setNewPasswordById((m) => ({
@@ -296,7 +297,7 @@ export function AdminStaff() {
                             onClick={() => void resetPassword(s.id)}
                             disabled={updatingStaff}
                           >
-                            Set
+                            {t("adminStaff.set")}
                           </Button>
                         </div>
                       </TableCell>
@@ -319,16 +320,16 @@ export function AdminStaff() {
                                 typeof s.is_active === "boolean"
                                   ? void toggleActive(s.id, s.is_active)
                                   : toast.error(
-                                      "Staff status column is missing. Run the admin hardening migration first."
+                                      t("adminStaff.statusColumnMissing")
                                     )
                               }
                               disabled={updatingStaff}
                             >
                               {typeof s.is_active !== "boolean"
-                                ? "Status unavailable"
+                                ? t("adminStaff.statusUnavailable")
                                 : s.is_active
-                                  ? "Deactivate"
-                                  : "Activate"}
+                                  ? t("adminStaff.deactivate")
+                                  : t("adminStaff.activate")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

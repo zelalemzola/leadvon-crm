@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function LoginForm({
   initialError,
@@ -22,14 +23,15 @@ export function LoginForm({
   initialError?: string;
 }) {
   const router = useRouter();
+  const { t, localizePath } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(
     initialError === "forbidden"
-      ? "You do not have access to this console."
+      ? t("auth.login.forbidden")
       : initialError
-        ? "Sign in failed."
+        ? t("auth.login.failed")
         : null
   );
   const [setupAvailable, setSetupAvailable] = useState(false);
@@ -71,7 +73,7 @@ export function LoginForm({
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      setError("Unable to load profile.");
+      setError(t("auth.login.profileLoadError"));
       return;
     }
     const { data: profile } = await supabase
@@ -80,12 +82,12 @@ export function LoginForm({
       .eq("id", user.id)
       .maybeSingle();
     if (!profile?.is_active) {
-      setError("Your account is inactive. Contact your administrator.");
+      setError(t("auth.login.inactive"));
       await supabase.auth.signOut();
       return;
     }
     if (profile.role === "staff") {
-      router.push("/admin");
+      router.push(localizePath("/admin"));
     } else if (
       profile.role === "customer_admin" ||
       profile.role === "customer_agent"
@@ -95,9 +97,9 @@ export function LoginForm({
         profile !== null &&
         "organization_id" in profile &&
         Boolean((profile as { organization_id?: string | null }).organization_id);
-      router.push(hasOrg ? "/client" : "/client/setup");
+      router.push(hasOrg ? localizePath("/client") : localizePath("/client/setup"));
     } else {
-      setError("Your account role is not recognized.");
+      setError(t("auth.login.unknownRole"));
       await supabase.auth.signOut();
       return;
     }
@@ -112,7 +114,7 @@ export function LoginForm({
         </div>
         <div>
           <CardTitle className="text-xl">LeadVon</CardTitle>
-          <CardDescription>Sign in to your workspace</CardDescription>
+          <CardDescription>{t("auth.login.subtitle")}</CardDescription>
         </div>
       </CardHeader>
       <CardContent>
@@ -123,7 +125,7 @@ export function LoginForm({
             </p>
           ) : null}
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("auth.login.email")}</Label>
             <Input
               id="email"
               type="email"
@@ -131,11 +133,11 @@ export function LoginForm({
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
+              placeholder={t("auth.login.placeholderEmail")}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t("auth.login.password")}</Label>
             <Input
               id="password"
               type="password"
@@ -146,28 +148,28 @@ export function LoginForm({
             />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in…" : "Sign in"}
+            {loading ? t("auth.login.signingIn") : t("auth.login.signIn")}
           </Button>
         </form>
         <p className="mt-6 text-center text-xs text-muted-foreground">
           {setupAvailable ? (
             <>
-              First time here?{" "}
+              {t("auth.login.firstTime")}{" "}
               <Link
-                href="/setup"
+                href={localizePath("/setup")}
                 className="font-medium text-primary underline underline-offset-2"
               >
-                Create the first admin account
+                {t("auth.login.createFirstAdmin")}
               </Link>
               {" · "}
             </>
           ) : null}
-          <Link href="/signup" className="font-medium text-primary underline underline-offset-2">
-            Customer sign up
+          <Link href={localizePath("/signup")} className="font-medium text-primary underline underline-offset-2">
+            {t("auth.login.customerSignUp")}
           </Link>
           {" · "}
-          <Link href="/" className="underline underline-offset-2">
-            Home
+          <Link href={localizePath("/")} className="underline underline-offset-2">
+            {t("auth.login.home")}
           </Link>
         </p>
       </CardContent>
