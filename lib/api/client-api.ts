@@ -135,6 +135,27 @@ export type CustomerLeadFlow = {
   lead_packages: { id: string; name: string; leads_count: number; category_id: string } | null;
 };
 
+export type TieredPricingQuote = {
+  category_id: string;
+  unit_type: string;
+  quantity: number;
+  minimum_order_qty: number;
+  tier_id: string;
+  tier_min_qty: number;
+  tier_max_qty: number | null;
+  price_per_lead_cents: number;
+  total_cents: number;
+  currency: "USD";
+};
+
+export type TieredFlowSessionRequest = {
+  category_id: string;
+  unit_type: string;
+  quantity: number;
+  monthly_target_leads?: number;
+  business_days_only?: boolean;
+};
+
 function sb() {
   return createClient();
 }
@@ -574,6 +595,29 @@ export const clientApi = createApi({
       invalidatesTags: ["ClientEntitlements", "ClientDeliveryLedger"],
     }),
 
+    getTieredPricingQuote: builder.mutation<
+      TieredPricingQuote,
+      { category_id: string; unit_type: string; quantity: number }
+    >({
+      queryFn: async (body) => {
+        const res = await requestJson<TieredPricingQuote>("/api/client/pricing/quote", "POST", body);
+        if (res.error) return { error: res.error };
+        return { data: res.data! };
+      },
+    }),
+
+    createTieredFlowSession: builder.mutation<{ url: string }, TieredFlowSessionRequest>({
+      queryFn: async (body) => {
+        const res = await requestJson<{ url: string }>(
+          "/api/client/billing/tiered-flow-session",
+          "POST",
+          body
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data! };
+      },
+    }),
+
     getOrgUsers: builder.query<OrgUserWithLastLogin[], void>({
       queryFn: async () => {
         const res = await fetch("/api/client/users");
@@ -728,6 +772,8 @@ export const {
   useGetMyDeliveryLedgerQuery,
   useGetMyInvoicesQuery,
   useCreatePrepaidSessionMutation,
+  useGetTieredPricingQuoteMutation,
+  useCreateTieredFlowSessionMutation,
   useGetOrgUsersQuery,
   useCreateOrgUserMutation,
   useUpdateOrgUserMutation,

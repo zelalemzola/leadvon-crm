@@ -3,8 +3,13 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import {
+  useCreateCategoryPricingTierMutation,
   useGetCategoriesQuery,
+  useGetCategoryPricingTierRatesQuery,
+  useGetCategoryPricingTiersQuery,
   useGetPackagesQuery,
+  useUpsertCategoryPricingTierRateMutation,
+  useUpdateCategoryMinimumOrderQtyMutation,
   useCreateCategoryMutation,
   useUpdateCategoryMutation,
   useDeleteCategoryMutation,
@@ -80,12 +85,16 @@ export function AdminPricing() {
       <Tabs defaultValue="categories" className="w-full">
         <TabsList>
           <TabsTrigger value="categories">{t("adminPricing.categories")}</TabsTrigger>
+          <TabsTrigger value="tiered">{t("adminPricing.tieredPricing")}</TabsTrigger>
           <TabsTrigger value="packages">{t("adminPricing.packages")}</TabsTrigger>
           <TabsTrigger value="offers">{t("adminPricing.offers")}</TabsTrigger>
           <TabsTrigger value="prepaid">{t("adminPricing.prepaid")}</TabsTrigger>
         </TabsList>
         <TabsContent value="categories" className="mt-6">
           <CategoriesPanel />
+        </TabsContent>
+        <TabsContent value="tiered" className="mt-6">
+          <TieredPricingPanel />
         </TabsContent>
         <TabsContent value="packages" className="mt-6">
           <PackagesPanel />
@@ -98,6 +107,227 @@ export function AdminPricing() {
           <PrepaidEntitlementsPanel />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function TieredPricingPanel() {
+  const { t } = useI18n();
+  const { data: categories } = useGetCategoriesQuery();
+  const { data: packages } = useGetPackagesQuery();
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [minimumOrderQty, setMinimumOrderQty] = useState("1");
+  const { data: tiers, isLoading: tiersLoading } = useGetCategoryPricingTiersQuery(
+    selectedCategoryId ? { categoryId: selectedCategoryId } : undefined
+  );
+  const { data: rates } = useGetCategoryPricingTierRatesQuery();
+  const [createTier, { isLoading: creatingTier }] = useCreateCategoryPricingTierMutation();
+  const [upsertRate, { isLoading: savingRate }] = useUpsertCategoryPricingTierRateMutation();
+  const [updateMOQ, { isLoading: savingMOQ }] = useUpdateCategoryMinimumOrderQtyMutation();
+
+  const [newMinQty, setNewMinQty] = useState("1");
+  const [newMaxQty, setNewMaxQty] = useState("");
+  const [singlePrice, setSinglePrice] = useState("");
+  const [familyPrice, setFamilyPrice] = useState("");
+
+  const selectedCategory = (categories ?? []).find((category) => category.id === selectedCategoryId);
+  const selectedCategoryHasActivePackage = (packages ?? []).some(
+    (pkg) => pkg.category_id === selectedCategoryId && pkg.active
+  );
+
+  async function handleSaveMinimumOrder() {
+    if (!selectedCategoryId) return;
+    const qty = Number(minimumOrderQty);
+    if (!Number.isInteger(qty) || qty < 1) {
+      toast.error(t("adminPricing.minimumOrderInvalid"));
+      return;
+    }
+    try {
+      await updateMOQ({ id: selectedCategoryId, minimum_order_qty: qty }).unwrap();
+      toast.success(t("adminPricing.minimumOrderSaved"));
+    } catch {
+      toast.error(t("adminPricing.minimumOrderSaveFailed"));
+    }
+  }
+
+  async function handleCreateTier() {
+    if (!selectedCategoryId) {
+      toast.error(t("adminPricing.selectCategoryFirst"));
+      return;
+    }
+    const minQty = Number(newMinQty);
+    const maxQty = newMaxQty.trim() ? Number(newMaxQty) : null;
+    const singleCents = Number(singlePrice);
+    const familyCents = Number(familyPrice);
+
+    if (!Number.isInteger(minQty) || minQty < 1) {
+      toast.error(t("adminPricing.tierMinInvalid"));
+      return;
+    }
+    if (maxQty !== null && (!Number.isInteger(maxQty) || maxQty < minQty)) {
+      toast.error(t("adminPricing.tierMaxInvalid"));
+      return;
+    }
+    if (!Number.isInteger(singleCents) || singleCents < 0 || !Number.isInteger(familyCents) || familyCents < 0) {
+      toast.error(t("adminPricing.tierRateInvalid"));
+      return;
+    }
+
+    try {
+      const tier = await createTier({
+        category_id: selectedCategoryId,
+        min_qty: minQty,
+        max_qty: maxQty,
+        is_active: true,
+      }).unwrap();
+      await Promise.all([
+        upsertRate({ tier_id: tier.id, unit_type: "single", price_cents: singleCents }).unwrap(),
+        upsertRate({ tier_id: tier.id, unit_type: "family", price_cents: familyCents }).unwrap(),
+      ]);
+      setNewMinQty("");
+      setNewMaxQty("");
+      setSinglePrice("");
+      setFamilyPrice("");
+      toast.success(t("adminPricing.tierCreated"));
+    } catch {
+      toast.error(t("adminPricing.tierCreateFailed"));
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("adminPricing.tieredPricingTitle")}</CardTitle>
+          <CardDescription>{t("adminPricing.tieredPricingDesc")}</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-2 sm:col-span-2">
+            <Label>{t("adminPricing.category")}</Label>
+            <Select
+              value={selectedCategoryId}
+              onValueChange={(value) => {
+                setSelectedCategoryId(value);
+                const next = (categories ?? []).find((c) => c.id === value);
+                setMinimumOrderQty(String(next?.minimum_order_qty ?? 1));
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={t("adminPricing.category")} />
+              </SelectTrigger>
+              <SelectContent>
+                {(categories ?? []).map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>{t("adminPricing.minimumOrderQty")}</Label>
+            <Input
+              type="number"
+              min={1}
+              value={minimumOrderQty}
+              onChange={(event) => setMinimumOrderQty(event.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-3 flex justify-end">
+            <Button
+              variant="outline"
+              onClick={() => void handleSaveMinimumOrder()}
+              disabled={!selectedCategoryId || savingMOQ}
+            >
+              {t("adminPricing.saveMinimumOrder")}
+            </Button>
+          </div>
+          {selectedCategoryId && !selectedCategoryHasActivePackage ? (
+            <p className="sm:col-span-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+              {t("adminPricing.noActivePackageWarning")}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("adminPricing.newTier")}</CardTitle>
+          <CardDescription>
+            {selectedCategory
+              ? t("adminPricing.creatingTierFor").replace("{category}", selectedCategory.name)
+              : t("adminPricing.selectCategoryForTier")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-4">
+          <div className="space-y-2">
+            <Label>{t("adminPricing.tierMinQty")}</Label>
+            <Input type="number" min={1} value={newMinQty} onChange={(e) => setNewMinQty(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>{t("adminPricing.tierMaxQtyOptional")}</Label>
+            <Input type="number" min={1} value={newMaxQty} onChange={(e) => setNewMaxQty(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>{t("adminPricing.singlePriceCents")}</Label>
+            <Input type="number" min={0} value={singlePrice} onChange={(e) => setSinglePrice(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>{t("adminPricing.familyPriceCents")}</Label>
+            <Input type="number" min={0} value={familyPrice} onChange={(e) => setFamilyPrice(e.target.value)} />
+          </div>
+          <div className="sm:col-span-4 flex justify-end">
+            <Button onClick={() => void handleCreateTier()} disabled={creatingTier || savingRate}>
+              {t("adminPricing.createTier")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("adminPricing.activeTiers")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {tiersLoading ? (
+            <Skeleton className="h-10 w-full" />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("adminPricing.tierRange")}</TableHead>
+                  <TableHead>{t("adminPricing.singlePrice")}</TableHead>
+                  <TableHead>{t("adminPricing.familyPrice")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {!selectedCategoryId || (tiers ?? []).length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-muted-foreground">
+                      {t("adminPricing.noTieredPricingYet")}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  (tiers ?? []).map((tier) => {
+                    const tierRates = (rates ?? []).filter((rate) => rate.tier_id === tier.id);
+                    const single = tierRates.find((rate) => rate.unit_type === "single")?.price_cents;
+                    const family = tierRates.find((rate) => rate.unit_type === "family")?.price_cents;
+                    return (
+                      <TableRow key={tier.id}>
+                        <TableCell>
+                          {tier.min_qty} - {tier.max_qty ?? t("adminPricing.andUp")}
+                        </TableCell>
+                        <TableCell>{single ?? "-"}</TableCell>
+                        <TableCell>{family ?? "-"}</TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -12,8 +12,9 @@ import {
   useGetMyDeliveryEntitlementsQuery,
   useGetMyDeliveryLedgerQuery,
   useGetMyInvoicesQuery,
+  useGetTieredPricingQuoteMutation,
+  useCreateTieredFlowSessionMutation,
   useCreatePrepaidSessionMutation,
-  useUpsertLeadFlowMutation,
   useRunLeadFlowsNowMutation,
 } from "@/lib/api/client-api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,14 +45,21 @@ export function ClientBilling() {
   } = useGetClientPackagesQuery();
   const { data: offers } = useGetClientOffersQuery();
   const { data: leadFlows } = useGetLeadFlowsQuery();
+  const [getTieredQuote, { isLoading: quotingTiered }] = useGetTieredPricingQuoteMutation();
+  const [createTieredFlowSession, { isLoading: creatingTieredFlow }] =
+    useCreateTieredFlowSessionMutation();
   const [createPrepaidSession, { isLoading: creatingPrepaid }] =
     useCreatePrepaidSessionMutation();
-  const [upsertLeadFlow, { isLoading: savingFlow }] = useUpsertLeadFlowMutation();
   const [runLeadFlowsNow, { isLoading: runningFlows }] = useRunLeadFlowsNowMutation();
   const [prepaidAmount, setPrepaidAmount] = useState(100);
-  const [selectedPackageId, setSelectedPackageId] = useState<string>("");
-  const [leadsPerWeek, setLeadsPerWeek] = useState<number>(100);
-  const [monthlyTargetLeads, setMonthlyTargetLeads] = useState<number>(433);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [selectedUnitType, setSelectedUnitType] = useState<string>("single");
+  const [monthlyTargetLeads, setMonthlyTargetLeads] = useState<number>(100);
+  const [tieredQuote, setTieredQuote] = useState<{
+    price_per_lead_cents: number;
+    total_cents: number;
+    minimum_order_qty: number;
+  } | null>(null);
   const canManageBilling = me?.role === "customer_admin" && me?.is_active;
 
   const offersByPackage = useMemo(() => {
@@ -63,27 +71,25 @@ export function ClientBilling() {
     return m;
   }, [offers]);
 
-  const activePackageId = selectedPackageId || packages?.[0]?.id || "";
-  const selectedPackage = useMemo(
-    () => (packages ?? []).find((p) => p.id === activePackageId) ?? null,
-    [packages, activePackageId]
-  );
-  const selectedFlow = useMemo(
-    () => (leadFlows ?? []).find((f) => f.package_id === activePackageId) ?? null,
-    [leadFlows, activePackageId]
-  );
+  const categoryOptions = useMemo(() => {
+    const byId = new Map<string, { id: string; name: string }>();
+    for (const p of packages ?? []) {
+      if (p.categories?.id && p.categories?.name) {
+        byId.set(p.categories.id, { id: p.categories.id, name: p.categories.name });
+      }
+    }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [packages]);
 
   useEffect(() => {
-    if (!selectedFlow) return;
-    setLeadsPerWeek(selectedFlow.leads_per_week);
-    const target = selectedFlow.customer_flow_commitments?.[0]?.monthly_target_leads;
-    if (target) setMonthlyTargetLeads(target);
-  }, [selectedFlow]);
+    if (!selectedCategoryId && categoryOptions[0]?.id) {
+      setSelectedCategoryId(categoryOptions[0].id);
+    }
+  }, [selectedCategoryId, categoryOptions]);
 
-  /** Rough daily target: spread weekly goal across 7 days (matches server accrual). */
-  const dailyTargetLeads = useMemo(
-    () => Math.max(1, Math.ceil((leadsPerWeek || 1) / 7)),
-    [leadsPerWeek]
+  const estimatedLeadsPerWeek = useMemo(
+    () => Math.max(1, Math.round((monthlyTargetLeads || 1) / 4.333)),
+    [monthlyTargetLeads]
   );
 
   const leadsReceived = dashboard?.totalLeads ?? 0;
@@ -103,6 +109,7 @@ export function ClientBilling() {
   const estimatedLeadsLeft = avgCpl > 0 ? Math.floor(totalRemainingBudget / avgCpl) : null;
 
   const prepaidHandledRef = useRef<string | null>(null);
+  const tieredHandledRef = useRef<string | null>(null);
 
   useEffect(() => {
     const prepaidState = searchParams.get("prepaid");
@@ -136,6 +143,50 @@ export function ClientBilling() {
     };
   }, [searchParams, pathname, router, refetchEntitlements, refetchLedger]);
 
+  useEffect(() => {
+    const tieredState = searchParams.get("tiered");
+    if (!tieredState) {
+      tieredHandledRef.current = null;
+      return;
+    }
+    if (tieredHandledRef.current === tieredState) return;
+    tieredHandledRef.current = tieredState;
+    void (async () => {
+      if (tieredState === "success") {
+        await Promise.all([refetchEntitlements(), refetchLedger()]);
+        router.replace(pathname, { scroll: false });
+        toast.success(t("clientBilling.toastTieredFlowActivated"));
+        return;
+      }
+      if (tieredState === "cancel") {
+        router.replace(pathname, { scroll: false });
+        toast.info(t("clientBilling.toastTieredCheckoutCanceled"));
+      }
+    })();
+  }, [searchParams, pathname, router, refetchEntitlements, refetchLedger, t]);
+
+  useEffect(() => {
+    if (!selectedCategoryId || monthlyTargetLeads < 1) {
+      setTieredQuote(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const quote = await getTieredQuote({
+            category_id: selectedCategoryId,
+            unit_type: selectedUnitType,
+            quantity: monthlyTargetLeads,
+          }).unwrap();
+          setTieredQuote(quote);
+        } catch {
+          setTieredQuote(null);
+        }
+      })();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [selectedCategoryId, selectedUnitType, monthlyTargetLeads, getTieredQuote]);
+
   async function startPrepaid() {
     if (!canManageBilling) {
       toast.error(t("clientBilling.toastOnlyAdminsPrepaid"));
@@ -160,8 +211,8 @@ export function ClientBilling() {
   }
 
   async function activateLeadFlow() {
-    if (!selectedPackage) {
-      toast.error(t("clientBilling.toastSelectPackage"));
+    if (!selectedCategoryId) {
+      toast.error(t("clientBilling.toastSelectCategory"));
       return;
     }
     if (!canManageBilling) {
@@ -169,14 +220,14 @@ export function ClientBilling() {
       return;
     }
     try {
-      await upsertLeadFlow({
-        package_id: selectedPackage.id,
-        leads_per_week: leadsPerWeek,
+      const { url } = await createTieredFlowSession({
+        category_id: selectedCategoryId,
+        unit_type: selectedUnitType,
+        quantity: monthlyTargetLeads,
         monthly_target_leads: monthlyTargetLeads,
         business_days_only: true,
-        is_active: true,
       }).unwrap();
-      toast.success(t("clientBilling.toastFlowActivated"));
+      window.location.assign(url);
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object" && "data" in err
@@ -238,8 +289,8 @@ export function ClientBilling() {
               <div className="space-y-2">
                 <Label>{t("clientBilling.product")}</Label>
                 <Select
-                  value={activePackageId}
-                  onValueChange={setSelectedPackageId}
+                  value={selectedCategoryId}
+                  onValueChange={setSelectedCategoryId}
                   disabled={packagesLoading}
                 >
                   <SelectTrigger>
@@ -249,19 +300,26 @@ export function ClientBilling() {
                           ? t("clientBilling.loadingPackages")
                           : packagesError
                             ? t("clientBilling.couldNotLoadPackages")
-                            : (packages ?? []).length === 0
+                            : categoryOptions.length === 0
                               ? t("clientBilling.noPackages")
-                              : t("clientBilling.selectPackage")
+                              : t("clientBilling.selectCategory")
                       }
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {(packages ?? []).map((p) => {
-                      const discount = offersByPackage.get(p.id) ?? 0;
-                      const final = Math.round(p.price_cents * ((100 - discount) / 100));
+                    {categoryOptions.map((cat) => {
+                      const categoryPackages = (packages ?? []).filter(
+                        (p) => p.categories?.id === cat.id
+                      );
+                      const cheapest = categoryPackages.reduce<number | null>((min, p) => {
+                        const discount = offersByPackage.get(p.id) ?? 0;
+                        const final = Math.round(p.price_cents * ((100 - discount) / 100));
+                        return min === null ? final : Math.min(min, final);
+                      }, null);
                       return (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.categories?.name ?? t("clientBilling.category")} - {money(final)} / {p.leads_count} {t("clientBilling.leads")}
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name}
+                          {cheapest !== null ? ` - ${t("clientBilling.from")} ${money(cheapest)}` : ""}
                         </SelectItem>
                       );
                     })}
@@ -277,20 +335,19 @@ export function ClientBilling() {
               </div>
               <div className="grid gap-4 md:grid-cols-2 md:items-start">
                 <div className="space-y-2 md:min-w-0">
-                  <Label>{t("clientBilling.leadsPerWeek")}</Label>
+                  <Label>{t("clientBilling.leadType")}</Label>
                   <Input
-                    type="number"
-                    min={1}
-                    value={leadsPerWeek}
-                    onChange={(e) => setLeadsPerWeek(Math.max(1, Number(e.target.value) || 1))}
+                    value={selectedUnitType}
+                    onChange={(event) => setSelectedUnitType(event.target.value.trim().toLowerCase())}
+                    placeholder={t("clientBilling.unitTypePlaceholder")}
                   />
                   <p className="min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground">
-                    {t("clientBilling.dailyTargetPrefix")} <strong>{dailyTargetLeads}</strong>{" "}
-                    {t("clientBilling.dailyTargetSuffix")}
+                    {t("clientBilling.estimatedWeeklyPrefix")} <strong>{estimatedLeadsPerWeek}</strong>{" "}
+                    {t("clientBilling.estimatedWeeklySuffix")}
                   </p>
                 </div>
                 <div className="space-y-2 md:min-w-0">
-                  <Label>{t("clientBilling.monthlyTarget")}</Label>
+                  <Label>{t("clientBilling.monthlyQuantity")}</Label>
                   <Input
                     type="number"
                     min={1}
@@ -298,7 +355,11 @@ export function ClientBilling() {
                     onChange={(e) => setMonthlyTargetLeads(Math.max(1, Number(e.target.value) || 1))}
                   />
                   <p className="min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground">
-                    {t("clientBilling.monthlyTargetHint")}
+                    {tieredQuote
+                      ? `${t("clientBilling.pricePerLead")}: ${money(tieredQuote.price_per_lead_cents)} · ${t("clientBilling.total")}: ${money(tieredQuote.total_cents)}`
+                      : quotingTiered
+                        ? t("clientBilling.calculatingQuote")
+                        : t("clientBilling.monthlyQuantityHint")}
                   </p>
                 </div>
               </div>
@@ -306,9 +367,9 @@ export function ClientBilling() {
             <Button
               className="w-full"
               onClick={() => void activateLeadFlow()}
-              disabled={savingFlow || !canManageBilling || !selectedPackage}
+              disabled={creatingTieredFlow || !canManageBilling || !selectedCategoryId}
             >
-              {savingFlow ? t("clientBilling.activating") : t("clientBilling.activateFlow")}
+              {creatingTieredFlow ? t("clientBilling.activating") : t("clientBilling.activateFlow")}
             </Button>
             <Button
               variant="outline"

@@ -1,6 +1,8 @@
 import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 import { createClient } from "@/lib/supabase/client";
 import type {
+  CategoryPricingTier,
+  CategoryPricingTierRate,
   Category,
   CustomerDirectoryRow,
   DeliveryEntitlement,
@@ -316,6 +318,7 @@ export const adminApi = createApi({
     "Pricebook",
     "Entitlements",
     "FlowCommitments",
+    "TieredPricing",
   ],
   endpoints: (builder) => ({
     getDashboardStats: builder.query<DashboardStats, AdminDashboardFilters | void>({
@@ -1188,6 +1191,117 @@ export const adminApi = createApi({
       providesTags: ["Entitlements"],
     }),
 
+    getCategoryPricingTiers: builder.query<
+      (CategoryPricingTier & {
+        categories: Pick<Category, "id" | "name" | "slug" | "minimum_order_qty"> | null;
+      })[],
+      { categoryId?: string } | void
+    >({
+      queryFn: async (args) => {
+        let query = sb()
+          .from("category_pricing_tiers")
+          .select("*, categories(id, name, slug, minimum_order_qty)")
+          .order("category_id")
+          .order("min_qty");
+        if (args?.categoryId) {
+          query = query.eq("category_id", args.categoryId);
+        }
+        const { data, error } = await query;
+        if (error) return { error };
+        return {
+          data: (data ?? []) as (CategoryPricingTier & {
+            categories: Pick<Category, "id" | "name" | "slug" | "minimum_order_qty"> | null;
+          })[],
+        };
+      },
+      providesTags: ["TieredPricing", "Categories"],
+    }),
+
+    getCategoryPricingTierRates: builder.query<CategoryPricingTierRate[], { tierId?: string } | void>({
+      queryFn: async (args) => {
+        let query = sb()
+          .from("category_pricing_tier_rates")
+          .select("*")
+          .order("tier_id")
+          .order("unit_type");
+        if (args?.tierId) {
+          query = query.eq("tier_id", args.tierId);
+        }
+        const { data, error } = await query;
+        if (error) return { error };
+        return { data: (data ?? []) as CategoryPricingTierRate[] };
+      },
+      providesTags: ["TieredPricing"],
+    }),
+
+    createCategoryPricingTier: builder.mutation<
+      CategoryPricingTier,
+      { category_id: string; min_qty: number; max_qty: number | null; is_active?: boolean }
+    >({
+      queryFn: async (body) => {
+        const { data, error } = await sb().from("category_pricing_tiers").insert(body).select("*").single();
+        if (error) return { error };
+        return { data: data as CategoryPricingTier };
+      },
+      invalidatesTags: ["TieredPricing"],
+    }),
+
+    updateCategoryPricingTier: builder.mutation<
+      CategoryPricingTier,
+      Partial<Pick<CategoryPricingTier, "min_qty" | "max_qty" | "is_active">> & { id: string }
+    >({
+      queryFn: async ({ id, ...patch }) => {
+        const { data, error } = await sb()
+          .from("category_pricing_tiers")
+          .update(patch)
+          .eq("id", id)
+          .select("*")
+          .single();
+        if (error) return { error };
+        return { data: data as CategoryPricingTier };
+      },
+      invalidatesTags: ["TieredPricing"],
+    }),
+
+    deleteCategoryPricingTier: builder.mutation<void, string>({
+      queryFn: async (id) => {
+        const { error } = await sb().from("category_pricing_tiers").delete().eq("id", id);
+        if (error) return { error };
+        return { data: undefined };
+      },
+      invalidatesTags: ["TieredPricing"],
+    }),
+
+    upsertCategoryPricingTierRate: builder.mutation<
+      CategoryPricingTierRate,
+      { tier_id: string; unit_type: CategoryPricingTierRate["unit_type"]; price_cents: number }
+    >({
+      queryFn: async (body) => {
+        const { data, error } = await sb()
+          .from("category_pricing_tier_rates")
+          .upsert(body, { onConflict: "tier_id,unit_type" })
+          .select("*")
+          .single();
+        if (error) return { error };
+        return { data: data as CategoryPricingTierRate };
+      },
+      invalidatesTags: ["TieredPricing"],
+    }),
+
+    updateCategoryMinimumOrderQty: builder.mutation<Category, { id: string; minimum_order_qty: number }>({
+      queryFn: async ({ id, minimum_order_qty }) => {
+        const { data, error } = await sb()
+          .from("categories")
+          .update({ minimum_order_qty })
+          .eq("id", id)
+          .select("*")
+          .single();
+        if (error) return { error };
+        return { data: data as Category };
+      },
+      invalidatesTags: ["Categories", "TieredPricing"],
+    }),
+
     deliverPrepaidLead: builder.mutation<
       DeliverPrepaidLeadResult,
       { organization_id: string; source_lead_id: string }
@@ -1244,4 +1358,11 @@ export const {
   useUpdateLeadPricebookMutation,
   useGetDeliveryEntitlementsQuery,
   useDeliverPrepaidLeadMutation,
+  useGetCategoryPricingTiersQuery,
+  useGetCategoryPricingTierRatesQuery,
+  useCreateCategoryPricingTierMutation,
+  useUpdateCategoryPricingTierMutation,
+  useDeleteCategoryPricingTierMutation,
+  useUpsertCategoryPricingTierRateMutation,
+  useUpdateCategoryMinimumOrderQtyMutation,
 } = adminApi;

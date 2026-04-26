@@ -49,6 +49,7 @@ export type Category = {
   created_at: string;
   source_system?: string | null;
   source_external_value?: string | null;
+  minimum_order_qty?: number;
 };
 
 /** Inventory / customer lead unit for prepaid drawdown pricing. */
@@ -172,6 +173,33 @@ export type SupportContact = {
   description: string;
   created_at: string;
   updated_at: string;
+};
+
+/** Quantity-tiered pricing per category (sliding scale). */
+export type CategoryPricingTier = {
+  id: string;
+  category_id: string;
+  min_qty: number;
+  max_qty: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Per-tier price for each lead unit type. */
+export type CategoryPricingTierRate = {
+  id: string;
+  tier_id: string;
+  unit_type: LeadUnitType;
+  price_cents: number;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CategoryPricingTierWithRates = CategoryPricingTier & {
+  categories: Pick<Category, "id" | "name" | "slug" | "minimum_order_qty"> | null;
+  rates: CategoryPricingTierRate[];
 };
 
 export type CustomerAuditLog = {
