@@ -13,6 +13,7 @@ import {
   useGetMyDeliveryLedgerQuery,
   useGetMyInvoicesQuery,
   useGetTieredPricingQuoteMutation,
+  useGetClientPricingTiersQuery,
   useCreateTieredFlowSessionMutation,
   useCreatePrepaidSessionMutation,
   useRunLeadFlowsNowMutation,
@@ -81,16 +82,49 @@ export function ClientBilling() {
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [packages]);
 
-  useEffect(() => {
-    if (!selectedCategoryId && categoryOptions[0]?.id) {
-      setSelectedCategoryId(categoryOptions[0].id);
-    }
-  }, [selectedCategoryId, categoryOptions]);
+  const activeCategoryId = selectedCategoryId || categoryOptions[0]?.id || "";
+  const { data: pricingTiersData } = useGetClientPricingTiersQuery(
+    { category_id: activeCategoryId },
+    { skip: !activeCategoryId }
+  );
+  const tierBreakpoints = pricingTiersData?.tiers ?? [];
+  const unitTypeOptions = pricingTiersData?.unit_types ?? [];
 
   const estimatedLeadsPerWeek = useMemo(
     () => Math.max(1, Math.round((monthlyTargetLeads || 1) / 4.333)),
     [monthlyTargetLeads]
   );
+  const sliderMinimum = Math.max(1, tieredQuote?.minimum_order_qty ?? 1);
+  const sliderMaximum = 2000;
+  const sliderStep = 1;
+  const sliderMarks = useMemo(() => {
+    const marks = new Set<number>([sliderMinimum]);
+    for (const tier of tierBreakpoints ?? []) {
+      marks.add(Number(tier.min_qty));
+      if (tier.max_qty !== null) {
+        marks.add(Number(tier.max_qty));
+      }
+    }
+    marks.add(sliderMaximum);
+    return [...marks]
+      .filter((n) => Number.isFinite(n) && n >= sliderMinimum && n <= sliderMaximum)
+      .sort((a, b) => a - b);
+  }, [tierBreakpoints, sliderMinimum]);
+  const sliderPercent = ((Math.min(sliderMaximum, Math.max(sliderMinimum, monthlyTargetLeads)) - sliderMinimum) / Math.max(1, sliderMaximum - sliderMinimum)) * 100;
+  const sliderTierLabels = useMemo(
+    () =>
+      tierBreakpoints.map((tier) => ({
+        id: tier.id,
+        label: tier.max_qty === null ? `${tier.min_qty}+` : `${tier.min_qty}-${tier.max_qty}`,
+      })),
+    [tierBreakpoints]
+  );
+
+  useEffect(() => {
+    if (unitTypeOptions.length > 0 && !unitTypeOptions.includes(selectedUnitType)) {
+      setSelectedUnitType(unitTypeOptions[0]);
+    }
+  }, [unitTypeOptions, selectedUnitType]);
 
   const leadsReceived = dashboard?.totalLeads ?? 0;
   const totalDeliverySpend = useMemo(
@@ -141,7 +175,7 @@ export function ClientBilling() {
     return () => {
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [searchParams, pathname, router, refetchEntitlements, refetchLedger]);
+  }, [searchParams, pathname, router, refetchEntitlements, refetchLedger, t]);
 
   useEffect(() => {
     const tieredState = searchParams.get("tiered");
@@ -166,15 +200,14 @@ export function ClientBilling() {
   }, [searchParams, pathname, router, refetchEntitlements, refetchLedger, t]);
 
   useEffect(() => {
-    if (!selectedCategoryId || monthlyTargetLeads < 1) {
-      setTieredQuote(null);
+    if (!activeCategoryId || monthlyTargetLeads < 1) {
       return;
     }
     const timer = setTimeout(() => {
       void (async () => {
         try {
           const quote = await getTieredQuote({
-            category_id: selectedCategoryId,
+            category_id: activeCategoryId,
             unit_type: selectedUnitType,
             quantity: monthlyTargetLeads,
           }).unwrap();
@@ -185,7 +218,7 @@ export function ClientBilling() {
       })();
     }, 300);
     return () => clearTimeout(timer);
-  }, [selectedCategoryId, selectedUnitType, monthlyTargetLeads, getTieredQuote]);
+  }, [activeCategoryId, selectedUnitType, monthlyTargetLeads, getTieredQuote]);
 
   async function startPrepaid() {
     if (!canManageBilling) {
@@ -211,7 +244,7 @@ export function ClientBilling() {
   }
 
   async function activateLeadFlow() {
-    if (!selectedCategoryId) {
+    if (!activeCategoryId) {
       toast.error(t("clientBilling.toastSelectCategory"));
       return;
     }
@@ -220,8 +253,14 @@ export function ClientBilling() {
       return;
     }
     try {
+      if (monthlyTargetLeads < sliderMinimum) {
+        toast.error(
+          t("clientBilling.minimumOrderNotice").replace("{qty}", String(sliderMinimum))
+        );
+        return;
+      }
       const { url } = await createTieredFlowSession({
-        category_id: selectedCategoryId,
+        category_id: activeCategoryId,
         unit_type: selectedUnitType,
         quantity: monthlyTargetLeads,
         monthly_target_leads: monthlyTargetLeads,
@@ -289,7 +328,7 @@ export function ClientBilling() {
               <div className="space-y-2">
                 <Label>{t("clientBilling.product")}</Label>
                 <Select
-                  value={selectedCategoryId}
+                  value={activeCategoryId}
                   onValueChange={setSelectedCategoryId}
                   disabled={packagesLoading}
                 >
@@ -336,11 +375,22 @@ export function ClientBilling() {
               <div className="grid gap-4 md:grid-cols-2 md:items-start">
                 <div className="space-y-2 md:min-w-0">
                   <Label>{t("clientBilling.leadType")}</Label>
-                  <Input
-                    value={selectedUnitType}
-                    onChange={(event) => setSelectedUnitType(event.target.value.trim().toLowerCase())}
-                    placeholder={t("clientBilling.unitTypePlaceholder")}
-                  />
+                  <Select value={selectedUnitType} onValueChange={setSelectedUnitType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("clientBilling.selectLeadType")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(unitTypeOptions.length > 0 ? unitTypeOptions : ["single", "family"]).map((unitType) => (
+                        <SelectItem key={unitType} value={unitType}>
+                          {unitType === "single"
+                            ? t("clientBilling.singleUnit")
+                            : unitType === "family"
+                              ? t("clientBilling.familyUnit")
+                              : unitType}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <p className="min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground">
                     {t("clientBilling.estimatedWeeklyPrefix")} <strong>{estimatedLeadsPerWeek}</strong>{" "}
                     {t("clientBilling.estimatedWeeklySuffix")}
@@ -348,14 +398,82 @@ export function ClientBilling() {
                 </div>
                 <div className="space-y-2 md:min-w-0">
                   <Label>{t("clientBilling.monthlyQuantity")}</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={monthlyTargetLeads}
-                    onChange={(e) => setMonthlyTargetLeads(Math.max(1, Number(e.target.value) || 1))}
-                  />
+                  <div className="space-y-3 rounded-md border border-border/60 bg-background/40 p-3">
+                    <div className="relative">
+                      <div
+                        className="mb-1 inline-flex rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary"
+                        style={{
+                          marginLeft: `calc(${sliderPercent}% - 26px)`,
+                        }}
+                      >
+                        {monthlyTargetLeads}
+                      </div>
+                      <input
+                        type="range"
+                        min={sliderMinimum}
+                        max={sliderMaximum}
+                        step={sliderStep}
+                        value={Math.min(sliderMaximum, Math.max(sliderMinimum, monthlyTargetLeads))}
+                        onChange={(e) =>
+                          setMonthlyTargetLeads(
+                            Math.max(sliderMinimum, Math.min(sliderMaximum, Number(e.target.value)))
+                          )
+                        }
+                        className="h-2 w-full cursor-pointer accent-primary"
+                      />
+                      <div className="relative mt-1 h-3">
+                        {sliderMarks.map((mark) => (
+                          <span
+                            key={mark}
+                            className="absolute top-0 h-2 w-px bg-border"
+                            style={{
+                              left: `${((mark - sliderMinimum) / Math.max(1, sliderMaximum - sliderMinimum)) * 100}%`,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>
+                        {t("clientBilling.sliderMin")}: {sliderMinimum}
+                      </span>
+                      <span>
+                        {t("clientBilling.sliderMax")}: {sliderMaximum}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                      {sliderTierLabels.length > 0
+                        ? sliderTierLabels.map((tier) => (
+                            <span key={`label-${tier.id}`} className="rounded border border-border/60 px-1.5 py-0.5">
+                              {tier.label}
+                            </span>
+                          ))
+                        : sliderMarks.slice(0, 8).map((mark) => (
+                            <span key={`label-${mark}`} className="rounded border border-border/60 px-1.5 py-0.5">
+                              {mark}
+                            </span>
+                          ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="monthly-qty" className="text-xs text-muted-foreground">
+                        {t("clientBilling.monthlyQuantity")}
+                      </Label>
+                      <Input
+                        id="monthly-qty"
+                        type="number"
+                        min={sliderMinimum}
+                        max={sliderMaximum}
+                        value={monthlyTargetLeads}
+                        onChange={(e) => {
+                          const next = Number(e.target.value) || sliderMinimum;
+                          setMonthlyTargetLeads(Math.max(sliderMinimum, Math.min(sliderMaximum, next)));
+                        }}
+                        className="h-8 w-28"
+                      />
+                    </div>
+                  </div>
                   <p className="min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground">
-                    {tieredQuote
+                    {activeCategoryId && tieredQuote
                       ? `${t("clientBilling.pricePerLead")}: ${money(tieredQuote.price_per_lead_cents)} · ${t("clientBilling.total")}: ${money(tieredQuote.total_cents)}`
                       : quotingTiered
                         ? t("clientBilling.calculatingQuote")
@@ -367,7 +485,7 @@ export function ClientBilling() {
             <Button
               className="w-full"
               onClick={() => void activateLeadFlow()}
-              disabled={creatingTieredFlow || !canManageBilling || !selectedCategoryId}
+              disabled={creatingTieredFlow || !canManageBilling || !activeCategoryId}
             >
               {creatingTieredFlow ? t("clientBilling.activating") : t("clientBilling.activateFlow")}
             </Button>

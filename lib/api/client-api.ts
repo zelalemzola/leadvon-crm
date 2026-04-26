@@ -156,6 +156,19 @@ export type TieredFlowSessionRequest = {
   business_days_only?: boolean;
 };
 
+export type ClientTieredPricingTier = {
+  id: string;
+  category_id: string;
+  min_qty: number;
+  max_qty: number | null;
+  is_active: boolean;
+};
+
+export type ClientPricingTiersPayload = {
+  tiers: ClientTieredPricingTier[];
+  unit_types: string[];
+};
+
 function sb() {
   return createClient();
 }
@@ -618,6 +631,20 @@ export const clientApi = createApi({
       },
     }),
 
+    getClientPricingTiers: builder.query<ClientPricingTiersPayload, { category_id: string }>({
+      queryFn: async ({ category_id }) => {
+        const res = await fetch(`/api/client/pricing/tiers?category_id=${encodeURIComponent(category_id)}`);
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: ClientPricingTiersPayload;
+          error?: string;
+        };
+        if (!res.ok) {
+          return { error: { status: res.status, data: json.error ?? "Request failed" } };
+        }
+        return { data: json.data ?? { tiers: [], unit_types: [] } };
+      },
+    }),
+
     getOrgUsers: builder.query<OrgUserWithLastLogin[], void>({
       queryFn: async () => {
         const res = await fetch("/api/client/users");
@@ -774,6 +801,7 @@ export const {
   useCreatePrepaidSessionMutation,
   useGetTieredPricingQuoteMutation,
   useCreateTieredFlowSessionMutation,
+  useGetClientPricingTiersQuery,
   useGetOrgUsersQuery,
   useCreateOrgUserMutation,
   useUpdateOrgUserMutation,
