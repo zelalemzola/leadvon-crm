@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## LeadVon CRM
 
-## Getting Started
+Single codebase for both user-facing client workspace and internal admin portal.
 
-First, run the development server:
+## Local Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Separate Client/Admin Deployments
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+This app supports deployment surface isolation with `APP_SURFACE`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `APP_SURFACE=client`: serves customer routes and blocks admin pages/APIs.
+- `APP_SURFACE=admin`: serves admin routes and blocks client pages/APIs.
+- `APP_SURFACE=all` (default): serves everything (current behavior).
 
-## Learn More
+Optional host hardening:
 
-To learn more about Next.js, take a look at the following resources:
+- `ADMIN_ALLOWED_HOSTS`: comma-separated hostnames allowed for admin deployment
+- `CLIENT_ALLOWED_HOSTS`: comma-separated hostnames allowed for client deployment
+- Supports wildcard patterns like `*.yourdomain.com`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Recommended production setup
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Deploy **two separate projects** from the same repository.
+- Client project env: `APP_SURFACE=client`
+- Admin project env: `APP_SURFACE=admin`
+- Attach separate domains:
+  - Client: `app.yourdomain.com`
+  - Admin: `admin.yourdomain.com`
 
-## Deploy on Vercel
+### Example (Vercel)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Create project `leadvon-client` from this repo.
+2. Set `APP_SURFACE=client` in environment variables.
+3. Set `CLIENT_ALLOWED_HOSTS=app.yourdomain.com`
+4. Set `ADMIN_ALLOWED_HOSTS=admin.yourdomain.com` (to explicitly block admin host on client app)
+5. Add domain `app.yourdomain.com`.
+4. Create project `leadvon-admin` from the same repo.
+5. Set `APP_SURFACE=admin` in environment variables.
+6. Set `ADMIN_ALLOWED_HOSTS=admin.yourdomain.com`
+7. Set `CLIENT_ALLOWED_HOSTS=app.yourdomain.com` (to explicitly block client host on admin app)
+8. Add domain `admin.yourdomain.com`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Security notes
+
+- Route isolation is an additional layer, not the only layer.
+- Keep server-side role checks in layouts and APIs (already implemented).
+- Use MFA for admin users and monitor admin audit logs.
