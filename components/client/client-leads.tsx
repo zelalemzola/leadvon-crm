@@ -188,7 +188,7 @@ export function ClientLeads() {
         </p>
       </header>
 
-      <Card className="border-border/70 bg-card/50">
+      <Card id="tour-client-leads-filters" className="border-border/70 bg-card/50">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">{t("clientLeads.filters")}</CardTitle>
         </CardHeader>
@@ -295,7 +295,7 @@ export function ClientLeads() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/70 bg-card/50">
+      <Card id="tour-client-leads-table" className="border-border/70 bg-card/50">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -384,7 +384,10 @@ export function ClientLeads() {
             </TableBody>
           </Table>
         </CardContent>
-        <div className="flex items-center justify-between border-t border-border/70 px-4 py-3 text-sm">
+        <div
+          id="tour-client-leads-pagination"
+          className="flex items-center justify-between border-t border-border/70 px-4 py-3 text-sm"
+        >
           <p className="text-muted-foreground">{t("clientLeads.showing")} {rows.length} {t("clientLeads.of")} {total}</p>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>

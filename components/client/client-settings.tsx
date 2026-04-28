@@ -124,7 +124,7 @@ export function ClientSettings() {
         </p>
       </header>
 
-      <Card className="max-w-2xl border-border/70 bg-card/50">
+      <Card id="tour-client-settings-create-user" className="max-w-2xl border-border/70 bg-card/50">
         <CardHeader>
           <CardTitle className="text-base">{t("clientSettings.createTeamUser")}</CardTitle>
           <CardDescription>
@@ -171,7 +171,7 @@ export function ClientSettings() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/70 bg-card/50">
+      <Card id="tour-client-settings-users" className="border-border/70 bg-card/50">
         <CardHeader>
           <CardTitle className="text-base">{t("clientSettings.organizationUsers")}</CardTitle>
         </CardHeader>

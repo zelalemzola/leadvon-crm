@@ -316,7 +316,7 @@ export function ClientBilling() {
       </header>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <Card className="border-border/70 bg-card/50 xl:col-span-2">
+        <Card id="tour-client-billing-purchase" className="border-border/70 bg-card/50 xl:col-span-2">
           <CardHeader className="border-b border-border/60 pb-4">
             <CardTitle className="flex items-center gap-2 text-base">
               <Zap className="size-4 text-primary" />
@@ -506,7 +506,7 @@ export function ClientBilling() {
         </Card>
 
         <div className="space-y-4">
-          <Card className="border-border/70 bg-card/50">
+          <Card id="tour-client-billing-usage" className="border-border/70 bg-card/50">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between text-base">
                 <span className="flex items-center gap-2">
@@ -684,7 +684,7 @@ export function ClientBilling() {
         </div>
       </div>
 
-      <Card className="border-border/70 bg-card/50">
+      <Card id="tour-client-billing-history" className="border-border/70 bg-card/50">
         <CardHeader>
           <CardTitle className="text-base">{t("clientBilling.budgetActivity")}</CardTitle>
           <p className="text-xs text-muted-foreground">

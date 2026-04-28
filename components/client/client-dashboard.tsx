@@ -117,7 +117,10 @@ export function ClientDashboard() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 lg:p-8">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <header
+        id="tour-client-dashboard-header"
+        className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"
+      >
         <div className="min-w-0 space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">{t("clientDashboard.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("clientDashboard.subtitle")}</p>
@@ -214,7 +217,7 @@ export function ClientDashboard() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+          <div id="tour-client-dashboard-status-grid" className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
             {statusCards.map(({ key, icon: Icon, color }) => (
               <Card key={key} className="border-border/70 bg-card/50">
                 <CardContent className="space-y-2 p-4">
@@ -232,7 +235,7 @@ export function ClientDashboard() {
             ))}
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div id="tour-client-dashboard-charts" className="grid gap-6 lg:grid-cols-2">
             <Card className="border-border/70 bg-card/50">
               <CardHeader>
                 <CardTitle className="text-base">{t("clientDashboard.leadsFlow")}</CardTitle>

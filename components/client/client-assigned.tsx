@@ -151,7 +151,7 @@ export function ClientAssignedLeads() {
         </p>
       </header>
 
-      <Card className="border-border/70 bg-card/50">
+      <Card id="tour-client-assigned-filters" className="border-border/70 bg-card/50">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">{t("clientAssigned.filters")}</CardTitle>
         </CardHeader>
@@ -211,7 +211,7 @@ export function ClientAssignedLeads() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/70 bg-card/50">
+      <Card id="tour-client-assigned-table" className="border-border/70 bg-card/50">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -286,7 +286,7 @@ export function ClientAssignedLeads() {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between text-sm">
+      <div id="tour-client-assigned-pagination" className="flex items-center justify-between text-sm">
         <p className="text-muted-foreground">{t("clientAssigned.showing")} {rows.length} {t("clientAssigned.of")} {total}</p>
         <div className="flex items-center gap-2">
           <button

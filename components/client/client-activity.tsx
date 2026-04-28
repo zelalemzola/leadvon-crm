@@ -23,7 +23,7 @@ export function ClientActivity() {
         </p>
       </header>
 
-      <Card className="border-border/70 bg-card/50">
+      <Card id="tour-client-activity-log" className="border-border/70 bg-card/50">
         <CardHeader>
           <CardTitle className="text-base">{t("clientActivity.auditLog")}</CardTitle>
         </CardHeader>

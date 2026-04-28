@@ -12,6 +12,7 @@ import {
   Zap,
   ScrollText,
   User,
+  Compass,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useGetClientMeQuery } from "@/lib/api/client-api";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
+import { useNextStep } from "nextstepjs";
 
 const baseNav = [
   { href: "/client", key: "client.nav.dashboard", icon: LayoutDashboard },
@@ -26,22 +28,31 @@ const baseNav = [
   { href: "/client/billing", key: "client.nav.billing", icon: CreditCard },
   { href: "/client/activity", key: "client.nav.activity", icon: ScrollText },
   { href: "/client/support", key: "client.nav.support", icon: LifeBuoy },
-  { href: "/client/settings", key: "client.nav.settings", icon: Settings },
 ];
+
+function getNavTourId(href: string) {
+  if (href === "/client") return "tour-client-nav-dashboard";
+  return `tour-client-nav-${href.split("/").at(-1) ?? "item"}`;
+}
 
 export function ClientSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { data: me } = useGetClientMeQuery();
   const { t, locale, localizePath } = useI18n();
+  const { startNextStep } = useNextStep();
   const normalizedPath = pathname.replace(/^\/(en|fr)(?=\/|$)/, "") || "/";
-  const nav = me?.role === "customer_agent"
+  const navCore = me?.role === "customer_agent"
     ? [
         ...baseNav.slice(0, 2),
         { href: "/client/assigned", key: "client.nav.assigned", icon: Users },
         ...baseNav.slice(2),
       ]
     : baseNav;
+  const nav =
+    me?.role === "customer_admin"
+      ? [...navCore, { href: "/client/settings", key: "client.nav.settings", icon: Settings }]
+      : navCore;
 
   async function signOut() {
     const supabase = createClient();
@@ -50,8 +61,19 @@ export function ClientSidebar() {
     router.refresh();
   }
 
+  function replayTour() {
+    if (typeof window === "undefined") return;
+    if (me?.id) {
+      window.localStorage.removeItem(`leadvon.clientTour.completed.${me.id}`);
+    }
+    startNextStep("client-first-run");
+  }
+
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-border/60 bg-card/40">
+    <aside
+      id="tour-client-sidebar"
+      className="flex h-full w-60 shrink-0 flex-col border-r border-border/60 bg-card/40"
+    >
       <div className="flex items-center gap-2 border-b border-border/60 px-4 py-5">
         <div className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
           <Zap className="size-5" />
@@ -69,6 +91,7 @@ export function ClientSidebar() {
           return (
             <Link
               key={href}
+              id={getNavTourId(href)}
               href={`/${locale}${href}`}
               className={cn(
                 "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
@@ -99,6 +122,14 @@ export function ClientSidebar() {
               {me?.email || (me?.role ? me.role.replace("customer_", "") : t("common.account"))}
             </span>
           </span>
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-2 text-muted-foreground"
+          onClick={replayTour}
+        >
+          <Compass className="size-4" />
+          Replay tour
         </Button>
         <Button
           variant="ghost"

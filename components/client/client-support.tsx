@@ -26,7 +26,7 @@ export function ClientSupport() {
           {t("client.support.empty")}
         </p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div id="tour-client-support-cards" className="grid gap-4 md:grid-cols-3">
           {(contacts ?? []).map((c) => (
             <ContactCard
               key={c.id}
