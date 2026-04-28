@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
   MoreHorizontal,
@@ -19,6 +19,7 @@ import {
   useUpdateLeadMutation,
   useDeleteLeadMutation,
   useDeliverPrepaidLeadMutation,
+  useDeliverSignupFreeLeadMutation,
   type AdminLeadsAvailability,
   type AdminLeadsSort,
 } from "@/lib/api/admin-api";
@@ -94,6 +95,9 @@ export function AdminLeads() {
   const [prepaidDialogOpen, setPrepaidDialogOpen] = useState(false);
   const [prepaidLead, setPrepaidLead] = useState<LeadWithCategory | null>(null);
   const [prepaidOrgId, setPrepaidOrgId] = useState("");
+  const [signupFreeDialogOpen, setSignupFreeDialogOpen] = useState(false);
+  const [signupFreeLead, setSignupFreeLead] = useState<LeadWithCategory | null>(null);
+  const [signupFreeOrgId, setSignupFreeOrgId] = useState("");
   const [editing, setEditing] = useState<LeadWithCategory | null>(null);
   const [form, setForm] = useState(emptyForm);
   const importRef = useRef<HTMLInputElement | null>(null);
@@ -122,6 +126,8 @@ export function AdminLeads() {
   const [deleteLead, { isLoading: deleting }] = useDeleteLeadMutation();
   const [deliverPrepaid, { isLoading: deliveringPrepaid }] =
     useDeliverPrepaidLeadMutation();
+  const [deliverSignupFree, { isLoading: deliveringSignupFree }] =
+    useDeliverSignupFreeLeadMutation();
 
   const loading = leadsLoading || catLoading;
   const rows = leads?.rows ?? [];
@@ -142,6 +148,26 @@ export function AdminLeads() {
     }
     return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   }, [customers]);
+
+  useEffect(() => {
+    if (
+      signupFreeDialogOpen &&
+      !signupFreeOrgId &&
+      orgChoices.length > 0
+    ) {
+      setSignupFreeOrgId(orgChoices[0][0]);
+    }
+  }, [signupFreeDialogOpen, signupFreeOrgId, orgChoices]);
+
+  useEffect(() => {
+    if (
+      prepaidDialogOpen &&
+      !prepaidOrgId &&
+      orgChoices.length > 0
+    ) {
+      setPrepaidOrgId(orgChoices[0][0]);
+    }
+  }, [prepaidDialogOpen, prepaidOrgId, orgChoices]);
 
   function openCreate() {
     setEditing(null);
@@ -173,6 +199,12 @@ export function AdminLeads() {
     setPrepaidDialogOpen(true);
   }
 
+  function openSignupFreeDeliver(row: LeadWithCategory) {
+    setSignupFreeLead(row);
+    setSignupFreeOrgId(orgChoices[0]?.[0] ?? "");
+    setSignupFreeDialogOpen(true);
+  }
+
   async function handlePrepaidDeliver(e: React.FormEvent) {
     e.preventDefault();
     if (!prepaidLead || !prepaidOrgId) {
@@ -189,6 +221,29 @@ export function AdminLeads() {
       );
       setPrepaidDialogOpen(false);
       setPrepaidLead(null);
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "data" in err
+          ? String((err as { data?: { message?: string } }).data)
+          : t("adminLeads.deliveryFailed");
+      toast.error(msg);
+    }
+  }
+
+  async function handleSignupFreeDeliver(e: React.FormEvent) {
+    e.preventDefault();
+    if (!signupFreeLead || !signupFreeOrgId) {
+      toast.error(t("adminLeads.selectOrganization"));
+      return;
+    }
+    try {
+      await deliverSignupFree({
+        organization_id: signupFreeOrgId,
+        source_lead_id: signupFreeLead.id,
+      }).unwrap();
+      toast.success(t("adminLeads.deliveredToCustomerForFree"));
+      setSignupFreeDialogOpen(false);
+      setSignupFreeLead(null);
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object" && "data" in err
@@ -611,6 +666,14 @@ export function AdminLeads() {
                             <DropdownMenuContent align="end">
                               {!row.sold_at ? (
                                 <DropdownMenuItem
+                                  onClick={() => openSignupFreeDeliver(row)}
+                                >
+                                  <CreditCard className="size-4" />
+                                  {t("adminLeads.deliverSignupFree")}
+                                </DropdownMenuItem>
+                              ) : null}
+                              {!row.sold_at ? (
+                                <DropdownMenuItem
                                   onClick={() => openPrepaidDeliver(row)}
                                 >
                                   <CreditCard className="size-4" />
@@ -665,6 +728,74 @@ export function AdminLeads() {
           </div>
         </Card>
       )}
+
+      <Dialog
+        open={signupFreeDialogOpen}
+        onOpenChange={(open) => {
+          setSignupFreeDialogOpen(open);
+          if (!open) setSignupFreeLead(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={(e) => void handleSignupFreeDeliver(e)}>
+            <DialogHeader>
+              <DialogTitle>{t("adminLeads.deliverLeadSignupFree")}</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4 text-sm">
+              <p className="text-muted-foreground">
+                {t("adminLeads.deliverLeadSignupFreeDesc")}
+              </p>
+              {signupFreeLead ? (
+                <p className="rounded-md border border-border/80 bg-muted/40 px-3 py-2 text-xs">
+                  {signupFreeLead.first_name} {signupFreeLead.last_name} ·{" "}
+                  {signupFreeLead.categories?.name ?? t("admin.dashboard.na")} · {t("adminLeads.unit")}:{" "}
+                  {signupFreeLead.lead_unit_type ?? "single"}
+                </p>
+              ) : null}
+              <div className="space-y-2">
+                <Label>{t("adminLeads.organization")}</Label>
+                <Select
+                  value={signupFreeOrgId}
+                  onValueChange={setSignupFreeOrgId}
+                  disabled={orgChoices.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        orgChoices.length === 0
+                          ? t("adminLeads.noCustomersWithOrgs")
+                          : t("adminLeads.selectOrganizationLabel")
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {orgChoices.map(([id, name]) => (
+                      <SelectItem key={id} value={id}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setSignupFreeDialogOpen(false)}
+              >
+                {t("adminLeads.cancel")}
+              </Button>
+              <Button
+                type="submit"
+                disabled={deliveringSignupFree || orgChoices.length === 0}
+              >
+                {t("adminLeads.deliver")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={prepaidDialogOpen}
@@ -725,11 +856,7 @@ export function AdminLeads() {
               </Button>
               <Button
                 type="submit"
-                disabled={
-                  deliveringPrepaid ||
-                  !prepaidOrgId ||
-                  orgChoices.length === 0
-                }
+                disabled={deliveringPrepaid || orgChoices.length === 0}
               >
                 {t("adminLeads.deliver")}
               </Button>

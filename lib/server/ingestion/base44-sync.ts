@@ -137,6 +137,23 @@ export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
       }
 
       const payload = mapped.data;
+      const excluded = await service
+        .from("external_sync_exclusions")
+        .select("external_id")
+        .eq("provider", payload.source_system)
+        .eq("external_id", payload.source_external_id)
+        .maybeSingle();
+      if (excluded.error) {
+        skippedInvalid += 1;
+        addSkipReason(`exclusion_lookup:${excluded.error.message}`);
+        continue;
+      }
+      if (excluded.data) {
+        skippedInvalid += 1;
+        addSkipReason("excluded_by_staff");
+        continue;
+      }
+
       const existing = await service
         .from("leads")
         .select("id")

@@ -122,6 +122,34 @@ export async function DELETE(request: Request) {
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const service = createServiceClient();
+  const existing = await service
+    .from("leads")
+    .select("id, source_system, source_external_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (existing.error) {
+    return NextResponse.json({ error: existing.error.message }, { status: 400 });
+  }
+  if (!existing.data) {
+    return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+  }
+
+  const sourceSystem = String(existing.data.source_system ?? "").trim();
+  const sourceExternalId = String(existing.data.source_external_id ?? "").trim();
+  if (sourceSystem && sourceExternalId) {
+    const exclusion = await service.from("external_sync_exclusions").upsert(
+      {
+        provider: sourceSystem,
+        external_id: sourceExternalId,
+        reason: "deleted_by_staff",
+      },
+      { onConflict: "provider,external_id" }
+    );
+    if (exclusion.error) {
+      return NextResponse.json({ error: exclusion.error.message }, { status: 400 });
+    }
+  }
+
   const { error } = await service.from("leads").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 

@@ -99,6 +99,8 @@ export function ClientLeads() {
   const [modalStatus, setModalStatus] = useState<string>("new");
   const [modalAssignee, setModalAssignee] = useState<string>("unassigned");
   const [modalNotes, setModalNotes] = useState("");
+  const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
+  const [activeSummary, setActiveSummary] = useState("");
 
   const { data: categories } = useGetCategoriesQuery();
   const { data: countries } = useGetCustomerLeadCountriesQuery();
@@ -156,6 +158,25 @@ export function ClientLeads() {
     setModalAssignee(row.assigned_to ?? "unassigned");
     setModalNotes(row.notes ?? "");
     setDialogOpen(true);
+  }
+
+  function openSummaryView(summary?: string | null) {
+    setActiveSummary(summary?.trim() || t("clientDashboard.na"));
+    setSummaryDialogOpen(true);
+  }
+
+  function getLeadZipCode(row: CustomerLead) {
+    const leadWithZip = row as CustomerLead & {
+      zip?: string | null;
+      zipcode?: string | null;
+    };
+    return (
+      row.zip_code ??
+      row.postal_code ??
+      leadWithZip.zip ??
+      leadWithZip.zipcode ??
+      t("clientDashboard.na")
+    );
   }
 
   async function saveModal() {
@@ -302,8 +323,10 @@ export function ClientLeads() {
               <TableRow>
                 <TableHead>{t("clientLeads.name")}</TableHead>
                 <TableHead>{t("clientLeads.country")}</TableHead>
+                <TableHead>{t("clientLeads.zipCode")}</TableHead>
                 <TableHead>{t("clientLeads.category")}</TableHead>
                 <TableHead>{t("clientLeads.unit")}</TableHead>
+                <TableHead>{t("clientLeads.summary")}</TableHead>
                 <TableHead>{t("clientLeads.status")}</TableHead>
                 <TableHead>{t("clientLeads.assignee")}</TableHead>
                 <TableHead>{t("clientLeads.updated")}</TableHead>
@@ -312,14 +335,15 @@ export function ClientLeads() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="h-20 text-center">{t("clientLeads.loading")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="h-20 text-center">{t("clientLeads.loading")}</TableCell></TableRow>
               ) : rows.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="h-20 text-center">{t("clientLeads.empty")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="h-20 text-center">{t("clientLeads.empty")}</TableCell></TableRow>
               ) : (
                 rows.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell className="font-medium">{row.first_name} {row.last_name}</TableCell>
                     <TableCell className="text-muted-foreground">{row.country || t("clientDashboard.na")}</TableCell>
+                    <TableCell className="text-muted-foreground">{getLeadZipCode(row)}</TableCell>
                     <TableCell>{row.categories?.name ?? t("clientDashboard.na")}</TableCell>
                     <TableCell>
                       <Badge
@@ -331,6 +355,17 @@ export function ClientLeads() {
                       >
                         {(row.lead_unit_type ?? "single") === "family" ? t("clientLeads.family") : t("clientLeads.single")}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-[280px]">
+                      <Button
+                        variant="link"
+                        className="h-auto max-w-full justify-start px-0 py-0 text-left font-normal text-muted-foreground"
+                        onClick={() => openSummaryView(row.summary)}
+                      >
+                        <span className="line-clamp-2">
+                          {row.summary?.trim() || t("clientDashboard.na")}
+                        </span>
+                      </Button>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="gap-1.5">
@@ -482,6 +517,21 @@ export function ClientLeads() {
             </Button>
             <Button onClick={() => void saveModal()}>
               {t("clientLeads.saveChanges")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={summaryDialogOpen} onOpenChange={setSummaryDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{t("clientLeads.summaryDetails")}</DialogTitle>
+          </DialogHeader>
+          <p className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words text-sm text-foreground/90">
+            {activeSummary}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSummaryDialogOpen(false)}>
+              {t("clientLeads.cancel")}
             </Button>
           </DialogFooter>
         </DialogContent>

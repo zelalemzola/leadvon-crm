@@ -40,6 +40,8 @@ export type CustomerLead = {
   first_name: string;
   last_name: string;
   country: string;
+  zip_code?: string | null;
+  postal_code?: string | null;
   summary: string;
   notes: string;
   status: CustomerLeadStatus;

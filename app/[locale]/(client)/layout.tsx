@@ -21,7 +21,7 @@ export default async function ClientLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, is_active")
+    .select("role, is_active, organization_id")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -34,6 +34,7 @@ export default async function ClientLayout({
     (profile as { is_active?: boolean }).is_active === false;
 
   if (!isCustomer || isInactive) redirect(`/${safeLocale}/login?error=forbidden`);
+  if (!profile?.organization_id) redirect(`/${safeLocale}/client/setup`);
 
   return <ClientShell>{children}</ClientShell>;
 }
