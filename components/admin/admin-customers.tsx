@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   useGetFlowCommitmentsOverviewQuery,
   useGetCustomersQuery,
+  useGetPendingCustomerUsersQuery,
+  useLinkPendingCustomerOrganizationMutation,
   useGetOrganizationFlowCommitmentsQuery,
   useUpsertOrganizationFlowCommitmentMutation,
 } from "@/lib/api/admin-api";
@@ -136,6 +138,14 @@ function sortCustomers(
 export function AdminCustomers() {
   const { t } = useI18n();
   const { data: customers, isLoading, isError, error } = useGetCustomersQuery();
+  const {
+    data: pendingUsers,
+    isLoading: pendingLoading,
+    isError: pendingError,
+    error: pendingErrorObj,
+  } = useGetPendingCustomerUsersQuery();
+  const [linkPendingOrg, { isLoading: linkingPendingOrg }] =
+    useLinkPendingCustomerOrganizationMutation();
   const { data: flowOverview } = useGetFlowCommitmentsOverviewQuery();
   const [upsertFlowCommitment, { isLoading: savingCommitment }] =
     useUpsertOrganizationFlowCommitmentMutation();
@@ -147,6 +157,11 @@ export function AdminCustomers() {
   const [paceOpen, setPaceOpen] = useState(false);
   const [paceOrgId, setPaceOrgId] = useState<string | null>(null);
   const [paceOrgName, setPaceOrgName] = useState<string>("");
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkProfileId, setLinkProfileId] = useState<string | null>(null);
+  const [linkProfileEmail, setLinkProfileEmail] = useState<string>("");
+  const [linkOrgName, setLinkOrgName] = useState("");
+  const [linkPhone, setLinkPhone] = useState("");
   const [flowDrafts, setFlowDrafts] = useState<
     Record<string, { leads_per_week: number; monthly_target_leads: number; business_days_only: boolean }>
   >({});
@@ -278,6 +293,42 @@ export function AdminCustomers() {
     setPaceOpen(true);
   }
 
+  function openLinkDialog(user: {
+    id: string;
+    email: string | null;
+    full_name: string | null;
+  }) {
+    setLinkProfileId(user.id);
+    setLinkProfileEmail(user.email ?? "");
+    const seedName =
+      user.full_name?.trim() ||
+      user.email?.split("@")[0]?.replaceAll(".", " ").replaceAll("_", " ") ||
+      "Customer";
+    setLinkOrgName(`${seedName} Organization`);
+    setLinkPhone("");
+    setLinkOpen(true);
+  }
+
+  async function submitLinkOrganization() {
+    if (!linkProfileId) return;
+    if (!linkOrgName.trim()) {
+      toast.error("Organization name is required.");
+      return;
+    }
+    try {
+      await linkPendingOrg({
+        profile_id: linkProfileId,
+        organization_name: linkOrgName.trim(),
+        phone: linkPhone.trim() || null,
+      }).unwrap();
+      toast.success("Organization linked successfully.");
+      setLinkOpen(false);
+      setLinkProfileId(null);
+    } catch (err: unknown) {
+      toast.error(formatQueryError(err));
+    }
+  }
+
   async function saveFlowCommitment(flowId: string) {
     if (!paceOrgId) return;
     const draft = flowDrafts[flowId];
@@ -395,6 +446,75 @@ export function AdminCustomers() {
               </p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/80 bg-card/50">
+        <CardHeader>
+          <CardTitle className="text-base">Pending customer accounts</CardTitle>
+          <CardDescription>
+            Signed-up users with no organization link yet. If users are missing from directory, check here first.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {pendingLoading ? (
+            <div className="space-y-2 p-6">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          ) : pendingError ? (
+            <div className="p-6 text-sm text-destructive">
+              Failed to load pending users: {formatQueryError(pendingErrorObj)}
+            </div>
+          ) : (pendingUsers?.length ?? 0) === 0 ? (
+            <div className="p-6 text-sm text-muted-foreground">No pending customer accounts.</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Joined</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(pendingUsers ?? []).map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell className="font-medium">{u.full_name ?? "N/A"}</TableCell>
+                    <TableCell className="text-muted-foreground">{u.email ?? "N/A"}</TableCell>
+                    <TableCell className="text-muted-foreground">{u.role}</TableCell>
+                    <TableCell>
+                      {u.is_active ? (
+                        <Badge className="bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
+                          Active
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-rose-500/15 text-rose-300 hover:bg-rose-500/25">
+                          Inactive
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(u.created_at).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openLinkDialog(u)}
+                      >
+                        Link organization
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -743,6 +863,40 @@ export function AdminCustomers() {
               </TableBody>
             </Table>
           )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Link pending customer to organization</DialogTitle>
+            <DialogDescription>
+              Create an organization and attach it to this customer profile.
+              {linkProfileEmail ? ` (${linkProfileEmail})` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>Organization name</Label>
+              <Input
+                value={linkOrgName}
+                onChange={(e) => setLinkOrgName(e.target.value)}
+                placeholder="Acme Insurance LLC"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Phone (optional)</Label>
+              <Input
+                value={linkPhone}
+                onChange={(e) => setLinkPhone(e.target.value)}
+                placeholder="+1 555 010 2233"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => void submitLinkOrganization()} disabled={linkingPendingOrg}>
+                {linkingPendingOrg ? "Linking..." : "Link organization"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

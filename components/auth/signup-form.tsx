@@ -55,14 +55,31 @@ export function SignupForm() {
       email,
       password,
     });
-    setLoading(false);
     if (signInError) {
+      setLoading(false);
       setError(
         t("auth.signup.confirmLater")
       );
       return;
     }
-    router.push(localizePath("/client/setup"));
+
+    // Auto-create the customer's organization so they appear in admin customers immediately.
+    const setupRes = await fetch("/api/client/setup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        organization_name: organizationName,
+        phone,
+      }),
+    });
+    setLoading(false);
+
+    if (setupRes.ok) {
+      router.push(localizePath("/client"));
+    } else {
+      // Fallback path keeps existing onboarding behavior if setup cannot complete here.
+      router.push(localizePath("/client/setup"));
+    }
     router.refresh();
   }
 

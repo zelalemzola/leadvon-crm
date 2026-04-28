@@ -13,7 +13,7 @@ export async function GET() {
   const { data, error } = await service
     .from("customer_lead_flows")
     .select(
-      "*, lead_packages(id, name, leads_count, category_id), customer_flow_commitments(monthly_target_leads, business_days_only, shortfall_policy, is_active)"
+      "*, categories(id, name, slug), customer_flow_commitments(monthly_target_leads, business_days_only, shortfall_policy, is_active)"
     )
     .eq("organization_id", auth.organizationId)
     .order("created_at", { ascending: false });
@@ -39,15 +39,16 @@ export async function POST(request: Request) {
     .upsert(
       {
         organization_id: auth.organizationId,
-        package_id: parsed.data.package_id,
+        category_id: parsed.data.category_id,
+        unit_type: parsed.data.unit_type,
         leads_per_week: parsed.data.leads_per_week,
         is_active: parsed.data.is_active,
         created_by: auth.userId,
         next_run_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       },
-      { onConflict: "organization_id,package_id" }
+      { onConflict: "organization_id,category_id,unit_type" }
     )
-    .select("id, package_id, leads_per_week, is_active")
+    .select("id, category_id, unit_type, leads_per_week, is_active")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
   const shaped = await service
     .from("customer_lead_flows")
     .select(
-      "id, package_id, leads_per_week, is_active, pending_delivery_leads, accrued_this_month, delivered_this_month, last_obligation_date, customer_flow_commitments(monthly_target_leads, business_days_only, shortfall_policy, is_active)"
+      "id, category_id, unit_type, leads_per_week, is_active, pending_delivery_leads, accrued_this_month, delivered_this_month, last_obligation_date, categories(id, name, slug), customer_flow_commitments(monthly_target_leads, business_days_only, shortfall_policy, is_active)"
     )
     .eq("id", data.id)
     .single();
@@ -82,7 +83,8 @@ export async function POST(request: Request) {
     entityType: "customer_lead_flow",
     entityId: data.id,
     details: {
-      package_id: parsed.data.package_id,
+      category_id: parsed.data.category_id,
+      unit_type: parsed.data.unit_type,
       leads_per_week: parsed.data.leads_per_week,
       monthly_target_leads: parsed.data.monthly_target_leads,
       business_days_only: parsed.data.business_days_only ?? true,

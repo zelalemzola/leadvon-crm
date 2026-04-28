@@ -112,7 +112,8 @@ export type ClientMe = Pick<
 export type OrgUserWithLastLogin = Profile & { last_sign_in_at: string | null };
 export type CustomerLeadFlow = {
   id: string;
-  package_id: string;
+  category_id: string;
+  unit_type: LeadUnitType;
   leads_per_week: number;
   is_active: boolean;
   next_run_at: string;
@@ -132,7 +133,7 @@ export type CustomerLeadFlow = {
     | null;
   created_at: string;
   updated_at: string;
-  lead_packages: { id: string; name: string; leads_count: number; category_id: string } | null;
+  categories: { id: string; name: string; slug: string } | null;
 };
 
 export type TieredPricingQuote = {
@@ -708,7 +709,8 @@ export const clientApi = createApi({
     upsertLeadFlow: builder.mutation<
       CustomerLeadFlow,
       {
-        package_id: string;
+        category_id: string;
+        unit_type: LeadUnitType;
         leads_per_week: number;
         monthly_target_leads?: number;
         business_days_only?: boolean;
@@ -747,8 +749,8 @@ export const clientApi = createApi({
         leads_delivered: number;
         failed: Array<{
           flow_id: string;
-          package_id: string;
-          package_name: string;
+          category_id: string;
+          category_name: string;
           reason: string;
         }>;
       },
@@ -760,8 +762,8 @@ export const clientApi = createApi({
           leads_delivered: number;
           failed: Array<{
             flow_id: string;
-            package_id: string;
-            package_name: string;
+            category_id: string;
+            category_name: string;
             reason: string;
           }>;
         }>("/api/client/lead-flows/run", "POST", {});

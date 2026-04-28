@@ -75,12 +75,13 @@ export async function POST(request: Request) {
     }
     if (purpose === "tiered_lead_flow" && orgId && amountTotal > 0) {
       const ref = `checkout_session:${session.id}`;
-      const packageId = session.metadata?.package_id;
+      const categoryId = session.metadata?.category_id;
+      const unitType = session.metadata?.unit_type as "single" | "family" | undefined;
       const userId = session.metadata?.user_id ?? null;
       const monthlyTarget = Number(session.metadata?.monthly_target_leads ?? "0");
       const leadsPerWeek = Number(session.metadata?.leads_per_week ?? "0");
       const businessDaysOnly = session.metadata?.business_days_only === "true";
-      if (!packageId || !Number.isFinite(leadsPerWeek) || leadsPerWeek <= 0) {
+      if (!categoryId || !unitType || !Number.isFinite(leadsPerWeek) || leadsPerWeek <= 0) {
         return NextResponse.json(
           { error: "Missing tiered flow metadata in checkout session" },
           { status: 500 }
@@ -101,13 +102,14 @@ export async function POST(request: Request) {
         .upsert(
           {
             organization_id: orgId,
-            package_id: packageId,
+            category_id: categoryId,
+            unit_type: unitType,
             leads_per_week: Math.max(1, Math.round(leadsPerWeek)),
             is_active: true,
             created_by: userId,
             next_run_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
           },
-          { onConflict: "organization_id,package_id" }
+          { onConflict: "organization_id,category_id,unit_type" }
         )
         .select("id")
         .single();

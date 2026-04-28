@@ -6,8 +6,6 @@ import { toast } from "sonner";
 import {
   useGetClientMeQuery,
   useGetCustomerDashboardQuery,
-  useGetClientPackagesQuery,
-  useGetClientOffersQuery,
   useGetLeadFlowsQuery,
   useGetMyDeliveryEntitlementsQuery,
   useGetMyDeliveryLedgerQuery,
@@ -18,6 +16,7 @@ import {
   useCreatePrepaidSessionMutation,
   useRunLeadFlowsNowMutation,
 } from "@/lib/api/client-api";
+import { useGetCategoriesQuery } from "@/lib/api/admin-api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -39,12 +38,7 @@ export function ClientBilling() {
     useGetMyDeliveryEntitlementsQuery();
   const { data: ledgerLines, refetch: refetchLedger } = useGetMyDeliveryLedgerQuery();
   const { data: invoices } = useGetMyInvoicesQuery();
-  const {
-    data: packages,
-    isLoading: packagesLoading,
-    isError: packagesError,
-  } = useGetClientPackagesQuery();
-  const { data: offers } = useGetClientOffersQuery();
+  const { data: categories, isLoading: categoriesLoading } = useGetCategoriesQuery();
   const { data: leadFlows } = useGetLeadFlowsQuery();
   const [getTieredQuote, { isLoading: quotingTiered }] = useGetTieredPricingQuoteMutation();
   const [createTieredFlowSession, { isLoading: creatingTieredFlow }] =
@@ -63,24 +57,13 @@ export function ClientBilling() {
   } | null>(null);
   const canManageBilling = me?.role === "customer_admin" && me?.is_active;
 
-  const offersByPackage = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const o of offers ?? []) {
-      const cur = m.get(o.package_id) ?? 0;
-      m.set(o.package_id, Math.max(cur, Number(o.discount_percent)));
-    }
-    return m;
-  }, [offers]);
-
-  const categoryOptions = useMemo(() => {
-    const byId = new Map<string, { id: string; name: string }>();
-    for (const p of packages ?? []) {
-      if (p.categories?.id && p.categories?.name) {
-        byId.set(p.categories.id, { id: p.categories.id, name: p.categories.name });
-      }
-    }
-    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [packages]);
+  const categoryOptions = useMemo(
+    () =>
+      (categories ?? [])
+        .map((c) => ({ id: c.id, name: c.name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [categories]
+  );
 
   const activeCategoryId = selectedCategoryId || categoryOptions[0]?.id || "";
   const { data: pricingTiersData } = useGetClientPricingTiersQuery(
@@ -330,45 +313,30 @@ export function ClientBilling() {
                 <Select
                   value={activeCategoryId}
                   onValueChange={setSelectedCategoryId}
-                  disabled={packagesLoading}
+                  disabled={categoriesLoading}
                 >
                   <SelectTrigger>
                     <SelectValue
                       placeholder={
-                        packagesLoading
+                        categoriesLoading
                           ? t("clientBilling.loadingPackages")
-                          : packagesError
-                            ? t("clientBilling.couldNotLoadPackages")
-                            : categoryOptions.length === 0
-                              ? t("clientBilling.noPackages")
-                              : t("clientBilling.selectCategory")
+                          : categoryOptions.length === 0
+                            ? t("clientBilling.noPackages")
+                            : t("clientBilling.selectCategory")
                       }
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {categoryOptions.map((cat) => {
-                      const categoryPackages = (packages ?? []).filter(
-                        (p) => p.categories?.id === cat.id
-                      );
-                      const cheapest = categoryPackages.reduce<number | null>((min, p) => {
-                        const discount = offersByPackage.get(p.id) ?? 0;
-                        const final = Math.round(p.price_cents * ((100 - discount) / 100));
-                        return min === null ? final : Math.min(min, final);
-                      }, null);
-                      return (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          {cat.name}
-                          {cheapest !== null ? ` - ${t("clientBilling.from")} ${money(cheapest)}` : ""}
-                        </SelectItem>
-                      );
-                    })}
+                    {categoryOptions.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                {(packages ?? []).length === 0 && !packagesLoading && (
+                {categoryOptions.length === 0 && !categoriesLoading && (
                   <p className="text-xs text-muted-foreground">
-                    {packagesError
-                      ? t("clientBilling.packagesLoadHint")
-                      : t("clientBilling.noActivePackagesHint")}
+                    {t("clientBilling.noActivePackagesHint")}
                   </p>
                 )}
               </div>
@@ -585,7 +553,7 @@ export function ClientBilling() {
                 <div key={flow.id} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
                     <span>
-                      {flow.lead_packages?.name ?? t("clientBilling.package")} — {flow.leads_per_week}/{t("clientBilling.week")}
+                      {flow.categories?.name ?? t("clientBilling.package")} — {flow.leads_per_week}/{t("clientBilling.week")}
                     </span>
                     <Badge className="bg-emerald-500/15 text-emerald-300">{t("clientBilling.active")}</Badge>
                   </div>

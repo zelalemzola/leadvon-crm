@@ -18,7 +18,8 @@ export const clientLeadPatchSchema = z.object({
 });
 
 export const customerLeadFlowSchema = z.object({
-  package_id: z.string().uuid(),
+  category_id: z.string().uuid(),
+  unit_type: z.enum(["single", "family"]).default("single"),
   leads_per_week: z.number().int().min(1).max(5000),
   monthly_target_leads: z.number().int().min(1).max(50000).optional(),
   business_days_only: z.boolean().optional().default(true),

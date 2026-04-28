@@ -86,8 +86,6 @@ export function AdminPricing() {
         <TabsList>
           <TabsTrigger value="categories">{t("adminPricing.categories")}</TabsTrigger>
           <TabsTrigger value="tiered">{t("adminPricing.tieredPricing")}</TabsTrigger>
-          <TabsTrigger value="packages">{t("adminPricing.packages")}</TabsTrigger>
-          <TabsTrigger value="offers">{t("adminPricing.offers")}</TabsTrigger>
           <TabsTrigger value="prepaid">{t("adminPricing.prepaid")}</TabsTrigger>
         </TabsList>
         <TabsContent value="categories" className="mt-6">
@@ -95,12 +93,6 @@ export function AdminPricing() {
         </TabsContent>
         <TabsContent value="tiered" className="mt-6">
           <TieredPricingPanel />
-        </TabsContent>
-        <TabsContent value="packages" className="mt-6">
-          <PackagesPanel />
-        </TabsContent>
-        <TabsContent value="offers" className="mt-6">
-          <OffersPanel />
         </TabsContent>
         <TabsContent value="prepaid" className="mt-6 space-y-8">
           <PrepaidPricebookPanel />
@@ -114,7 +106,6 @@ export function AdminPricing() {
 function TieredPricingPanel() {
   const { t } = useI18n();
   const { data: categories } = useGetCategoriesQuery();
-  const { data: packages } = useGetPackagesQuery();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [minimumOrderQty, setMinimumOrderQty] = useState("1");
   const { data: tiers, isLoading: tiersLoading } = useGetCategoryPricingTiersQuery(
@@ -131,9 +122,6 @@ function TieredPricingPanel() {
   const [familyPrice, setFamilyPrice] = useState("");
 
   const selectedCategory = (categories ?? []).find((category) => category.id === selectedCategoryId);
-  const selectedCategoryHasActivePackage = (packages ?? []).some(
-    (pkg) => pkg.category_id === selectedCategoryId && pkg.active
-  );
 
   async function handleSaveMinimumOrder() {
     if (!selectedCategoryId) return;
@@ -242,11 +230,6 @@ function TieredPricingPanel() {
               {t("adminPricing.saveMinimumOrder")}
             </Button>
           </div>
-          {selectedCategoryId && !selectedCategoryHasActivePackage ? (
-            <p className="sm:col-span-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-              {t("adminPricing.noActivePackageWarning")}
-            </p>
-          ) : null}
         </CardContent>
       </Card>
 
@@ -335,7 +318,6 @@ function TieredPricingPanel() {
 function CategoriesPanel() {
   const { t } = useI18n();
   const { data: categories, isLoading } = useGetCategoriesQuery();
-  const { data: packages } = useGetPackagesQuery();
   const [createCategory, { isLoading: creating }] = useCreateCategoryMutation();
   const [updateCategory, { isLoading: updating }] = useUpdateCategoryMutation();
   const [deleteCategory, { isLoading: deleting }] = useDeleteCategoryMutation();
@@ -418,15 +400,13 @@ function CategoriesPanel() {
                   <TableHead>{t("adminPricing.name")}</TableHead>
                   <TableHead>{t("adminPricing.slug")}</TableHead>
                   <TableHead>{t("adminPricing.source")}</TableHead>
-                  <TableHead>{t("adminPricing.packages")}</TableHead>
-                  <TableHead>{t("adminPricing.avgPackagePrice")}</TableHead>
                   <TableHead className="text-right">{t("adminPricing.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(categories ?? []).length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={4} className="h-24 text-center">
                       {t("adminPricing.noCategoriesYet")}
                     </TableCell>
                   </TableRow>
@@ -441,15 +421,6 @@ function CategoriesPanel() {
                         ) : (
                           <Badge variant="outline">{t("adminPricing.manual")}</Badge>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        {
-                          (packages ?? []).filter((p) => p.category_id === c.id)
-                            .length
-                        }
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatCategoryAvgPrice(packages ?? [], c.id)}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -879,17 +850,6 @@ function PackagesPanel() {
       </Dialog>
     </>
   );
-}
-
-function formatCategoryAvgPrice(packages: PackageWithCategory[], categoryId: string) {
-  const filtered = packages.filter((p) => p.category_id === categoryId);
-  if (filtered.length === 0) return "—";
-  const avgCents =
-    filtered.reduce((acc, p) => acc + p.price_cents, 0) / filtered.length;
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(avgCents / 100);
 }
 
 function OffersPanel() {

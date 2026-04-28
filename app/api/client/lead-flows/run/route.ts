@@ -32,8 +32,8 @@ export async function POST() {
       leads_delivered: leadsDelivered,
       failed: [] as Array<{
         flow_id: string;
-        package_id: string;
-        package_name: string;
+        category_id: string;
+        category_name: string;
         reason: string;
       }>,
     },

@@ -42,7 +42,8 @@ export async function PATCH(
   let data:
     | {
         id: string;
-        package_id: string;
+        category_id: string;
+        unit_type: "single" | "family";
         leads_per_week: number;
         is_active: boolean;
         pending_delivery_leads: number | null;
@@ -58,7 +59,7 @@ export async function PATCH(
       .eq("id", id)
       .eq("organization_id", auth.organizationId)
       .select(
-        "id, package_id, leads_per_week, is_active, pending_delivery_leads, accrued_this_month, delivered_this_month, last_obligation_date"
+        "id, category_id, unit_type, leads_per_week, is_active, pending_delivery_leads, accrued_this_month, delivered_this_month, last_obligation_date"
       )
       .single();
     if (flowRes.error) return NextResponse.json({ error: flowRes.error.message }, { status: 400 });
@@ -67,7 +68,7 @@ export async function PATCH(
     const flowRes = await service
       .from("customer_lead_flows")
       .select(
-        "id, package_id, leads_per_week, is_active, pending_delivery_leads, accrued_this_month, delivered_this_month, last_obligation_date"
+        "id, category_id, unit_type, leads_per_week, is_active, pending_delivery_leads, accrued_this_month, delivered_this_month, last_obligation_date"
       )
       .eq("id", id)
       .eq("organization_id", auth.organizationId)
@@ -105,7 +106,7 @@ export async function PATCH(
   const shaped = await service
     .from("customer_lead_flows")
     .select(
-      "id, package_id, leads_per_week, is_active, pending_delivery_leads, accrued_this_month, delivered_this_month, last_obligation_date, customer_flow_commitments(monthly_target_leads, business_days_only, shortfall_policy, is_active)"
+      "id, category_id, unit_type, leads_per_week, is_active, pending_delivery_leads, accrued_this_month, delivered_this_month, last_obligation_date, categories(id, name, slug), customer_flow_commitments(monthly_target_leads, business_days_only, shortfall_policy, is_active)"
     )
     .eq("id", id)
     .single();

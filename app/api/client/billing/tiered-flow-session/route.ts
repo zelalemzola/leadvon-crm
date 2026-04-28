@@ -39,26 +39,6 @@ export async function POST(request: Request) {
       quantity: parsed.data.quantity,
     });
 
-    // Legacy delivery engine still routes by package_id; resolve one active package per category.
-    const service = createServiceClient();
-    const pkg = await service
-      .from("lead_packages")
-      .select("id")
-      .eq("category_id", parsed.data.category_id)
-      .eq("active", true)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (pkg.error) {
-      return NextResponse.json({ error: pkg.error.message }, { status: 400 });
-    }
-    if (!pkg.data?.id) {
-      return NextResponse.json(
-        { error: "No active package configured for this category" },
-        { status: 409 }
-      );
-    }
-
     const monthlyTarget = parsed.data.monthly_target_leads ?? quote.quantity;
     const leadsPerWeek = Math.max(1, Math.round(monthlyTarget / 4.333));
     const stripe = getStripeServer();
@@ -90,7 +70,6 @@ export async function POST(request: Request) {
         category_id: quote.category_id,
         unit_type: quote.unit_type,
         quantity: String(quote.quantity),
-        package_id: pkg.data.id,
         monthly_target_leads: String(monthlyTarget),
         leads_per_week: String(leadsPerWeek),
         business_days_only: String(parsed.data.business_days_only),

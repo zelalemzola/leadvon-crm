@@ -190,6 +190,21 @@ export type FlowCommitmentsOverview = {
   behindFlows: number;
 };
 
+export type PendingCustomerUser = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  role: "customer_admin" | "customer_agent";
+  is_active: boolean;
+  created_at: string;
+};
+
+export type LinkPendingCustomerOrgInput = {
+  profile_id: string;
+  organization_name: string;
+  phone?: string | null;
+};
+
 /** Tier 1 admin dashboard: lead analytics scope (catalog counts unchanged). */
 export type AdminDashboardFilters = {
   /** Rolling window when dateFrom + dateTo are not both set. Default 30. */
@@ -738,6 +753,39 @@ export const adminApi = createApi({
         return { data: rows };
       },
       providesTags: ["Customers"],
+    }),
+
+    getPendingCustomerUsers: builder.query<PendingCustomerUser[], void>({
+      queryFn: async () => {
+        const { data, error } = await sb()
+          .from("profiles")
+          .select("id, email, full_name, role, is_active, created_at")
+          .in("role", ["customer_admin", "customer_agent"])
+          .is("organization_id", null)
+          .order("created_at", { ascending: false });
+        if (error) return { error };
+        return { data: (data ?? []) as PendingCustomerUser[] };
+      },
+      providesTags: ["Customers"],
+    }),
+
+    linkPendingCustomerOrganization: builder.mutation<
+      { ok: true; organization_id: string },
+      LinkPendingCustomerOrgInput
+    >({
+      queryFn: async ({ profile_id, organization_name, phone }) => {
+        const res = await jsonRequest<{ ok: true; organization_id: string }>(
+          `/api/admin/customers/pending/${encodeURIComponent(profile_id)}/link`,
+          "POST",
+          {
+            organization_name,
+            phone: phone?.trim() ? phone.trim() : null,
+          }
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data as { ok: true; organization_id: string } };
+      },
+      invalidatesTags: ["Customers"],
     }),
 
     updateCustomer: builder.mutation<
@@ -1327,6 +1375,8 @@ export const {
   useGetPackagesQuery,
   useGetStaffQuery,
   useGetCustomersQuery,
+  useGetPendingCustomerUsersQuery,
+  useLinkPendingCustomerOrganizationMutation,
   useUpdateCustomerMutation,
   useGetOrganizationFlowCommitmentsQuery,
   useGetFlowCommitmentsOverviewQuery,
