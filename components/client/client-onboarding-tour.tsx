@@ -93,7 +93,6 @@ function buildTourSteps(localePrefix: string, role?: string): Tour[] {
           content: "This is your command center for lead performance, pipeline health, and daily trends.",
           selector: "#tour-client-nav-dashboard",
           side: "right",
-          nextRoute: `${localePrefix}/client`,
         },
         {
           icon: "🎯",
@@ -151,7 +150,7 @@ function buildTourSteps(localePrefix: string, role?: string): Tour[] {
           content:
             "Choose category, unit type, and monthly quantity here to activate and scale your lead delivery flow.",
           selector: "#tour-client-billing-purchase",
-          side: "top",
+          side: "right",
         },
         {
           icon: "📈",
