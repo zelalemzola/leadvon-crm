@@ -70,6 +70,7 @@ export async function proxy(request: NextRequest) {
   const requestHost = getRequestHost(request);
   const adminAllowedHosts = parseHostPatterns(process.env.ADMIN_ALLOWED_HOSTS);
   const clientAllowedHosts = parseHostPatterns(process.env.CLIENT_ALLOWED_HOSTS);
+  const localeFromPathname = getLocaleFromPathname(pathname);
 
   if (
     !pathname.startsWith("/api/") &&
@@ -80,18 +81,14 @@ export async function proxy(request: NextRequest) {
     const parts = pathname.split("/").filter(Boolean);
     const maybeLocale = parts[0];
 
-    if (isLocale(maybeLocale)) {
-      const response = NextResponse.next({ request });
-      response.cookies.set(localeCookieKey, maybeLocale, { path: "/" });
-      return response;
+    if (!isLocale(maybeLocale)) {
+      const cookieLocale = request.cookies.get(localeCookieKey)?.value;
+      const activeLocale = isLocale(cookieLocale) ? cookieLocale : defaultLocale;
+      const redirectTo = request.nextUrl.clone();
+      redirectTo.pathname = `/${activeLocale}${pathname === "/" ? "" : pathname}`;
+      redirectTo.search = search;
+      return NextResponse.redirect(redirectTo);
     }
-
-    const cookieLocale = request.cookies.get(localeCookieKey)?.value;
-    const activeLocale = isLocale(cookieLocale) ? cookieLocale : defaultLocale;
-    const redirectTo = request.nextUrl.clone();
-    redirectTo.pathname = `/${activeLocale}${pathname === "/" ? "" : pathname}`;
-    redirectTo.search = search;
-    return NextResponse.redirect(redirectTo);
   }
 
   if (appSurface === "client") {
@@ -183,6 +180,10 @@ export async function proxy(request: NextRequest) {
   );
 
   await supabase.auth.getUser();
+
+  if (localeFromPathname) {
+    supabaseResponse.cookies.set(localeCookieKey, localeFromPathname, { path: "/" });
+  }
 
   return supabaseResponse;
 }
