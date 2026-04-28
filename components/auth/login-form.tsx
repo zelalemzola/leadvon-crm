@@ -164,8 +164,9 @@ export function LoginForm({
               {" · "}
             </>
           ) : null}
+          {"Don't have an account? "}
           <Link href={localizePath("/signup")} className="font-medium text-primary underline underline-offset-2">
-            {t("auth.login.customerSignUp")}
+            Sign up?
           </Link>
           {" · "}
           <Link href={localizePath("/")} className="underline underline-offset-2">
