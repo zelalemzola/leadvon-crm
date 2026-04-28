@@ -48,13 +48,13 @@ export function ClientBilling() {
   const [runLeadFlowsNow, { isLoading: runningFlows }] = useRunLeadFlowsNowMutation();
   const [prepaidAmount, setPrepaidAmount] = useState(100);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
-  const [selectedUnitType, setSelectedUnitType] = useState<string>("single");
   const [monthlyTargetLeads, setMonthlyTargetLeads] = useState<number>(100);
   const [tieredQuote, setTieredQuote] = useState<{
     price_per_lead_cents: number;
     total_cents: number;
     minimum_order_qty: number;
   } | null>(null);
+  const [tieredQuoteError, setTieredQuoteError] = useState<string>("");
   const canManageBilling = me?.role === "customer_admin" && me?.is_active;
 
   const categoryOptions = useMemo(
@@ -72,6 +72,7 @@ export function ClientBilling() {
   );
   const tierBreakpoints = pricingTiersData?.tiers ?? [];
   const unitTypeOptions = pricingTiersData?.unit_types ?? [];
+  const effectiveUnitType = unitTypeOptions[0] ?? "single";
 
   const estimatedLeadsPerWeek = useMemo(
     () => Math.max(1, Math.round((monthlyTargetLeads || 1) / 4.333)),
@@ -102,12 +103,6 @@ export function ClientBilling() {
       })),
     [tierBreakpoints]
   );
-
-  useEffect(() => {
-    if (unitTypeOptions.length > 0 && !unitTypeOptions.includes(selectedUnitType)) {
-      setSelectedUnitType(unitTypeOptions[0]);
-    }
-  }, [unitTypeOptions, selectedUnitType]);
 
   const leadsReceived = dashboard?.totalLeads ?? 0;
   const totalDeliverySpend = useMemo(
@@ -184,6 +179,8 @@ export function ClientBilling() {
 
   useEffect(() => {
     if (!activeCategoryId || monthlyTargetLeads < 1) {
+      setTieredQuote(null);
+      setTieredQuoteError("");
       return;
     }
     const timer = setTimeout(() => {
@@ -191,17 +188,23 @@ export function ClientBilling() {
         try {
           const quote = await getTieredQuote({
             category_id: activeCategoryId,
-            unit_type: selectedUnitType,
+              unit_type: effectiveUnitType,
             quantity: monthlyTargetLeads,
           }).unwrap();
           setTieredQuote(quote);
-        } catch {
+          setTieredQuoteError("");
+        } catch (err: unknown) {
           setTieredQuote(null);
+          const msg =
+            err && typeof err === "object" && "data" in err
+              ? String((err as { data?: unknown }).data)
+              : t("clientBilling.calculatingQuoteFailed");
+          setTieredQuoteError(msg);
         }
       })();
     }, 300);
     return () => clearTimeout(timer);
-  }, [activeCategoryId, selectedUnitType, monthlyTargetLeads, getTieredQuote]);
+  }, [activeCategoryId, effectiveUnitType, monthlyTargetLeads, getTieredQuote]);
 
   async function startPrepaid() {
     if (!canManageBilling) {
@@ -244,7 +247,7 @@ export function ClientBilling() {
       }
       const { url } = await createTieredFlowSession({
         category_id: activeCategoryId,
-        unit_type: selectedUnitType,
+        unit_type: effectiveUnitType,
         quantity: monthlyTargetLeads,
         monthly_target_leads: monthlyTargetLeads,
         business_days_only: true,
@@ -342,23 +345,10 @@ export function ClientBilling() {
               </div>
               <div className="grid gap-4 md:grid-cols-2 md:items-start">
                 <div className="space-y-2 md:min-w-0">
-                  <Label>{t("clientBilling.leadType")}</Label>
-                  <Select value={selectedUnitType} onValueChange={setSelectedUnitType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("clientBilling.selectLeadType")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(unitTypeOptions.length > 0 ? unitTypeOptions : ["single", "family"]).map((unitType) => (
-                        <SelectItem key={unitType} value={unitType}>
-                          {unitType === "single"
-                            ? t("clientBilling.singleUnit")
-                            : unitType === "family"
-                              ? t("clientBilling.familyUnit")
-                              : unitType}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>{t("clientBilling.estimatedWeeklyLabel")}</Label>
+                  <div className="rounded-md border border-border/60 bg-background/40 p-3 text-sm">
+                    <strong>{estimatedLeadsPerWeek}</strong> {t("clientBilling.leadsPerWeek")}
+                  </div>
                   <p className="min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground">
                     {t("clientBilling.estimatedWeeklyPrefix")} <strong>{estimatedLeadsPerWeek}</strong>{" "}
                     {t("clientBilling.estimatedWeeklySuffix")}
@@ -453,10 +443,38 @@ export function ClientBilling() {
             <Button
               className="w-full"
               onClick={() => void activateLeadFlow()}
-              disabled={creatingTieredFlow || !canManageBilling || !activeCategoryId}
+              disabled={
+                creatingTieredFlow ||
+                quotingTiered ||
+                !canManageBilling ||
+                !activeCategoryId ||
+                !tieredQuote
+              }
             >
-              {creatingTieredFlow ? t("clientBilling.activating") : t("clientBilling.activateFlow")}
+              {creatingTieredFlow
+                ? t("clientBilling.activating")
+                : t("clientBilling.startOrUpdatePlanAndPay")}
             </Button>
+            <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+              {tieredQuote ? (
+                <p>
+                  <strong>{t("clientBilling.totalDueNow")}:</strong>{" "}
+                  <span className="tabular-nums">{money(tieredQuote.total_cents)}</span>{" "}
+                  <span className="text-muted-foreground">
+                    ({t("clientBilling.pricePerLead")}: {money(tieredQuote.price_per_lead_cents)})
+                  </span>
+                </p>
+              ) : (
+                <p className="text-muted-foreground">
+                  {quotingTiered
+                    ? t("clientBilling.calculatingQuote")
+                    : tieredQuoteError || t("clientBilling.selectCategoryAndQuantityForTotal")}
+                </p>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("clientBilling.tieredCheckoutAddsBudgetHint")}
+            </p>
             <Button
               variant="outline"
               className="w-full"
@@ -486,7 +504,7 @@ export function ClientBilling() {
                   onClick={() => void startPrepaid()}
                   disabled={creatingPrepaid || !canManageBilling}
                 >
-                  {t("clientBilling.payWithStripe")}
+                  {t("clientBilling.addBudgetTopUp")}
                 </Button>
               </CardTitle>
             </CardHeader>
@@ -666,7 +684,6 @@ export function ClientBilling() {
                 <TableHead>{t("clientBilling.date")}</TableHead>
                 <TableHead>{t("clientBilling.amount")}</TableHead>
                 <TableHead>{t("clientBilling.category")}</TableHead>
-                <TableHead>{t("clientBilling.leadType")}</TableHead>
                 <TableHead>{t("clientBilling.invoice")}</TableHead>
                 <TableHead>{t("clientBilling.balanceAfter")}</TableHead>
                 <TableHead>{t("clientBilling.notes")}</TableHead>
@@ -675,7 +692,7 @@ export function ClientBilling() {
             <TableBody>
               {(ledgerLines ?? []).length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-20 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
                     {t("clientBilling.noDeliveryCharges")}
                   </TableCell>
                 </TableRow>
@@ -688,9 +705,6 @@ export function ClientBilling() {
                     <TableCell className="font-medium tabular-nums">{money(row.amount_cents)}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {(row as { categories?: { name?: string } | null }).categories?.name ?? t("clientDashboard.na")}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground capitalize">
-                      {row.unit_type ?? t("clientDashboard.na")}
                     </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {row.invoice_id ? row.invoice_id.slice(0, 8) : t("clientDashboard.na")}

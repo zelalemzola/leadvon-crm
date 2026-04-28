@@ -7,6 +7,8 @@ import {
   useGetCategoriesQuery,
   useGetCategoryPricingTierRatesQuery,
   useGetCategoryPricingTiersQuery,
+  useUpdateCategoryPricingTierMutation,
+  useDeleteCategoryPricingTierMutation,
   useGetPackagesQuery,
   useUpsertCategoryPricingTierRateMutation,
   useUpdateCategoryMinimumOrderQtyMutation,
@@ -113,6 +115,8 @@ function TieredPricingPanel() {
   );
   const { data: rates } = useGetCategoryPricingTierRatesQuery();
   const [createTier, { isLoading: creatingTier }] = useCreateCategoryPricingTierMutation();
+  const [updateTier, { isLoading: updatingTier }] = useUpdateCategoryPricingTierMutation();
+  const [deleteTier, { isLoading: deletingTier }] = useDeleteCategoryPricingTierMutation();
   const [upsertRate, { isLoading: savingRate }] = useUpsertCategoryPricingTierRateMutation();
   const [updateMOQ, { isLoading: savingMOQ }] = useUpdateCategoryMinimumOrderQtyMutation();
 
@@ -120,6 +124,12 @@ function TieredPricingPanel() {
   const [newMaxQty, setNewMaxQty] = useState("");
   const [singlePrice, setSinglePrice] = useState("");
   const [familyPrice, setFamilyPrice] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingTierId, setEditingTierId] = useState<string>("");
+  const [editMinQty, setEditMinQty] = useState("");
+  const [editMaxQty, setEditMaxQty] = useState("");
+  const [editSinglePrice, setEditSinglePrice] = useState("");
+  const [editFamilyPrice, setEditFamilyPrice] = useState("");
 
   const selectedCategory = (categories ?? []).find((category) => category.id === selectedCategoryId);
 
@@ -179,6 +189,67 @@ function TieredPricingPanel() {
       toast.success(t("adminPricing.tierCreated"));
     } catch {
       toast.error(t("adminPricing.tierCreateFailed"));
+    }
+  }
+
+  function openEditTier(tier: { id: string; min_qty: number; max_qty: number | null }) {
+    const tierRates = (rates ?? []).filter((rate) => rate.tier_id === tier.id);
+    const single = tierRates.find((rate) => rate.unit_type === "single")?.price_cents;
+    const family = tierRates.find((rate) => rate.unit_type === "family")?.price_cents;
+    setEditingTierId(tier.id);
+    setEditMinQty(String(tier.min_qty));
+    setEditMaxQty(tier.max_qty === null ? "" : String(tier.max_qty));
+    setEditSinglePrice(single === undefined ? "" : String(single));
+    setEditFamilyPrice(family === undefined ? "" : String(family));
+    setEditOpen(true);
+  }
+
+  async function handleSaveTierEdit(e: React.FormEvent) {
+    e.preventDefault();
+    const minQty = Number(editMinQty);
+    const maxQty = editMaxQty.trim() ? Number(editMaxQty) : null;
+    const singleCents = Number(editSinglePrice);
+    const familyCents = Number(editFamilyPrice);
+
+    if (!editingTierId) return;
+    if (!Number.isInteger(minQty) || minQty < 1) {
+      toast.error(t("adminPricing.tierMinInvalid"));
+      return;
+    }
+    if (maxQty !== null && (!Number.isInteger(maxQty) || maxQty < minQty)) {
+      toast.error(t("adminPricing.tierMaxInvalid"));
+      return;
+    }
+    if (
+      !Number.isInteger(singleCents) ||
+      singleCents < 0 ||
+      !Number.isInteger(familyCents) ||
+      familyCents < 0
+    ) {
+      toast.error(t("adminPricing.tierRateInvalid"));
+      return;
+    }
+
+    try {
+      await updateTier({ id: editingTierId, min_qty: minQty, max_qty: maxQty }).unwrap();
+      await Promise.all([
+        upsertRate({ tier_id: editingTierId, unit_type: "single", price_cents: singleCents }).unwrap(),
+        upsertRate({ tier_id: editingTierId, unit_type: "family", price_cents: familyCents }).unwrap(),
+      ]);
+      setEditOpen(false);
+      toast.success(t("adminPricing.tierUpdated"));
+    } catch {
+      toast.error(t("adminPricing.tierUpdateFailed"));
+    }
+  }
+
+  async function handleDeleteTier(tierId: string) {
+    if (!confirm(t("adminPricing.confirmDeleteTier"))) return;
+    try {
+      await deleteTier(tierId).unwrap();
+      toast.success(t("adminPricing.tierDeleted"));
+    } catch {
+      toast.error(t("adminPricing.tierDeleteFailed"));
     }
   }
 
@@ -281,12 +352,13 @@ function TieredPricingPanel() {
                   <TableHead>{t("adminPricing.tierRange")}</TableHead>
                   <TableHead>{t("adminPricing.singlePrice")}</TableHead>
                   <TableHead>{t("adminPricing.familyPrice")}</TableHead>
+                  <TableHead className="text-right">{t("adminPricing.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {!selectedCategoryId || (tiers ?? []).length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-muted-foreground">
+                    <TableCell colSpan={4} className="text-muted-foreground">
                       {t("adminPricing.noTieredPricingYet")}
                     </TableCell>
                   </TableRow>
@@ -302,6 +374,33 @@ function TieredPricingPanel() {
                         </TableCell>
                         <TableCell>{single ?? "-"}</TableCell>
                         <TableCell>{family ?? "-"}</TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={t("adminPricing.tierActions")}
+                              >
+                                <MoreHorizontal className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openEditTier(tier)}>
+                                <Pencil className="size-4" />
+                                {t("adminPricing.edit")}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => void handleDeleteTier(tier.id)}
+                                disabled={deletingTier}
+                              >
+                                <Trash2 className="size-4" />
+                                {t("adminPricing.delete")}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
                       </TableRow>
                     );
                   })
@@ -311,6 +410,65 @@ function TieredPricingPanel() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <form onSubmit={(e) => void handleSaveTierEdit(e)}>
+            <DialogHeader>
+              <DialogTitle>{t("adminPricing.editTier")}</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>{t("adminPricing.tierMinQty")}</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={editMinQty}
+                  onChange={(e) => setEditMinQty(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("adminPricing.tierMaxQtyOptional")}</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={editMaxQty}
+                  onChange={(e) => setEditMaxQty(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("adminPricing.singlePriceCents")}</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={editSinglePrice}
+                  onChange={(e) => setEditSinglePrice(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("adminPricing.familyPriceCents")}</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={editFamilyPrice}
+                  onChange={(e) => setEditFamilyPrice(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
+                {t("adminPricing.cancel")}
+              </Button>
+              <Button type="submit" disabled={updatingTier || savingRate}>
+                {t("adminPricing.save")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

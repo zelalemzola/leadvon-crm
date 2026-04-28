@@ -6,12 +6,11 @@ import { requireCustomerUser } from "@/lib/server/client/auth";
 import {
   TieredPricingError,
   computeTieredQuote,
-  isTieredPricingEnabled,
 } from "@/lib/server/pricing/tiered-pricing";
 
 const schema = z.object({
   category_id: z.string().uuid(),
-  unit_type: z.string().min(1).max(50),
+  unit_type: z.string().min(1).max(50).optional(),
   quantity: z.number().int().min(1).max(100000),
   monthly_target_leads: z.number().int().min(1).max(100000).optional(),
   business_days_only: z.boolean().optional().default(true),
@@ -21,9 +20,6 @@ export async function POST(request: Request) {
   const auth = await requireCustomerUser({ adminOnly: true });
   if ("error" in auth) {
     return auth.error;
-  }
-  if (!isTieredPricingEnabled()) {
-    return NextResponse.json({ error: "Tiered pricing is disabled" }, { status: 404 });
   }
 
   const body = await request.json().catch(() => null);
@@ -57,7 +53,7 @@ export async function POST(request: Request) {
             unit_amount: quote.total_cents,
             product_data: {
               name: "LeadVon monthly lead flow budget",
-              description: `${quote.quantity} ${quote.unit_type} lead(s) / month for category ${quote.category_id}`,
+              description: `${quote.quantity} lead(s) / month for category ${quote.category_id}`,
             },
           },
         },
@@ -68,7 +64,6 @@ export async function POST(request: Request) {
         user_id: auth.userId,
         amount_cents: String(quote.total_cents),
         category_id: quote.category_id,
-        unit_type: quote.unit_type,
         quantity: String(quote.quantity),
         monthly_target_leads: String(monthlyTarget),
         leads_per_week: String(leadsPerWeek),

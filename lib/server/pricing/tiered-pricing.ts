@@ -28,18 +28,16 @@ export class TieredPricingError extends Error {
 
 export function isTieredPricingEnabled(): boolean {
   const raw = process.env.BILLING_TIERED_PRICING_ENABLED ?? "";
-  return raw === "1" || raw.toLowerCase() === "true";
+  if (!raw.trim()) return true;
+  const normalized = raw.trim().toLowerCase();
+  return !(normalized === "0" || normalized === "false");
 }
 
 export async function computeTieredQuote(args: {
   categoryId: string;
-  unitType: string;
+  unitType?: string;
   quantity: number;
 }): Promise<TieredQuoteResult> {
-  if (!isTieredPricingEnabled()) {
-    throw new TieredPricingError("FEATURE_DISABLED", "Tiered pricing is currently disabled");
-  }
-
   const service = createServiceClient();
   const qty = Math.trunc(args.quantity);
   const { data: category, error: categoryError } = await service
@@ -84,27 +82,31 @@ export async function computeTieredQuote(args: {
     throw new TieredPricingError("NO_ACTIVE_TIER", "No active tier matches this quantity");
   }
 
-  const { data: rate, error: rateError } = await service
+  const { data: rates, error: rateError } = await service
     .from("category_pricing_tier_rates")
-    .select("price_cents")
+    .select("unit_type, price_cents")
     .eq("tier_id", selectedTier.id)
-    .eq("unit_type", args.unitType)
-    .maybeSingle();
+    .order("unit_type", { ascending: true });
 
   if (rateError) {
     throw new Error(rateError.message);
   }
-  if (!rate) {
+  const rateRows = rates ?? [];
+  if (rateRows.length === 0) {
     throw new TieredPricingError(
       "NO_TIER_RATE",
-      `No tier price configured for unit type "${args.unitType}"`
+      "No tier price configured for this category tier"
     );
   }
+  const selectedRate =
+    (args.unitType
+      ? rateRows.find((row) => String(row.unit_type) === args.unitType)
+      : undefined) ?? rateRows[0];
 
-  const pricePerLead = Number(rate.price_cents);
+  const pricePerLead = Number(selectedRate.price_cents);
   return {
     category_id: args.categoryId,
-    unit_type: args.unitType,
+    unit_type: String(selectedRate.unit_type),
     quantity: qty,
     minimum_order_qty: minimumOrderQty,
     tier_id: selectedTier.id,

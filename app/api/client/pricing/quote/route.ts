@@ -5,7 +5,7 @@ import { TieredPricingError, computeTieredQuote } from "@/lib/server/pricing/tie
 
 const quoteSchema = z.object({
   category_id: z.string().uuid(),
-  unit_type: z.string().min(1).max(50),
+  unit_type: z.string().min(1).max(50).optional(),
   quantity: z.number().int().min(1).max(100000),
 });
 

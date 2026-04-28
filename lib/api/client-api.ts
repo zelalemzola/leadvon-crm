@@ -153,7 +153,7 @@ export type TieredPricingQuote = {
 
 export type TieredFlowSessionRequest = {
   category_id: string;
-  unit_type: string;
+  unit_type?: string;
   quantity: number;
   monthly_target_leads?: number;
   business_days_only?: boolean;
@@ -613,7 +613,7 @@ export const clientApi = createApi({
 
     getTieredPricingQuote: builder.mutation<
       TieredPricingQuote,
-      { category_id: string; unit_type: string; quantity: number }
+      { category_id: string; unit_type?: string; quantity: number }
     >({
       queryFn: async (body) => {
         const res = await requestJson<TieredPricingQuote>("/api/client/pricing/quote", "POST", body);
