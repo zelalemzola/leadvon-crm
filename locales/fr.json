@@ -386,6 +386,7 @@
     "soldPage": "Vendus (page)",
     "name": "Nom",
     "phone": "Telephone",
+    "zipCode": "Code postal",
     "unit": "Type",
     "summary": "Resume",
     "created": "Cree le",

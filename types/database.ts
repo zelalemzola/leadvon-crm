@@ -59,6 +59,7 @@ export type Lead = {
   id: string;
   category_id: string;
   phone: string;
+  zip_code?: string | null;
   first_name: string;
   last_name: string;
   country: string;

@@ -317,6 +317,7 @@ export function AdminLeads() {
       "first_name",
       "last_name",
       "phone",
+      "zip_code",
       "country",
       "lead_unit_type",
       "category",
@@ -330,6 +331,7 @@ export function AdminLeads() {
         r.first_name,
         r.last_name,
         r.phone,
+        r.zip_code ?? "",
         r.country ?? "",
         r.lead_unit_type ?? "single",
         r.categories?.name ?? "",
@@ -598,6 +600,7 @@ export function AdminLeads() {
                     <TableHead>ID</TableHead>
                     <TableHead>{t("adminLeads.name")}</TableHead>
                     <TableHead>{t("adminLeads.phone")}</TableHead>
+                    <TableHead>{t("adminLeads.zipCode")}</TableHead>
                     <TableHead>{t("adminLeads.country")}</TableHead>
                     <TableHead>{t("adminLeads.unit")}</TableHead>
                     <TableHead>{t("adminLeads.category")}</TableHead>
@@ -610,7 +613,7 @@ export function AdminLeads() {
                 <TableBody>
                   {rows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="h-24 text-center">
+                      <TableCell colSpan={11} className="h-24 text-center">
                         {t("adminLeads.noLeadsMatch")}
                       </TableCell>
                     </TableRow>
@@ -625,6 +628,9 @@ export function AdminLeads() {
                         </TableCell>
                         <TableCell className="tabular-nums text-muted-foreground">
                           {row.phone}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {row.zip_code || t("admin.dashboard.na")}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {row.country || t("admin.dashboard.na")}

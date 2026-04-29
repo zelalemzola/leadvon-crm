@@ -6,6 +6,10 @@ const base44LeadSchema = z.object({
   prenom: z.coerce.string().trim().min(1),
   nom: z.coerce.string().trim().min(1),
   telephone: z.coerce.string().trim().min(4),
+  code_postal: z
+    .union([z.string(), z.null(), z.undefined()])
+    .transform((v) => (typeof v === "string" ? v.trim() : undefined))
+    .optional(),
   email: z
     .union([z.string(), z.null(), z.undefined()])
     .transform((v) => (typeof v === "string" ? v.trim() : undefined))
@@ -30,6 +34,7 @@ export type MappedBase44Lead = {
   category_id: string;
   lead_unit_type: "single" | "family";
   phone: string;
+  zip_code?: string | null;
   first_name: string;
   last_name: string;
   country: string;
@@ -157,6 +162,7 @@ export function mapBase44LeadToInventoryLead(
       category_id: categoryId,
       lead_unit_type: inferLeadUnitType(input.qui_assurer),
       phone: input.telephone.trim(),
+      zip_code: input.code_postal ? input.code_postal : null,
       first_name: input.prenom.trim(),
       last_name: input.nom.trim(),
       country: "France",

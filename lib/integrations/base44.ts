@@ -3,6 +3,7 @@ type Base44Lead = {
   prenom?: string;
   nom?: string;
   telephone?: string;
+  code_postal?: string;
   email?: string;
   age?: number;
   besoins?: string[];

@@ -386,6 +386,7 @@
     "soldPage": "Sold (page)",
     "name": "Name",
     "phone": "Phone",
+    "zipCode": "Zip Code",
     "unit": "Unit",
     "summary": "Summary",
     "created": "Created",
