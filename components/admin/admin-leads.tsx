@@ -21,6 +21,7 @@ import {
   useDeliverPrepaidLeadMutation,
   useDeliverSignupFreeLeadMutation,
   type AdminLeadsAvailability,
+  type AdminLeadsSourceFilter,
   type AdminLeadsSort,
 } from "@/lib/api/admin-api";
 import type { LeadWithCategory } from "@/types/database";
@@ -80,12 +81,50 @@ const emptyForm = {
   sold: false,
 };
 
+function normalizeLeadSource(source?: string | null) {
+  return (source ?? "manual").trim().toLowerCase() || "manual";
+}
+
+function LeadSourceBadge({
+  lead,
+  t,
+}: {
+  lead: LeadWithCategory;
+  t: (path: string) => string;
+}) {
+  const source = normalizeLeadSource(lead.source_system);
+  if (source === "base44") {
+    const externalId = lead.source_external_id?.trim();
+    return (
+      <Badge
+        className="bg-sky-500/15 text-sky-300 hover:bg-sky-500/25"
+        title={externalId ? `${t("adminLeads.sourceExternalId")}: ${externalId}` : undefined}
+      >
+        {t("adminLeads.sourceBase44")}
+      </Badge>
+    );
+  }
+  if (source === "manual") {
+    return (
+      <Badge variant="outline" className="text-muted-foreground">
+        {t("adminLeads.sourceManual")}
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-muted-foreground">
+      {source}
+    </Badge>
+  );
+}
+
 export function AdminLeads() {
   const { localizePath, t } = useI18n();
   const [categoryFilter, setCategoryFilter] = useState<string | "all">("all");
   const [search, setSearch] = useState("");
   const [availabilityFilter, setAvailabilityFilter] =
     useState<AdminLeadsAvailability>("all");
+  const [sourceFilter, setSourceFilter] = useState<AdminLeadsSourceFilter>("all");
   const [countryFilter, setCountryFilter] = useState("");
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
@@ -115,6 +154,7 @@ export function AdminLeads() {
     page,
     pageSize: 20,
     availability: availabilityFilter,
+    source: sourceFilter,
     country: countryFilter,
     createdFrom: createdFrom || undefined,
     createdTo: createdTo || undefined,
@@ -322,6 +362,7 @@ export function AdminLeads() {
       "lead_unit_type",
       "category",
       "summary",
+      "source_system",
       "status",
       "created_at",
     ];
@@ -336,6 +377,7 @@ export function AdminLeads() {
         r.lead_unit_type ?? "single",
         r.categories?.name ?? "",
         (r.summary ?? "").replaceAll('"', '""'),
+        normalizeLeadSource(r.source_system),
         r.sold_at ? "sold" : "available",
         r.created_at,
       ]
@@ -502,6 +544,25 @@ export function AdminLeads() {
             </Select>
           </div>
           <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">{t("adminLeads.source")}</Label>
+            <Select
+              value={sourceFilter}
+              onValueChange={(v) => {
+                setSourceFilter(v as AdminLeadsSourceFilter);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("adminLeads.allSources")}</SelectItem>
+                <SelectItem value="manual">{t("adminLeads.sourceManual")}</SelectItem>
+                <SelectItem value="base44">{t("adminLeads.sourceBase44")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">{t("adminLeads.country")}</Label>
             <Input
               value={countryFilter}
@@ -604,6 +665,7 @@ export function AdminLeads() {
                     <TableHead>{t("adminLeads.country")}</TableHead>
                     <TableHead>{t("adminLeads.unit")}</TableHead>
                     <TableHead>{t("adminLeads.category")}</TableHead>
+                    <TableHead>{t("adminLeads.source")}</TableHead>
                     <TableHead>{t("adminLeads.summary")}</TableHead>
                     <TableHead>{t("adminLeads.created")}</TableHead>
                     <TableHead>{t("adminLeads.status")}</TableHead>
@@ -613,7 +675,7 @@ export function AdminLeads() {
                 <TableBody>
                   {rows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="h-24 text-center">
+                      <TableCell colSpan={12} className="h-24 text-center">
                         {t("adminLeads.noLeadsMatch")}
                       </TableCell>
                     </TableRow>
@@ -640,6 +702,9 @@ export function AdminLeads() {
                         </TableCell>
                         <TableCell>
                           {row.categories?.name ?? t("admin.dashboard.na")}
+                        </TableCell>
+                        <TableCell>
+                          <LeadSourceBadge lead={row} t={t} />
                         </TableCell>
                         <TableCell className="max-w-[240px] truncate text-muted-foreground">
                           {row.summary || t("admin.dashboard.na")}

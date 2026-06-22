@@ -149,6 +149,7 @@ export type FinanceSnapshotData = {
 };
 
 export type AdminLeadsAvailability = "all" | "available" | "sold";
+export type AdminLeadsSourceFilter = "all" | "manual" | "base44";
 export type AdminLeadsSort = "newest" | "oldest";
 
 export type DeliverPrepaidLeadResult = {
@@ -315,6 +316,7 @@ type LeadsQueryParams = {
   page?: number;
   pageSize?: number;
   availability?: AdminLeadsAvailability;
+  source?: AdminLeadsSourceFilter;
   /** Partial match on country (case-insensitive). Empty = no filter. */
   country?: string;
   createdFrom?: string | null;
@@ -503,6 +505,7 @@ export const adminApi = createApi({
         page = 1,
         pageSize = 25,
         availability = "all",
+        source = "all",
         country = "",
         createdFrom,
         createdTo,
@@ -522,6 +525,8 @@ export const adminApi = createApi({
         if (categoryId) listQuery = listQuery.eq("category_id", categoryId);
         if (availability === "available") listQuery = listQuery.is("sold_at", null);
         if (availability === "sold") listQuery = listQuery.not("sold_at", "is", null);
+        if (source === "manual") listQuery = listQuery.eq("source_system", "manual");
+        if (source === "base44") listQuery = listQuery.eq("source_system", "base44");
         if (country.trim()) {
           listQuery = listQuery.ilike("country", `%${country.trim()}%`);
         }
@@ -541,6 +546,8 @@ export const adminApi = createApi({
         if (categoryId) countQuery = countQuery.eq("category_id", categoryId);
         if (availability === "available") countQuery = countQuery.is("sold_at", null);
         if (availability === "sold") countQuery = countQuery.not("sold_at", "is", null);
+        if (source === "manual") countQuery = countQuery.eq("source_system", "manual");
+        if (source === "base44") countQuery = countQuery.eq("source_system", "base44");
         if (country.trim()) {
           countQuery = countQuery.ilike("country", `%${country.trim()}%`);
         }
