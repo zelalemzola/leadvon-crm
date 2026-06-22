@@ -13,11 +13,12 @@ import {
   ScrollText,
   User,
   Compass,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { useGetClientMeQuery } from "@/lib/api/client-api";
+import { useGetClientMeQuery, useGetNotificationsQuery } from "@/lib/api/client-api";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { useNextStep } from "nextstepjs";
@@ -25,6 +26,7 @@ import { useNextStep } from "nextstepjs";
 const baseNav = [
   { href: "/client", key: "client.nav.dashboard", icon: LayoutDashboard },
   { href: "/client/leads", key: "client.nav.leads", icon: Users },
+  { href: "/client/notifications", key: "client.nav.notifications", icon: Bell },
   { href: "/client/billing", key: "client.nav.billing", icon: CreditCard },
   { href: "/client/activity", key: "client.nav.activity", icon: ScrollText },
   { href: "/client/support", key: "client.nav.support", icon: LifeBuoy },
@@ -39,6 +41,10 @@ export function ClientSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { data: me } = useGetClientMeQuery();
+  const { data: notifications } = useGetNotificationsQuery(undefined, {
+    pollingInterval: 60_000,
+  });
+  const unreadCount = notifications?.unreadCount ?? 0;
   const { t, locale, localizePath } = useI18n();
   const { startNextStep } = useNextStep();
   const normalizedPath = pathname.replace(/^\/(en|fr)(?=\/|$)/, "") || "/";
@@ -101,7 +107,12 @@ export function ClientSidebar() {
               )}
             >
               <Icon className="size-4 opacity-80" />
-              {t(key)}
+              <span className="flex-1">{t(key)}</span>
+              {href === "/client/notifications" && unreadCount > 0 ? (
+                <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              ) : null}
             </Link>
           );
         })}

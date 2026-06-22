@@ -15,6 +15,7 @@ export const clientLeadPatchSchema = z.object({
     .optional(),
   notes: z.string().max(2000).optional(),
   assigned_to: z.string().uuid().nullable().optional(),
+  call_count: z.number().int().min(0).max(9999).optional(),
 });
 
 export const customerLeadFlowSchema = z.object({

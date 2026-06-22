@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireCustomerUser, writeCustomerAuditLog } from "@/lib/server/client/auth";
+import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
 
 export async function POST() {
   const auth = await requireCustomerUser({ adminOnly: true });
@@ -25,6 +26,10 @@ export async function POST() {
     entityType: "customer_lead_flow",
     details: { leads_delivered: leadsDelivered },
   });
+
+  if (leadsDelivered > 0) {
+    await processPendingLeadEmails();
+  }
 
   return NextResponse.json({
     data: {

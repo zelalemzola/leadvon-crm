@@ -15,6 +15,7 @@ export type Profile = {
   email: string | null;
   full_name: string | null;
   phone: string | null;
+  lead_assignment_percentage?: number;
   created_at: string;
   updated_at: string;
 };

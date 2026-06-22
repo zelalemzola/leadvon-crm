@@ -162,9 +162,9 @@ function buildTourSteps(localePrefix: string, role?: string): Tour[] {
         },
         {
           icon: "🧾",
-          title: "Invoice and activity history",
+          title: "Delivery activity history",
           content:
-            "Use budget activity and invoice tables for billing traceability and reconciliation.",
+            "Use the budget activity table for delivery traceability and reconciliation.",
           selector: "#tour-client-billing-history",
           side: "top",
           nextRoute: `${localePrefix}/client/activity`,

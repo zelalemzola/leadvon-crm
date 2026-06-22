@@ -113,7 +113,8 @@
     "date30": "Last 30 days",
     "date90": "Last 90 days",
     "dateAll": "All time",
-    "allProducts": "All Products",
+    "dateRange": "Date range",
+    "allUnitTypes": "All unit types",
     "allCountries": "All Countries",
     "allAgents": "All Agents",
     "failed": "Failed to load dashboard:",
@@ -133,14 +134,16 @@
       "qualified": "Qualified",
       "not_interested": "Not Interested",
       "unqualified": "Unqualified",
-      "duplicate": "Duplicate"
+      "duplicate": "Duplicate",
+      "closed": "Closed"
     }
   },
   "clientLeads": {
     "title": "Leads",
     "subtitle": "Manage purchased leads and assign them to your team.",
+    "leadsFound": "leads found",
     "filters": "Filters",
-    "searchPlaceholder": "Search name, phone, summary, notes",
+    "searchPlaceholder": "Search name, phone, ID...",
     "category": "Category",
     "country": "Country",
     "zipCode": "Zip Code",
@@ -160,7 +163,13 @@
     "sortOldestAdded": "Oldest added",
     "sortRecentlyUpdated": "Recently updated",
     "sortOldestUpdated": "Oldest updated",
+    "id": "ID",
     "name": "Name",
+    "location": "Location",
+    "time": "Time",
+    "calls": "Calls",
+    "addNotes": "Add notes...",
+    "openWhatsApp": "Open WhatsApp",
     "updated": "Updated",
     "actions": "Actions",
     "loading": "Loading...",
@@ -685,7 +694,23 @@
     "couldNotGenerateResetLink": "Could not generate reset link",
     "tempPasswordMin": "Temporary password must be at least 8 characters.",
     "tempPasswordUpdated": "Temporary password updated",
-    "couldNotUpdatePassword": "Could not update password"
+    "couldNotUpdatePassword": "Could not update password",
+    "assignmentShare": "Assignment %",
+    "assignmentHint": "Set each active agent's share of incoming leads. Current total:",
+    "assignmentUpdated": "Assignment percentage updated",
+    "couldNotUpdateAssignment": "Could not update assignment percentage"
+  },
+  "clientNotifications": {
+    "title": "Notifications",
+    "subtitle": "Stay informed when new leads arrive and when your team updates lead status.",
+    "inbox": "Inbox",
+    "loading": "Loading notifications...",
+    "failed": "Failed to load notifications.",
+    "empty": "No notifications yet.",
+    "unread": "Unread",
+    "markAllRead": "Mark all as read",
+    "markedAllRead": "All notifications marked as read",
+    "markReadFailed": "Could not update notifications"
   },
   "adminPrepaid": {
     "enterValidUsd": "Enter a valid USD amount.",
@@ -849,6 +874,7 @@
     "nav": {
       "dashboard": "Dashboard",
       "leads": "Leads",
+      "notifications": "Notifications",
       "assigned": "Assigned",
       "billing": "Billing",
       "activity": "Activity",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   useCreateOrgUserMutation,
@@ -28,7 +28,16 @@ export function ClientSettings() {
   const [tempPasswordByUser, setTempPasswordByUser] = useState<Record<string, string>>({});
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<"customer_admin" | "customer_agent">("customer_agent");
+  const [assignmentDraft, setAssignmentDraft] = useState<Record<string, string>>({});
   const isOrgAdmin = me?.role === "customer_admin" && me?.is_active;
+
+  const activeAgentShareTotal = useMemo(
+    () =>
+      (users ?? [])
+        .filter((u) => u.role === "customer_agent" && u.is_active)
+        .reduce((sum, u) => sum + (u.lead_assignment_percentage ?? 0), 0),
+    [users]
+  );
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -115,6 +124,25 @@ export function ClientSettings() {
     }
   }
 
+  async function saveAssignmentPercentage(id: string, rawValue: string) {
+    const value = Math.max(0, Math.min(100, Number(rawValue) || 0));
+    try {
+      await updateUser({ id, lead_assignment_percentage: value }).unwrap();
+      toast.success(t("clientSettings.assignmentUpdated"));
+      setAssignmentDraft((m) => {
+        const next = { ...m };
+        delete next[id];
+        return next;
+      });
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "data" in err
+          ? String((err as { data?: unknown }).data)
+          : t("clientSettings.couldNotUpdateAssignment");
+      toast.error(msg);
+    }
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 lg:p-8">
       <header className="space-y-1">
@@ -174,6 +202,9 @@ export function ClientSettings() {
       <Card id="tour-client-settings-users" className="border-border/70 bg-card/50">
         <CardHeader>
           <CardTitle className="text-base">{t("clientSettings.organizationUsers")}</CardTitle>
+          <CardDescription>
+            {t("clientSettings.assignmentHint")} {activeAgentShareTotal}%
+          </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -182,6 +213,7 @@ export function ClientSettings() {
                 <TableHead>{t("clientSettings.email")}</TableHead>
                 <TableHead>{t("clientSettings.name")}</TableHead>
                 <TableHead>{t("clientSettings.role")}</TableHead>
+                <TableHead>{t("clientSettings.assignmentShare")}</TableHead>
                 <TableHead>{t("clientSettings.status")}</TableHead>
                 <TableHead>{t("clientSettings.actions")}</TableHead>
                 <TableHead>{t("clientSettings.lastLogin")}</TableHead>
@@ -190,9 +222,9 @@ export function ClientSettings() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="h-16 text-center">{t("clientSettings.loading")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="h-16 text-center">{t("clientSettings.loading")}</TableCell></TableRow>
               ) : (users ?? []).length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="h-16 text-center">{t("clientSettings.noUsersYet")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="h-16 text-center">{t("clientSettings.noUsersYet")}</TableCell></TableRow>
               ) : (
                 (users ?? []).map((u) => (
                   <TableRow key={u.id}>
@@ -214,6 +246,31 @@ export function ClientSettings() {
                           <SelectItem value="customer_admin">{t("clientSettings.customerAdmin")}</SelectItem>
                         </SelectContent>
                       </Select>
+                    </TableCell>
+                    <TableCell>
+                      {u.role === "customer_agent" ? (
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          className="h-8 w-20"
+                          value={assignmentDraft[u.id] ?? String(u.lead_assignment_percentage ?? 0)}
+                          disabled={!isOrgAdmin || updatingUser || !u.is_active}
+                          onChange={(e) =>
+                            setAssignmentDraft((m) => ({ ...m, [u.id]: e.target.value }))
+                          }
+                          onBlur={() => {
+                            const draft = assignmentDraft[u.id];
+                            if (draft === undefined) return;
+                            void saveAssignmentPercentage(u.id, draft);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") e.currentTarget.blur();
+                          }}
+                        />
+                      ) : (
+                        <span className="text-sm text-muted-foreground">{t("clientDashboard.na")}</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {u.is_active ? (

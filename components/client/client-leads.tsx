@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  MoreHorizontal,
+  Eye,
   Flame,
   PhoneOff,
   PhoneCall,
@@ -43,12 +43,6 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -57,7 +51,15 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useI18n } from "@/components/providers/i18n-provider";
+import {
+  formatLeadDisplayId,
+  formatLeadLocation,
+  formatLeadRelativeTime,
+  formatPhoneForDisplay,
+  whatsappUrl,
+} from "@/lib/client/lead-display";
 
 const statusOptions = [
   "new",
@@ -133,7 +135,12 @@ export function ClientLeads() {
 
   async function patchLead(
     id: string,
-    patch: { status?: string; assigned_to?: string | null; notes?: string }
+    patch: {
+      status?: string;
+      assigned_to?: string | null;
+      notes?: string;
+      call_count?: number;
+    }
   ) {
     try {
       await updateLead({
@@ -141,6 +148,7 @@ export function ClientLeads() {
         ...(patch.status ? { status: patch.status as never } : {}),
         ...(patch.assigned_to !== undefined ? { assigned_to: patch.assigned_to } : {}),
         ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
+        ...(patch.call_count !== undefined ? { call_count: patch.call_count } : {}),
       }).unwrap();
       toast.success(t("clientLeads.toastUpdated"));
     } catch (err: unknown) {
@@ -163,20 +171,6 @@ export function ClientLeads() {
   function openSummaryView(summary?: string | null) {
     setActiveSummary(summary?.trim() || t("clientDashboard.na"));
     setSummaryDialogOpen(true);
-  }
-
-  function getLeadZipCode(row: CustomerLead) {
-    const leadWithZip = row as CustomerLead & {
-      zip?: string | null;
-      zipcode?: string | null;
-    };
-    return (
-      row.zip_code ??
-      row.postal_code ??
-      leadWithZip.zip ??
-      leadWithZip.zipcode ??
-      t("clientDashboard.na")
-    );
   }
 
   async function saveModal() {
@@ -205,7 +199,9 @@ export function ClientLeads() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">{t("clientLeads.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          {t("clientLeads.subtitle")}
+          {total > 0
+            ? `${total} ${t("clientLeads.leadsFound")}`
+            : t("clientLeads.subtitle")}
         </p>
       </header>
 
@@ -321,29 +317,55 @@ export function ClientLeads() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>{t("clientLeads.id")}</TableHead>
                 <TableHead>{t("clientLeads.name")}</TableHead>
-                <TableHead>{t("clientLeads.country")}</TableHead>
+                <TableHead>{t("clientLeads.phone")}</TableHead>
                 <TableHead>{t("clientLeads.zipCode")}</TableHead>
+                <TableHead>{t("clientLeads.country")}</TableHead>
                 <TableHead>{t("clientLeads.category")}</TableHead>
                 <TableHead>{t("clientLeads.unit")}</TableHead>
                 <TableHead>{t("clientLeads.summary")}</TableHead>
+                <TableHead>{t("clientLeads.time")}</TableHead>
                 <TableHead>{t("clientLeads.status")}</TableHead>
                 <TableHead>{t("clientLeads.assignee")}</TableHead>
-                <TableHead>{t("clientLeads.updated")}</TableHead>
-                <TableHead className="text-right">{t("clientLeads.actions")}</TableHead>
+                <TableHead>{t("clientLeads.calls")}</TableHead>
+                <TableHead>{t("clientLeads.notes")}</TableHead>
+                <TableHead className="text-right">{t("clientLeads.view")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={10} className="h-20 text-center">{t("clientLeads.loading")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={14} className="h-20 text-center">{t("clientLeads.loading")}</TableCell></TableRow>
               ) : rows.length === 0 ? (
-                <TableRow><TableCell colSpan={10} className="h-20 text-center">{t("clientLeads.empty")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={14} className="h-20 text-center">{t("clientLeads.empty")}</TableCell></TableRow>
               ) : (
-                rows.map((row) => (
+                rows.map((row) => {
+                  const waLink = whatsappUrl(row.phone);
+                  const callCount = row.call_count ?? 0;
+                  return (
                   <TableRow key={row.id}>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {formatLeadDisplayId(row)}
+                    </TableCell>
                     <TableCell className="font-medium">{row.first_name} {row.last_name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="whitespace-nowrap text-sm">{formatPhoneForDisplay(row.phone)}</span>
+                        {waLink ? (
+                          <a
+                            href={waLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex shrink-0 rounded-md p-1 transition-colors hover:bg-emerald-500/10"
+                            aria-label={t("clientLeads.openWhatsApp")}
+                          >
+                            <WhatsAppIcon className="size-4 text-emerald-400" />
+                          </a>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{formatLeadLocation(row)}</TableCell>
                     <TableCell className="text-muted-foreground">{row.country || t("clientDashboard.na")}</TableCell>
-                    <TableCell className="text-muted-foreground">{getLeadZipCode(row)}</TableCell>
                     <TableCell>{row.categories?.name ?? t("clientDashboard.na")}</TableCell>
                     <TableCell>
                       <Badge
@@ -356,7 +378,7 @@ export function ClientLeads() {
                         {(row.lead_unit_type ?? "single") === "family" ? t("clientLeads.family") : t("clientLeads.single")}
                       </Badge>
                     </TableCell>
-                    <TableCell className="max-w-[280px]">
+                    <TableCell className="max-w-[200px]">
                       <Button
                         variant="link"
                         className="h-auto max-w-full justify-start px-0 py-0 text-left font-normal text-muted-foreground"
@@ -367,54 +389,84 @@ export function ClientLeads() {
                         </span>
                       </Button>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="gap-1.5">
-                        {(() => {
-                          const meta = statusMeta[row.status];
-                          const Icon = meta.icon;
-                          return (
-                            <>
-                              <Icon className={`size-3.5 ${meta.color}`} />
-                              {t(`clientDashboard.status.${meta.key}`)}
-                            </>
-                          );
-                        })()}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {row.assignee ? (
-                        <Badge variant="outline" className="gap-1.5">
-                          <UserRound className="size-3.5 text-sky-400" />
-                          {row.assignee.full_name || row.assignee.email || t("clientLeads.assigned")}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="gap-1.5">
-                          <UserX2 className="size-3.5 text-muted-foreground" />
-                          {t("clientLeads.unassigned")}
-                        </Badge>
-                      )}
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {formatLeadRelativeTime(row.created_at)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">
-                        {new Date(row.status_updated_at).toLocaleDateString()}
-                      </Badge>
+                      <Select
+                        value={row.status}
+                        onValueChange={(value) => void patchLead(row.id, { status: value })}
+                      >
+                        <SelectTrigger className="h-8 w-[9.5rem] border-border/70 bg-background/60">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {statusOptions.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              <span className="flex items-center gap-1.5">
+                                {(() => {
+                                  const meta = statusMeta[s];
+                                  const Icon = meta.icon;
+                                  return <Icon className={`size-3.5 ${meta.color}`} />;
+                                })()}
+                                {t(`clientDashboard.status.${s}`)}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={row.assigned_to ?? "unassigned"}
+                        onValueChange={(value) =>
+                          void patchLead(row.id, {
+                            assigned_to: value === "unassigned" ? null : value,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-8 w-[10rem] border-border/70 bg-background/60">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassigned">
+                            <span className="flex items-center gap-1.5">
+                              <UserX2 className="size-3.5 text-muted-foreground" />
+                              {t("clientLeads.unassigned")}
+                            </span>
+                          </SelectItem>
+                          {userOptions.map((u) => (
+                            <SelectItem key={u.id} value={u.id}>
+                              <span className="flex items-center gap-1.5">
+                                <UserRound className="size-3.5 text-sky-400" />
+                                {u.full_name || u.email || u.id.slice(0, 8)}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <LeadCallsCell
+                        value={callCount}
+                        onSave={(call_count) => void patchLead(row.id, { call_count })}
+                      />
+                    </TableCell>
+                    <TableCell className="max-w-[180px]">
+                      <LeadNotesCell
+                        notes={row.notes}
+                        placeholder={t("clientLeads.addNotes")}
+                        onSave={(notes) => void patchLead(row.id, { notes })}
+                      />
                     </TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon-sm">
-                            <MoreHorizontal className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openLeadView(row)}>
-                            {t("clientLeads.view")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Button variant="ghost" size="icon-sm" onClick={() => openLeadView(row)}>
+                        <Eye className="size-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
-                ))
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -537,6 +589,103 @@ export function ClientLeads() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+    </svg>
+  );
+}
+
+function LeadCallsCell({
+  value,
+  onSave,
+}: {
+  value: number;
+  onSave: (callCount: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  return (
+    <Input
+      type="number"
+      min={0}
+      max={9999}
+      inputMode="numeric"
+      className="h-8 w-16 px-2 text-center text-sm font-semibold tabular-nums"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const next = Math.max(0, Math.min(9999, Number(draft) || 0));
+        setDraft(String(next));
+        if (next !== value) onSave(next);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+      }}
+    />
+  );
+}
+
+function LeadNotesCell({
+  notes,
+  placeholder,
+  onSave,
+}: {
+  notes?: string | null;
+  placeholder: string;
+  onSave: (notes: string) => void;
+}) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(notes ?? "");
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setDraft(notes ?? "");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="line-clamp-2 w-full text-left text-sm text-muted-foreground hover:text-foreground"
+        >
+          {notes?.trim() || placeholder}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80" align="start">
+        <Textarea
+          rows={4}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={placeholder}
+        />
+        <div className="mt-2 flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
+            {t("clientLeads.cancel")}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              onSave(draft);
+              setOpen(false);
+            }}
+          >
+            {t("clientLeads.saveChanges")}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

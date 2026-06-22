@@ -1,14 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useGetCategoriesQuery } from "@/lib/api/admin-api";
 import {
   useGetCustomerDashboardQuery,
   useGetCustomerLeadCountriesQuery,
   useGetOrgUsersQuery,
   type CustomerDashboardFilters,
 } from "@/lib/api/client-api";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -19,12 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -44,9 +36,14 @@ import {
   XCircle,
   Ban,
   Copy,
-  Calendar,
 } from "lucide-react";
 import { useI18n } from "@/components/providers/i18n-provider";
+import {
+  DateRangeFilter,
+  dateFilterToRange,
+  type DateFilterValue,
+} from "@/components/client/date-range-filter";
+import type { LeadUnitType } from "@/types/database";
 
 const statusCards = [
   { key: "new", icon: Flame, color: "#f59e0b" },
@@ -60,7 +57,7 @@ const statusCards = [
 
 export function ClientDashboard() {
   const { t } = useI18n();
-  const [datePreset, setDatePreset] = useState<"7" | "30" | "90" | "all">("30");
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ preset: "30" });
   const datePresetLabels: Record<"7" | "30" | "90" | "all", string> = {
     "7": t("clientDashboard.date7"),
     "30": t("clientDashboard.date30"),
@@ -68,31 +65,23 @@ export function ClientDashboard() {
     all: t("clientDashboard.dateAll"),
   };
 
-  const [categoryId, setCategoryId] = useState<string>("all");
+  const [unitType, setUnitType] = useState<LeadUnitType | "all">("all");
   const [country, setCountry] = useState<string>("all");
   const [assignedTo, setAssignedTo] = useState<string>("all");
 
-  const { data: categories } = useGetCategoriesQuery();
   const { data: countries } = useGetCustomerLeadCountriesQuery();
   const { data: users } = useGetOrgUsersQuery();
 
   const dashboardFilters = useMemo((): CustomerDashboardFilters => {
-    const base: CustomerDashboardFilters = {
-      categoryId,
+    const { dateFrom, dateTo } = dateFilterToRange(dateFilter);
+    return {
+      unitType,
       country,
       assignedTo,
+      ...(dateFrom ? { dateFrom } : {}),
+      ...(dateTo ? { dateTo } : {}),
     };
-    if (datePreset === "all") return base;
-    const days = Number(datePreset);
-    const to = new Date();
-    const from = new Date();
-    from.setDate(from.getDate() - days);
-    return {
-      ...base,
-      dateFrom: from.toISOString().slice(0, 10),
-      dateTo: to.toISOString().slice(0, 10),
-    };
-  }, [datePreset, categoryId, country, assignedTo]);
+  }, [dateFilter, unitType, country, assignedTo]);
 
   const { data, isLoading, isError, error } = useGetCustomerDashboardQuery(dashboardFilters);
 
@@ -126,42 +115,21 @@ export function ClientDashboard() {
           <p className="text-sm text-muted-foreground">{t("clientDashboard.subtitle")}</p>
         </div>
         <div className="flex w-full flex-wrap items-center justify-end gap-2 lg:w-auto lg:flex-nowrap">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="lg" className="h-9 shrink-0 gap-2 px-3 font-normal">
-                <Calendar className="size-4" />
-                <span className="max-w-[10rem] truncate sm:max-w-none">
-                  {datePresetLabels[datePreset]}
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[10rem]">
-              <DropdownMenuItem onClick={() => setDatePreset("7")}>
-                {datePresetLabels["7"]}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setDatePreset("30")}>
-                {datePresetLabels["30"]}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setDatePreset("90")}>
-                {datePresetLabels["90"]}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setDatePreset("all")}>
-                {datePresetLabels.all}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <DateRangeFilter
+            value={dateFilter}
+            onChange={setDateFilter}
+            presetLabels={datePresetLabels}
+            customRangeLabel={t("clientDashboard.dateRange")}
+          />
 
-          <Select value={categoryId} onValueChange={setCategoryId}>
+          <Select value={unitType} onValueChange={(v) => setUnitType(v as LeadUnitType | "all")}>
             <SelectTrigger className={filterSelectClass}>
-              <SelectValue placeholder={t("clientDashboard.allProducts")} />
+              <SelectValue placeholder={t("clientDashboard.allUnitTypes")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{t("clientDashboard.allProducts")}</SelectItem>
-              {(categories ?? []).map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
+              <SelectItem value="all">{t("clientDashboard.allUnitTypes")}</SelectItem>
+              <SelectItem value="single">{t("clientLeads.single")}</SelectItem>
+              <SelectItem value="family">{t("clientLeads.family")}</SelectItem>
             </SelectContent>
           </Select>
 

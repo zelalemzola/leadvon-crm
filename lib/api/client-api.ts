@@ -8,6 +8,7 @@ import type {
   DeliveryEntitlement,
   DeliveryLedgerLine,
   LeadUnitType,
+  Lead,
   OfferWithPackage,
   PackageWithCategory,
   Profile,
@@ -44,6 +45,7 @@ export type CustomerLead = {
   postal_code?: string | null;
   summary: string;
   notes: string;
+  call_count?: number;
   status: CustomerLeadStatus;
   assigned_to: string | null;
   status_updated_at: string;
@@ -54,6 +56,7 @@ export type CustomerLead = {
   entitlement_id?: string | null;
   categories: Pick<Category, "id" | "name" | "slug"> | null;
   assignee: Pick<Profile, "id" | "email" | "full_name"> | null;
+  source_lead?: Pick<Lead, "source_external_id"> | null;
 };
 
 export type CustomerDashboardStats = {
@@ -66,7 +69,7 @@ export type CustomerDashboardStats = {
 export type CustomerDashboardFilters = {
   dateFrom?: string | null;
   dateTo?: string | null;
-  categoryId?: string | "all";
+  unitType?: LeadUnitType | "all";
   country?: string | "all";
   assignedTo?: string | "all";
 };
@@ -112,6 +115,19 @@ export type ClientMe = Pick<
   "id" | "role" | "is_active" | "organization_id" | "email" | "full_name" | "phone"
 >;
 export type OrgUserWithLastLogin = Profile & { last_sign_in_at: string | null };
+
+export type CustomerNotification = {
+  id: string;
+  type: "lead_received" | "lead_assigned" | "lead_status_changed" | string;
+  title: string;
+  body: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  metadata: Record<string, unknown> | null;
+  read_at: string | null;
+  email_sent_at: string | null;
+  created_at: string;
+};
 export type CustomerLeadFlow = {
   id: string;
   category_id: string;
@@ -213,6 +229,7 @@ export const clientApi = createApi({
     "ClientEntitlements",
     "ClientDeliveryLedger",
     "ClientInvoices",
+    "ClientNotifications",
   ],
   endpoints: (builder) => ({
     getClientMe: builder.query<ClientMe | null, void>({
@@ -276,7 +293,7 @@ export const clientApi = createApi({
 
         let q = sb()
           .from("customer_leads")
-          .select("*, categories(id, name, slug), assignee:profiles!customer_leads_assigned_to_fkey(id, email, full_name)")
+          .select("*, categories(id, name, slug), assignee:profiles!customer_leads_assigned_to_fkey(id, email, full_name), source_lead:leads!customer_leads_source_lead_id_fkey(source_external_id)")
           .range(from, to);
         if (sort === "oldest_added") {
           q = q.order("created_at", { ascending: true });
@@ -295,7 +312,7 @@ export const clientApi = createApi({
         if (search.trim()) {
           const term = search.trim();
           q = q.or(
-            `first_name.ilike.%${term}%,last_name.ilike.%${term}%,phone.ilike.%${term}%,summary.ilike.%${term}%,notes.ilike.%${term}%`
+            `first_name.ilike.%${term}%,last_name.ilike.%${term}%,phone.ilike.%${term}%,summary.ilike.%${term}%,notes.ilike.%${term}%,id.ilike.%${term}%`
           );
         }
         const { data, error } = await q;
@@ -310,7 +327,7 @@ export const clientApi = createApi({
         if (search.trim()) {
           const term = search.trim();
           cq = cq.or(
-            `first_name.ilike.%${term}%,last_name.ilike.%${term}%,phone.ilike.%${term}%,summary.ilike.%${term}%,notes.ilike.%${term}%`
+            `first_name.ilike.%${term}%,last_name.ilike.%${term}%,phone.ilike.%${term}%,summary.ilike.%${term}%,notes.ilike.%${term}%,id.ilike.%${term}%`
           );
         }
         const c = await cq;
@@ -325,14 +342,20 @@ export const clientApi = createApi({
 
     updateCustomerLead: builder.mutation<
       CustomerLead,
-      { id: string; status?: CustomerLeadStatus; notes?: string; assigned_to?: string | null }
+      {
+        id: string;
+        status?: CustomerLeadStatus;
+        notes?: string;
+        assigned_to?: string | null;
+        call_count?: number;
+      }
     >({
       queryFn: async ({ id, ...patch }) => {
         const res = await requestJson<CustomerLead>(`/api/client/leads/${id}`, "PATCH", patch);
         if (res.error) return { error: res.error };
         return { data: res.data! };
       },
-      invalidatesTags: ["ClientLeads", "ClientDashboard", "ClientAudit"],
+      invalidatesTags: ["ClientLeads", "ClientDashboard", "ClientAudit", "ClientNotifications"],
     }),
 
     getCustomerDashboard: builder.query<CustomerDashboardStats, CustomerDashboardFilters | void>({
@@ -355,8 +378,8 @@ export const clientApi = createApi({
           let out = q;
           if (f.dateFrom) out = out.gte("created_at", f.dateFrom);
           if (f.dateTo) out = out.lte("created_at", `${f.dateTo}T23:59:59.999Z`);
-          if (f.categoryId && f.categoryId !== "all") {
-            out = out.eq("category_id", f.categoryId);
+          if (f.unitType && f.unitType !== "all") {
+            out = out.eq("lead_unit_type", f.unitType);
           }
           if (f.country && f.country !== "all") {
             out = out.eq("country", f.country);
@@ -681,6 +704,7 @@ export const clientApi = createApi({
         role?: "customer_admin" | "customer_agent";
         password?: string;
         send_password_reset?: boolean;
+        lead_assignment_percentage?: number;
       }
     >({
       queryFn: async ({ id, ...body }) => {
@@ -693,6 +717,42 @@ export const clientApi = createApi({
         return { data: res.data! };
       },
       invalidatesTags: ["ClientUsers", "ClientAudit"],
+    }),
+
+    getNotifications: builder.query<
+      { rows: CustomerNotification[]; unreadCount: number },
+      void
+    >({
+      queryFn: async () => {
+        const res = await fetch("/api/client/notifications");
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: CustomerNotification[];
+          meta?: { unread_count?: number };
+          error?: string;
+        };
+        if (!res.ok) {
+          return { error: { status: res.status, data: json.error ?? "Request failed" } };
+        }
+        return {
+          data: {
+            rows: json.data ?? [],
+            unreadCount: json.meta?.unread_count ?? 0,
+          },
+        };
+      },
+      providesTags: ["ClientNotifications"],
+    }),
+
+    markNotificationsRead: builder.mutation<
+      { ok: true },
+      { mark_all_read?: boolean; ids?: string[] }
+    >({
+      queryFn: async (body) => {
+        const res = await requestJson<{ ok: true }>("/api/client/notifications", "PATCH", body);
+        if (res.error) return { error: res.error };
+        return { data: { ok: true } };
+      },
+      invalidatesTags: ["ClientNotifications"],
     }),
 
     getLeadFlows: builder.query<CustomerLeadFlow[], void>({
@@ -780,6 +840,7 @@ export const clientApi = createApi({
         "ClientAudit",
         "ClientEntitlements",
         "ClientDeliveryLedger",
+        "ClientNotifications",
       ],
     }),
   }),
@@ -809,6 +870,8 @@ export const {
   useGetOrgUsersQuery,
   useCreateOrgUserMutation,
   useUpdateOrgUserMutation,
+  useGetNotificationsQuery,
+  useMarkNotificationsReadMutation,
   useGetLeadFlowsQuery,
   useUpsertLeadFlowMutation,
   useUpdateLeadFlowMutation,

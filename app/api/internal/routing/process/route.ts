@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/service";
+import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,6 +84,10 @@ export async function POST(request: Request) {
       error_text: null,
     })
     .eq("idempotency_key", parsed.data.idempotency_key);
+
+  if (delivered > 0) {
+    await processPendingLeadEmails();
+  }
 
   return NextResponse.json({
     data: { duplicate: false, delivered_count: delivered, status: "completed" },

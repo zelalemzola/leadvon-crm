@@ -11,6 +11,7 @@ const schema = z.object({
   role: z.enum(["customer_admin", "customer_agent"]).optional(),
   password: z.string().min(8).max(128).optional(),
   send_password_reset: z.boolean().optional(),
+  lead_assignment_percentage: z.number().int().min(0).max(100).optional(),
 });
 
 export async function PATCH(
@@ -32,7 +33,8 @@ export async function PATCH(
     parsed.data.is_active === undefined &&
     !parsed.data.role &&
     !parsed.data.password &&
-    !parsed.data.send_password_reset
+    !parsed.data.send_password_reset &&
+    parsed.data.lead_assignment_percentage === undefined
   ) {
     return NextResponse.json({ error: "No updates provided" }, { status: 400 });
   }
@@ -73,9 +75,25 @@ export async function PATCH(
     }
   }
 
-  const updatePayload: { is_active?: boolean; role?: "customer_admin" | "customer_agent" } = {};
+  const updatePayload: {
+    is_active?: boolean;
+    role?: "customer_admin" | "customer_agent";
+    lead_assignment_percentage?: number;
+  } = {};
   if (parsed.data.is_active !== undefined) updatePayload.is_active = parsed.data.is_active;
   if (parsed.data.role) updatePayload.role = parsed.data.role;
+  if (parsed.data.lead_assignment_percentage !== undefined) {
+    if (nextRole !== "customer_agent") {
+      return NextResponse.json(
+        { error: "Lead assignment percentage only applies to customer agents." },
+        { status: 400 }
+      );
+    }
+    updatePayload.lead_assignment_percentage = parsed.data.lead_assignment_percentage;
+  }
+  if (parsed.data.role === "customer_admin") {
+    updatePayload.lead_assignment_percentage = 0;
+  }
 
   const { error: upErr } = await service
     .from("profiles")
@@ -121,6 +139,7 @@ export async function PATCH(
       role: parsed.data.role,
       password_reset_sent: Boolean(parsed.data.send_password_reset),
       password_changed: Boolean(parsed.data.password),
+      lead_assignment_percentage: parsed.data.lead_assignment_percentage,
     },
   });
 

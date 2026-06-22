@@ -67,7 +67,7 @@ export async function GET() {
   const service = createServiceClient();
   const { data: profiles, error: pErr } = await service
     .from("profiles")
-    .select("id, email, full_name, role, is_active, created_at, updated_at, organization_id")
+    .select("id, email, full_name, role, is_active, lead_assignment_percentage, created_at, updated_at, organization_id")
     .eq("organization_id", auth.organizationId)
     .order("created_at", { ascending: false });
   if (pErr) return NextResponse.json({ error: pErr.message }, { status: 400 });

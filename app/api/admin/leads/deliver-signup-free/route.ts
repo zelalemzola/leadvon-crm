@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireStaffUser, writeAuditLog } from "@/lib/server/admin/auth";
+import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
 
 const bodySchema = z.object({
   organization_id: z.string().uuid(),
@@ -54,6 +55,8 @@ export async function POST(request: Request) {
       grant_source: r.grant_source,
     },
   });
+
+  await processPendingLeadEmails();
 
   return NextResponse.json({ data: r });
 }

@@ -113,7 +113,8 @@
     "date30": "30 derniers jours",
     "date90": "90 derniers jours",
     "dateAll": "Toute la periode",
-    "allProducts": "Tous les produits",
+    "dateRange": "Plage de dates",
+    "allUnitTypes": "Tous les types d'unite",
     "allCountries": "Tous les pays",
     "allAgents": "Tous les agents",
     "failed": "Echec du chargement du tableau de bord :",
@@ -133,14 +134,16 @@
       "qualified": "Qualifie",
       "not_interested": "Non interesse",
       "unqualified": "Non qualifie",
-      "duplicate": "Doublon"
+      "duplicate": "Doublon",
+      "closed": "Cloture"
     }
   },
   "clientLeads": {
     "title": "Leads",
     "subtitle": "Gerez les leads achetes et assignez-les a votre equipe.",
+    "leadsFound": "leads trouves",
     "filters": "Filtres",
-    "searchPlaceholder": "Rechercher nom, telephone, resume, notes",
+    "searchPlaceholder": "Rechercher nom, telephone, ID...",
     "category": "Categorie",
     "country": "Pays",
     "zipCode": "Code postal",
@@ -160,7 +163,13 @@
     "sortOldestAdded": "Plus anciens ajouts",
     "sortRecentlyUpdated": "Mis a jour recemment",
     "sortOldestUpdated": "Plus anciennes mises a jour",
+    "id": "ID",
     "name": "Nom",
+    "location": "Localisation",
+    "time": "Date",
+    "calls": "Appels",
+    "addNotes": "Ajouter des notes...",
+    "openWhatsApp": "Ouvrir WhatsApp",
     "updated": "Mis a jour",
     "actions": "Actions",
     "loading": "Chargement...",
@@ -685,7 +694,23 @@
     "couldNotGenerateResetLink": "Impossible de generer le lien de reinitialisation",
     "tempPasswordMin": "Le mot de passe temporaire doit contenir au moins 8 caracteres.",
     "tempPasswordUpdated": "Mot de passe temporaire mis a jour",
-    "couldNotUpdatePassword": "Impossible de mettre a jour le mot de passe"
+    "couldNotUpdatePassword": "Impossible de mettre a jour le mot de passe",
+    "assignmentShare": "Part d'assignation %",
+    "assignmentHint": "Definissez la part de chaque agent actif pour les leads entrants. Total actuel :",
+    "assignmentUpdated": "Pourcentage d'assignation mis a jour",
+    "couldNotUpdateAssignment": "Impossible de mettre a jour le pourcentage d'assignation"
+  },
+  "clientNotifications": {
+    "title": "Notifications",
+    "subtitle": "Restez informe lorsque de nouveaux leads arrivent et quand votre equipe met a jour leur statut.",
+    "inbox": "Boite de reception",
+    "loading": "Chargement des notifications...",
+    "failed": "Echec du chargement des notifications.",
+    "empty": "Aucune notification pour le moment.",
+    "unread": "Non lu",
+    "markAllRead": "Tout marquer comme lu",
+    "markedAllRead": "Toutes les notifications ont ete marquees comme lues",
+    "markReadFailed": "Impossible de mettre a jour les notifications"
   },
   "adminPrepaid": {
     "enterValidUsd": "Saisissez un montant USD valide.",
@@ -849,6 +874,7 @@
     "nav": {
       "dashboard": "Tableau de bord",
       "leads": "Leads",
+      "notifications": "Notifications",
       "assigned": "Assignes",
       "billing": "Facturation",
       "activity": "Activite",

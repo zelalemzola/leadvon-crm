@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,9 @@ async function run(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
   const leadsDelivered = typeof data === "number" ? data : Number(data ?? 0);
+  if (leadsDelivered > 0) {
+    await processPendingLeadEmails();
+  }
   return NextResponse.json({ data: { leads_delivered: leadsDelivered, processed: leadsDelivered } });
 }
 

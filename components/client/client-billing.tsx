@@ -9,11 +9,9 @@ import {
   useGetLeadFlowsQuery,
   useGetMyDeliveryEntitlementsQuery,
   useGetMyDeliveryLedgerQuery,
-  useGetMyInvoicesQuery,
   useGetTieredPricingQuoteMutation,
   useGetClientPricingTiersQuery,
   useCreateTieredFlowSessionMutation,
-  useCreatePrepaidSessionMutation,
   useRunLeadFlowsNowMutation,
 } from "@/lib/api/client-api";
 import { useGetCategoriesQuery } from "@/lib/api/admin-api";
@@ -24,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Zap, BarChart3, CreditCard, CalendarClock } from "lucide-react";
+import { Zap, BarChart3, CalendarClock } from "lucide-react";
 import { useI18n } from "@/components/providers/i18n-provider";
 
 export function ClientBilling() {
@@ -37,16 +35,12 @@ export function ClientBilling() {
   const { data: entitlements, refetch: refetchEntitlements } =
     useGetMyDeliveryEntitlementsQuery();
   const { data: ledgerLines, refetch: refetchLedger } = useGetMyDeliveryLedgerQuery();
-  const { data: invoices } = useGetMyInvoicesQuery();
   const { data: categories, isLoading: categoriesLoading } = useGetCategoriesQuery();
   const { data: leadFlows } = useGetLeadFlowsQuery();
   const [getTieredQuote, { isLoading: quotingTiered }] = useGetTieredPricingQuoteMutation();
   const [createTieredFlowSession, { isLoading: creatingTieredFlow }] =
     useCreateTieredFlowSessionMutation();
-  const [createPrepaidSession, { isLoading: creatingPrepaid }] =
-    useCreatePrepaidSessionMutation();
   const [runLeadFlowsNow, { isLoading: runningFlows }] = useRunLeadFlowsNowMutation();
-  const [prepaidAmount, setPrepaidAmount] = useState(100);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [monthlyTargetLeads, setMonthlyTargetLeads] = useState<number>(100);
   const [tieredQuote, setTieredQuote] = useState<{
@@ -120,40 +114,7 @@ export function ClientBilling() {
   );
   const estimatedLeadsLeft = avgCpl > 0 ? Math.floor(totalRemainingBudget / avgCpl) : null;
 
-  const prepaidHandledRef = useRef<string | null>(null);
   const tieredHandledRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const prepaidState = searchParams.get("prepaid");
-    if (!prepaidState) {
-      prepaidHandledRef.current = null;
-      return;
-    }
-    if (prepaidHandledRef.current === prepaidState) return;
-    prepaidHandledRef.current = prepaidState;
-
-    let retryTimer: ReturnType<typeof setTimeout> | undefined;
-
-    void (async () => {
-      if (prepaidState === "success") {
-        await Promise.all([refetchEntitlements(), refetchLedger()]);
-        router.replace(pathname, { scroll: false });
-        toast.success(t("clientBilling.toastPaymentReceived"));
-        retryTimer = setTimeout(() => {
-          void Promise.all([refetchEntitlements(), refetchLedger()]);
-        }, 2500);
-        return;
-      }
-      if (prepaidState === "cancel") {
-        router.replace(pathname, { scroll: false });
-        toast.info(t("clientBilling.toastCheckoutCanceled"));
-      }
-    })();
-
-    return () => {
-      if (retryTimer) clearTimeout(retryTimer);
-    };
-  }, [searchParams, pathname, router, refetchEntitlements, refetchLedger, t]);
 
   useEffect(() => {
     const tieredState = searchParams.get("tiered");
@@ -205,29 +166,6 @@ export function ClientBilling() {
     }, 300);
     return () => clearTimeout(timer);
   }, [activeCategoryId, effectiveUnitType, monthlyTargetLeads, getTieredQuote]);
-
-  async function startPrepaid() {
-    if (!canManageBilling) {
-      toast.error(t("clientBilling.toastOnlyAdminsPrepaid"));
-      return;
-    }
-    try {
-      const dollars = Math.max(5, prepaidAmount || 0);
-      const amount_cents = Math.round(dollars * 100);
-      if (amount_cents < 500) {
-        toast.error(t("clientBilling.toastMinPrepaid"));
-        return;
-      }
-      const { url } = await createPrepaidSession({ amount_cents }).unwrap();
-      window.location.assign(url);
-    } catch (err: unknown) {
-      const msg =
-        err && typeof err === "object" && "data" in err
-          ? String((err as { data?: unknown }).data)
-          : t("clientBilling.toastStartCheckoutFailed");
-      toast.error(msg);
-    }
-  }
 
   async function activateLeadFlow() {
     if (!activeCategoryId) {
@@ -492,73 +430,6 @@ export function ClientBilling() {
         </Card>
 
         <div className="space-y-4">
-          <Card id="tour-client-billing-usage" className="border-border/70 bg-card/50">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center justify-between text-base">
-                <span className="flex items-center gap-2">
-                  <CreditCard className="size-4 text-primary" />
-                  {t("clientBilling.prepaidBudget")}
-                </span>
-                <Button
-                  size="sm"
-                  onClick={() => void startPrepaid()}
-                  disabled={creatingPrepaid || !canManageBilling}
-                >
-                  {t("clientBilling.addBudgetTopUp")}
-                </Button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                {t("clientBilling.prepaidHintBefore")}{" "}
-                <strong>30 {t("clientBilling.calendarDays")}</strong>{" "}
-                {t("clientBilling.prepaidHintAfter")}
-              </p>
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="space-y-1">
-                  <Label htmlFor="prepaid-amt">{t("clientBilling.amountUsd")}</Label>
-                  <Input
-                    id="prepaid-amt"
-                    type="number"
-                    min={5}
-                    step={1}
-                    value={prepaidAmount}
-                    onChange={(e) => setPrepaidAmount(Math.max(5, Number(e.target.value) || 5))}
-                    className="w-32"
-                    disabled={!canManageBilling}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">{t("clientBilling.activePeriods")}</p>
-                {(entitlements ?? []).filter((e) => e.status === "active").length === 0 ? (
-                  <p className="text-xs text-muted-foreground">{t("clientBilling.noPrepaidPeriods")}</p>
-                ) : (
-                  <ul className="space-y-2 text-xs">
-                    {(entitlements ?? [])
-                      .filter((e) => e.status === "active")
-                      .slice(0, 5)
-                      .map((e) => (
-                        <li
-                          key={e.id}
-                          className="flex flex-col gap-0.5 rounded-md border border-border/60 bg-background/40 px-2 py-1.5"
-                        >
-                          <span className="font-medium tabular-nums">
-                            {money(e.budget_cents_remaining)} / {money(e.budget_cents_total)}{" "}
-                            {t("clientBilling.remaining")}
-                          </span>
-                          <span className="text-muted-foreground">
-                            {new Date(e.period_start).toLocaleDateString()} →{" "}
-                            {new Date(e.period_end).toLocaleDateString()}
-                          </span>
-                        </li>
-                      ))}
-                  </ul>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
           <Card className="border-border/70 bg-card/50">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -622,7 +493,7 @@ export function ClientBilling() {
             </CardContent>
           </Card>
 
-          <Card className="border-border/70 bg-card/50">
+          <Card id="tour-client-billing-usage" className="border-border/70 bg-card/50">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <BarChart3 className="size-4 text-primary" />
@@ -714,70 +585,6 @@ export function ClientBilling() {
                     </TableCell>
                     <TableCell className="max-w-[220px] truncate text-muted-foreground">
                       {row.description || t("clientDashboard.na")}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/70 bg-card/50">
-        <CardHeader>
-          <CardTitle className="text-base">{t("clientBilling.invoices")}</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            {t("clientBilling.invoicesHint")}
-          </p>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("clientBilling.created")}</TableHead>
-                <TableHead>{t("clientBilling.type")}</TableHead>
-                <TableHead>{t("clientBilling.period")}</TableHead>
-                <TableHead>{t("clientBilling.status")}</TableHead>
-                <TableHead>{t("clientBilling.total")}</TableHead>
-                <TableHead>{t("clientBilling.reference")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(invoices ?? []).length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
-                    {t("clientBilling.noInvoices")}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                (invoices ?? []).map((inv) => (
-                  <TableRow key={inv.id}>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(inv.created_at).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="capitalize text-muted-foreground">
-                      {inv.invoice_type.replaceAll("_", " ")}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(inv.period_start).toLocaleDateString()} -{" "}
-                      {new Date(inv.period_end).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={
-                          inv.status === "paid"
-                            ? "bg-emerald-500/15 text-emerald-300"
-                            : inv.status === "open"
-                              ? "bg-amber-500/15 text-amber-300"
-                              : "bg-muted text-muted-foreground"
-                        }
-                      >
-                        {inv.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium tabular-nums">{money(inv.total_cents)}</TableCell>
-                    <TableCell className="max-w-[220px] truncate text-muted-foreground">
-                      {inv.stripe_payment_ref ?? t("clientDashboard.na")}
                     </TableCell>
                   </TableRow>
                 ))
