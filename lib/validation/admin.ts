@@ -50,6 +50,26 @@ export const inviteStaffSchema = z.object({
   full_name: z.string().trim().max(150).optional().default(""),
 });
 
+export const createCustomerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8).max(128),
+  full_name: z.string().trim().min(1).max(150),
+  organization_name: z.string().trim().min(2).max(150),
+  phone: z.string().trim().max(40).optional().nullable(),
+});
+
+export const organizationPricingOverrideSchema = z.object({
+  category_id: z.string().uuid(),
+  unit_type: z.enum(["single", "family"]),
+  price_cents: z.number().int().min(0),
+  active: z.boolean().default(true),
+});
+
+export const organizationFreeTestSchema = z.object({
+  quota_total: z.number().int().min(1).max(100000),
+  is_active: z.boolean(),
+});
+
 export const updateStaffSchema = z.object({
   role: z.enum(["staff", "customer_admin", "customer_agent"]).optional(),
   is_active: z.boolean().optional(),

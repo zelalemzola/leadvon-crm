@@ -210,6 +210,36 @@ export type LinkPendingCustomerOrgInput = {
   phone?: string | null;
 };
 
+export type CreateCustomerInput = {
+  email: string;
+  password: string;
+  full_name: string;
+  organization_name: string;
+  phone?: string | null;
+};
+
+export type OrganizationPricingOverride = {
+  id: string;
+  organization_id: string;
+  category_id: string;
+  unit_type: "single" | "family";
+  price_cents: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OrganizationFreeTestAllocation = {
+  organization_id: string;
+  quota_total: number;
+  quota_delivered: number;
+  is_active: boolean;
+  activated_at: string | null;
+  activated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 /** Tier 1 admin dashboard: lead analytics scope (catalog counts unchanged). */
 export type AdminDashboardFilters = {
   /** Rolling window when dateFrom + dateTo are not both set. Default 30. */
@@ -301,12 +331,12 @@ type LeadsPaginated = {
 
 async function jsonRequest<T>(
   url: string,
-  method: "POST" | "PATCH" | "DELETE",
+  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
   body?: unknown
 ): Promise<{ data?: T; error?: { status: number; data: string } }> {
   const res = await fetch(url, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
   const json = (await res.json().catch(() => ({}))) as {
@@ -791,6 +821,95 @@ export const adminApi = createApi({
         return { data: res.data as { ok: true; organization_id: string } };
       },
       invalidatesTags: ["Customers"],
+    }),
+
+    createCustomer: builder.mutation<
+      { ok: true; organization_id: string; user_id: string; email: string },
+      CreateCustomerInput
+    >({
+      queryFn: async (body) => {
+        const res = await jsonRequest<{
+          ok: true;
+          organization_id: string;
+          user_id: string;
+          email: string;
+        }>("/api/admin/customers", "POST", body);
+        if (res.error) return { error: res.error };
+        return { data: res.data as { ok: true; organization_id: string; user_id: string; email: string } };
+      },
+      invalidatesTags: ["Customers"],
+    }),
+
+    getOrganizationPricingOverrides: builder.query<OrganizationPricingOverride[], string>({
+      queryFn: async (organizationId) => {
+        const res = await jsonRequest<OrganizationPricingOverride[]>(
+          `/api/admin/customers/${encodeURIComponent(organizationId)}/pricing`,
+          "GET"
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data ?? [] };
+      },
+      providesTags: (_result, _error, organizationId) => [
+        { type: "Customers", id: `pricing-${organizationId}` },
+      ],
+    }),
+
+    upsertOrganizationPricingOverride: builder.mutation<
+      OrganizationPricingOverride,
+      {
+        organization_id: string;
+        category_id: string;
+        unit_type: "single" | "family";
+        price_cents: number;
+        active?: boolean;
+      }
+    >({
+      queryFn: async ({ organization_id, ...body }) => {
+        const res = await jsonRequest<OrganizationPricingOverride>(
+          `/api/admin/customers/${encodeURIComponent(organization_id)}/pricing`,
+          "PUT",
+          { ...body, active: body.active ?? true }
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data as OrganizationPricingOverride };
+      },
+      invalidatesTags: (_result, _error, arg) => [
+        { type: "Customers", id: `pricing-${arg.organization_id}` },
+      ],
+    }),
+
+    getOrganizationFreeTestAllocation: builder.query<OrganizationFreeTestAllocation | null, string>({
+      queryFn: async (organizationId) => {
+        const res = await jsonRequest<OrganizationFreeTestAllocation | null>(
+          `/api/admin/customers/${encodeURIComponent(organizationId)}/free-test-leads`,
+          "GET"
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data ?? null };
+      },
+      providesTags: (_result, _error, organizationId) => [
+        { type: "Customers", id: `free-test-${organizationId}` },
+      ],
+    }),
+
+    upsertOrganizationFreeTestAllocation: builder.mutation<
+      OrganizationFreeTestAllocation,
+      { organization_id: string; quota_total: number; is_active: boolean }
+    >({
+      queryFn: async ({ organization_id, ...body }) => {
+        const res = await jsonRequest<OrganizationFreeTestAllocation>(
+          `/api/admin/customers/${encodeURIComponent(organization_id)}/free-test-leads`,
+          "PUT",
+          body
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data as OrganizationFreeTestAllocation };
+      },
+      invalidatesTags: (_result, _error, arg) => [
+        { type: "Customers", id: `free-test-${arg.organization_id}` },
+        "Customers",
+        "Leads",
+      ],
     }),
 
     updateCustomer: builder.mutation<
@@ -1397,6 +1516,11 @@ export const {
   useGetCustomersQuery,
   useGetPendingCustomerUsersQuery,
   useLinkPendingCustomerOrganizationMutation,
+  useCreateCustomerMutation,
+  useGetOrganizationPricingOverridesQuery,
+  useUpsertOrganizationPricingOverrideMutation,
+  useGetOrganizationFreeTestAllocationQuery,
+  useUpsertOrganizationFreeTestAllocationMutation,
   useUpdateCustomerMutation,
   useGetOrganizationFlowCommitmentsQuery,
   useGetFlowCommitmentsOverviewQuery,

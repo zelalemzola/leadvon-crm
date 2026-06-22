@@ -43,6 +43,36 @@ export type CustomerDirectoryRow = {
   primary_admin_name: string | null;
 };
 
+export type OrganizationPricingOverride = {
+  id: string;
+  organization_id: string;
+  category_id: string;
+  unit_type: LeadUnitType;
+  price_cents: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OrganizationFreeTestAllocation = {
+  organization_id: string;
+  quota_total: number;
+  quota_delivered: number;
+  is_active: boolean;
+  activated_at: string | null;
+  activated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateCustomerInput = {
+  email: string;
+  password: string;
+  full_name: string;
+  organization_name: string;
+  phone?: string | null;
+};
+
 export type Category = {
   id: string;
   name: string;

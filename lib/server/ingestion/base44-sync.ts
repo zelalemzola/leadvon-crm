@@ -3,8 +3,8 @@ import { listBase44Leads } from "@/lib/integrations/base44";
 import {
   getBase44CategoryCandidates,
   mapBase44LeadToInventoryLead,
-  translateBase44CategoryToEnglish,
 } from "@/lib/integrations/base44-mapper";
+import { processLeadIngestRouting } from "@/lib/server/routing/process-lead-ingest";
 
 const PROVIDER = "base44";
 
@@ -19,10 +19,7 @@ function getDefaultCategoryId() {
   return id && id.length > 0 ? id : null;
 }
 
-function pickCategoryLabel(candidates: string[]) {
-  if (candidates.length === 0) return "general-insurance";
-  return candidates[0];
-}
+const DEBT_REVIEW_SLUG = "debt-review";
 
 export type Base44SyncResult = {
   fetched: number;
@@ -48,19 +45,18 @@ export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
   const defaultCategoryId = getDefaultCategoryId();
   const { data: categoryRows, error: categoryError } = await service
     .from("categories")
-    .select("id,name,slug");
+    .select("id,name,slug")
+    .eq("slug", DEBT_REVIEW_SLUG)
+    .limit(1);
   if (categoryError) {
     throw new Error(`Failed to load categories: ${categoryError.message}`);
   }
-  const categoryBySlug = new Map<string, { id: string; name: string; slug: string }>();
-  for (const row of categoryRows ?? []) {
-    const slug = String(row.slug ?? "").trim().toLowerCase();
-    if (!slug) continue;
-    categoryBySlug.set(slug, {
-      id: String(row.id),
-      name: String(row.name ?? ""),
-      slug,
-    });
+  const debtReviewCategory = categoryRows?.[0];
+  const debtReviewCategoryId = debtReviewCategory
+    ? String(debtReviewCategory.id)
+    : defaultCategoryId;
+  if (!debtReviewCategoryId) {
+    throw new Error("Debt Review category is not configured");
   }
 
   const { data: cursorRow } = await service
@@ -93,41 +89,9 @@ export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
 
     for (const raw of pageRows) {
       const candidates = getBase44CategoryCandidates(raw);
-      const primaryLabel = pickCategoryLabel(candidates);
-      const translated = translateBase44CategoryToEnglish(primaryLabel);
+      void candidates;
 
-      let mappedCategoryId = categoryBySlug.get(translated.slug)?.id ?? null;
-      if (!mappedCategoryId) {
-        const created = await service
-          .from("categories")
-          .insert({
-            name: translated.name,
-            slug: translated.slug,
-            source_system: PROVIDER,
-            source_external_value: primaryLabel,
-          })
-          .select("id,name,slug")
-          .single();
-
-        if (!created.error && created.data) {
-          const createdSlug = String(created.data.slug ?? "").trim().toLowerCase();
-          if (createdSlug) {
-            categoryBySlug.set(createdSlug, {
-              id: String(created.data.id),
-              name: String(created.data.name ?? ""),
-              slug: createdSlug,
-            });
-          }
-          mappedCategoryId = String(created.data.id);
-        }
-      }
-
-      mappedCategoryId = mappedCategoryId ?? defaultCategoryId;
-      if (!mappedCategoryId) {
-        skippedInvalid += 1;
-        addSkipReason("missing_category");
-        continue;
-      }
+      const mappedCategoryId = debtReviewCategoryId;
 
       const mapped = mapBase44LeadToInventoryLead(raw, mappedCategoryId);
       if (!mapped.ok) {
@@ -208,40 +172,7 @@ export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
       }
 
       const ingestKey = `base44:${String(payload.source_external_id)}`;
-      const runJob = await service.from("routing_job_runs").insert({
-        idempotency_key: ingestKey,
-        category_id: upserted.category_id,
-        trigger_source: "lead_insert",
-        status: "running",
-      });
-
-      if (runJob.error) continue;
-
-      const routed = await service.rpc("run_due_customer_lead_flows", {
-        p_category_id: upserted.category_id,
-      });
-      if (routed.error) {
-        await service
-          .from("routing_job_runs")
-          .update({
-            status: "failed",
-            error_text: routed.error.message,
-            processed_at: new Date().toISOString(),
-          })
-          .eq("idempotency_key", ingestKey);
-        continue;
-      }
-
-      const delivered = typeof routed.data === "number" ? routed.data : Number(routed.data ?? 0);
-      await service
-        .from("routing_job_runs")
-        .update({
-          status: "completed",
-          delivered_count: delivered,
-          error_text: null,
-          processed_at: new Date().toISOString(),
-        })
-        .eq("idempotency_key", ingestKey);
+      await processLeadIngestRouting(upserted.category_id, ingestKey);
     }
 
     skip += pageRows.length;

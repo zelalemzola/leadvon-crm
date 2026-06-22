@@ -37,6 +37,7 @@ export async function computeTieredQuote(args: {
   categoryId: string;
   unitType?: string;
   quantity: number;
+  organizationId?: string | null;
 }): Promise<TieredQuoteResult> {
   const service = createServiceClient();
   const qty = Math.trunc(args.quantity);
@@ -59,6 +60,42 @@ export async function computeTieredQuote(args: {
       "BELOW_MINIMUM_ORDER",
       `Minimum order is ${minimumOrderQty} leads for this category`
     );
+  }
+
+  if (args.organizationId) {
+    const { data: overrideRows, error: overrideError } = await service
+      .from("organization_pricing_overrides")
+      .select("unit_type, price_cents")
+      .eq("organization_id", args.organizationId)
+      .eq("category_id", args.categoryId)
+      .eq("active", true);
+
+    if (overrideError) {
+      throw new Error(overrideError.message);
+    }
+
+    if ((overrideRows ?? []).length > 0) {
+      const selectedOverride =
+        (args.unitType
+          ? (overrideRows ?? []).find((row) => String(row.unit_type) === args.unitType)
+          : undefined) ?? overrideRows?.[0];
+
+      if (selectedOverride) {
+        const pricePerLead = Number(selectedOverride.price_cents);
+        return {
+          category_id: args.categoryId,
+          unit_type: String(selectedOverride.unit_type),
+          quantity: qty,
+          minimum_order_qty: minimumOrderQty,
+          tier_id: "organization_override",
+          tier_min_qty: minimumOrderQty,
+          tier_max_qty: null,
+          price_per_lead_cents: pricePerLead,
+          total_cents: pricePerLead * qty,
+          currency: "USD",
+        };
+      }
+    }
   }
 
   const { data: tiers, error: tierError } = await service

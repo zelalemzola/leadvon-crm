@@ -26,6 +26,7 @@ export async function POST(request: Request) {
       categoryId: parsed.data.category_id,
       unitType: parsed.data.unit_type,
       quantity: parsed.data.quantity,
+      organizationId: auth.organizationId,
     });
     return NextResponse.json({ data: quote });
   } catch (error) {

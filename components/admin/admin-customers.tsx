@@ -6,6 +6,12 @@ import {
   useGetCustomersQuery,
   useGetPendingCustomerUsersQuery,
   useLinkPendingCustomerOrganizationMutation,
+  useCreateCustomerMutation,
+  useGetCategoriesQuery,
+  useGetOrganizationPricingOverridesQuery,
+  useUpsertOrganizationPricingOverrideMutation,
+  useGetOrganizationFreeTestAllocationQuery,
+  useUpsertOrganizationFreeTestAllocationMutation,
   useGetOrganizationFlowCommitmentsQuery,
   useUpsertOrganizationFlowCommitmentMutation,
 } from "@/lib/api/admin-api";
@@ -50,7 +56,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, Building2, Clock3, Download, Gauge, MoreHorizontal, Users } from "lucide-react";
+import { AlertTriangle, Building2, Clock3, Download, Gauge, Gift, MoreHorizontal, Plus, Users, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatQueryError } from "@/lib/utils";
 import { useI18n } from "@/components/providers/i18n-provider";
@@ -146,6 +152,12 @@ export function AdminCustomers() {
   } = useGetPendingCustomerUsersQuery();
   const [linkPendingOrg, { isLoading: linkingPendingOrg }] =
     useLinkPendingCustomerOrganizationMutation();
+  const [createCustomer, { isLoading: creatingCustomer }] = useCreateCustomerMutation();
+  const { data: categories } = useGetCategoriesQuery();
+  const [upsertPricingOverride, { isLoading: savingPricing }] =
+    useUpsertOrganizationPricingOverrideMutation();
+  const [upsertFreeTest, { isLoading: savingFreeTest }] =
+    useUpsertOrganizationFreeTestAllocationMutation();
   const { data: flowOverview } = useGetFlowCommitmentsOverviewQuery();
   const [upsertFlowCommitment, { isLoading: savingCommitment }] =
     useUpsertOrganizationFlowCommitmentMutation();
@@ -162,6 +174,22 @@ export function AdminCustomers() {
   const [linkProfileEmail, setLinkProfileEmail] = useState<string>("");
   const [linkOrgName, setLinkOrgName] = useState("");
   const [linkPhone, setLinkPhone] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createEmail, setCreateEmail] = useState("");
+  const [createPassword, setCreatePassword] = useState("");
+  const [createFullName, setCreateFullName] = useState("");
+  const [createOrgName, setCreateOrgName] = useState("");
+  const [createPhone, setCreatePhone] = useState("");
+  const [pricingOpen, setPricingOpen] = useState(false);
+  const [pricingOrgId, setPricingOrgId] = useState<string | null>(null);
+  const [pricingOrgName, setPricingOrgName] = useState("");
+  const [singlePriceCents, setSinglePriceCents] = useState("");
+  const [familyPriceCents, setFamilyPriceCents] = useState("");
+  const [freeTestOpen, setFreeTestOpen] = useState(false);
+  const [freeTestOrgId, setFreeTestOrgId] = useState<string | null>(null);
+  const [freeTestOrgName, setFreeTestOrgName] = useState("");
+  const [freeTestQuota, setFreeTestQuota] = useState("10");
+  const [freeTestActive, setFreeTestActive] = useState(true);
   const [flowDrafts, setFlowDrafts] = useState<
     Record<string, { leads_per_week: number; monthly_target_leads: number; business_days_only: boolean }>
   >({});
@@ -171,6 +199,34 @@ export function AdminCustomers() {
     isError: flowsError,
     error: flowsErrorObj,
   } = useGetOrganizationFlowCommitmentsQuery(paceOrgId ?? "", { skip: !paceOpen || !paceOrgId });
+  const { data: pricingOverrides } = useGetOrganizationPricingOverridesQuery(pricingOrgId ?? "", {
+    skip: !pricingOpen || !pricingOrgId,
+  });
+  const { data: freeTestAllocation } = useGetOrganizationFreeTestAllocationQuery(
+    freeTestOrgId ?? "",
+    { skip: !freeTestOpen || !freeTestOrgId }
+  );
+
+  const debtReviewCategory = (categories ?? []).find((c) => c.slug === "debt-review") ?? categories?.[0];
+
+  useEffect(() => {
+    if (!pricingOpen || !pricingOverrides) return;
+    const single = pricingOverrides.find((row) => row.unit_type === "single");
+    const family = pricingOverrides.find((row) => row.unit_type === "family");
+    setSinglePriceCents(single ? String(single.price_cents) : "");
+    setFamilyPriceCents(family ? String(family.price_cents) : "");
+  }, [pricingOpen, pricingOverrides]);
+
+  useEffect(() => {
+    if (!freeTestOpen) return;
+    if (freeTestAllocation) {
+      setFreeTestQuota(String(freeTestAllocation.quota_total));
+      setFreeTestActive(freeTestAllocation.is_active);
+    } else {
+      setFreeTestQuota("10");
+      setFreeTestActive(true);
+    }
+  }, [freeTestOpen, freeTestAllocation]);
 
   useEffect(() => {
     if (!paceOpen) return;
@@ -309,6 +365,114 @@ export function AdminCustomers() {
     setLinkOpen(true);
   }
 
+  async function submitCreateCustomer() {
+    if (!createEmail.trim() || !createPassword.trim() || !createFullName.trim() || !createOrgName.trim()) {
+      toast.error("Email, password, full name, and organization name are required.");
+      return;
+    }
+    try {
+      await createCustomer({
+        email: createEmail.trim(),
+        password: createPassword,
+        full_name: createFullName.trim(),
+        organization_name: createOrgName.trim(),
+        phone: createPhone.trim() || null,
+      }).unwrap();
+      toast.success("Customer account created.");
+      setCreateOpen(false);
+      setCreateEmail("");
+      setCreatePassword("");
+      setCreateFullName("");
+      setCreateOrgName("");
+      setCreatePhone("");
+    } catch (err: unknown) {
+      toast.error(formatQueryError(err));
+    }
+  }
+
+  function openPricingDialog(row: CustomerDirectoryRow) {
+    setPricingOrgId(row.organization_id);
+    setPricingOrgName(row.organizations?.name ?? "Customer");
+    setPricingOpen(true);
+  }
+
+  async function submitPricingOverrides() {
+    if (!pricingOrgId || !debtReviewCategory) {
+      toast.error("Debt Review category is not configured.");
+      return;
+    }
+    const single = singlePriceCents.trim() ? Number(singlePriceCents) : null;
+    const family = familyPriceCents.trim() ? Number(familyPriceCents) : null;
+    if (single !== null && (!Number.isInteger(single) || single < 0)) {
+      toast.error("Single lead price must be a non-negative integer (cents).");
+      return;
+    }
+    if (family !== null && (!Number.isInteger(family) || family < 0)) {
+      toast.error("Family lead price must be a non-negative integer (cents).");
+      return;
+    }
+    if (single === null && family === null) {
+      toast.error("Enter at least one custom price.");
+      return;
+    }
+    try {
+      const tasks = [];
+      if (single !== null) {
+        tasks.push(
+          upsertPricingOverride({
+            organization_id: pricingOrgId,
+            category_id: debtReviewCategory.id,
+            unit_type: "single",
+            price_cents: single,
+            active: true,
+          }).unwrap()
+        );
+      }
+      if (family !== null) {
+        tasks.push(
+          upsertPricingOverride({
+            organization_id: pricingOrgId,
+            category_id: debtReviewCategory.id,
+            unit_type: "family",
+            price_cents: family,
+            active: true,
+          }).unwrap()
+        );
+      }
+      await Promise.all(tasks);
+      toast.success("Custom pricing saved.");
+      setPricingOpen(false);
+    } catch (err: unknown) {
+      toast.error(formatQueryError(err));
+    }
+  }
+
+  function openFreeTestDialog(row: CustomerDirectoryRow) {
+    setFreeTestOrgId(row.organization_id);
+    setFreeTestOrgName(row.organizations?.name ?? "Customer");
+    setFreeTestOpen(true);
+  }
+
+  async function submitFreeTestAllocation() {
+    if (!freeTestOrgId) return;
+    const quota = Number(freeTestQuota);
+    if (!Number.isInteger(quota) || quota < 1) {
+      toast.error("Free test lead quota must be at least 1.");
+      return;
+    }
+    try {
+      await upsertFreeTest({
+        organization_id: freeTestOrgId,
+        quota_total: quota,
+        is_active: freeTestActive,
+      }).unwrap();
+      toast.success(freeTestActive ? "Free test leads activated." : "Free test lead settings saved.");
+      setFreeTestOpen(false);
+    } catch (err: unknown) {
+      toast.error(formatQueryError(err));
+    }
+  }
+
   async function submitLinkOrganization() {
     if (!linkProfileId) return;
     if (!linkOrgName.trim()) {
@@ -360,10 +524,18 @@ export function AdminCustomers() {
   return (
     <div className="flex flex-1 flex-col gap-8 p-6 lg:p-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{t("adminCustomers.title")}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t("adminCustomers.subtitle")}
-        </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">{t("adminCustomers.title")}</h1>
+            <p className="text-sm text-muted-foreground">
+              {t("adminCustomers.subtitle")}
+            </p>
+          </div>
+          <Button className="shrink-0 gap-2" onClick={() => setCreateOpen(true)}>
+            <Plus className="size-4" aria-hidden />
+            Create customer account
+          </Button>
+        </div>
       </header>
 
       <Card className="border-border/80 bg-card/50">
@@ -696,6 +868,14 @@ export function AdminCustomers() {
                             >
                               {t("adminCustomers.manageDeliveryPace")}
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openPricingDialog(row)}>
+                              <DollarSign className="mr-2 size-4" />
+                              Custom pricing
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openFreeTestDialog(row)}>
+                              <Gift className="mr-2 size-4" />
+                              Free test leads
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -863,6 +1043,137 @@ export function AdminCustomers() {
               </TableBody>
             </Table>
           )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create customer account</DialogTitle>
+            <DialogDescription>
+              Create the organization and customer admin login. The client will not need to sign up.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>Full name</Label>
+              <Input value={createFullName} onChange={(e) => setCreateFullName(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Email</Label>
+              <Input type="email" value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Password</Label>
+              <Input
+                type="password"
+                value={createPassword}
+                onChange={(e) => setCreatePassword(e.target.value)}
+                minLength={8}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Organization name</Label>
+              <Input value={createOrgName} onChange={(e) => setCreateOrgName(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Phone (optional)</Label>
+              <Input value={createPhone} onChange={(e) => setCreatePhone(e.target.value)} />
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => void submitCreateCustomer()} disabled={creatingCustomer}>
+                {creatingCustomer ? "Creating..." : "Create account"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={pricingOpen} onOpenChange={setPricingOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Custom pricing</DialogTitle>
+            <DialogDescription>
+              Set per-lead prices for {pricingOrgName}. Leave blank to use global tiered pricing.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>Category</Label>
+              <Input value={debtReviewCategory?.name ?? "Debt Review"} disabled />
+            </div>
+            <div className="space-y-1">
+              <Label>Single lead price (cents)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={singlePriceCents}
+                onChange={(e) => setSinglePriceCents(e.target.value)}
+                placeholder="e.g. 2500"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Family lead price (cents)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={familyPriceCents}
+                onChange={(e) => setFamilyPriceCents(e.target.value)}
+                placeholder="e.g. 4000"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => void submitPricingOverrides()} disabled={savingPricing}>
+                {savingPricing ? "Saving..." : "Save pricing"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={freeTestOpen} onOpenChange={setFreeTestOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Free test leads</DialogTitle>
+            <DialogDescription>
+              Activate free test leads for {freeTestOrgName}. Incoming inventory is split automatically
+              across all active organizations based on remaining quota.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>Free test lead quota</Label>
+              <Input
+                type="number"
+                min={1}
+                value={freeTestQuota}
+                onChange={(e) => setFreeTestQuota(e.target.value)}
+              />
+            </div>
+            {freeTestAllocation ? (
+              <p className="text-sm text-muted-foreground">
+                Delivered: {freeTestAllocation.quota_delivered} / {freeTestAllocation.quota_total}
+              </p>
+            ) : null}
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <p className="text-sm font-medium">Activate free test leads</p>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, new leads are assigned automatically until quota is reached.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant={freeTestActive ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFreeTestActive((v) => !v)}
+              >
+                {freeTestActive ? "Active" : "Inactive"}
+              </Button>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => void submitFreeTestAllocation()} disabled={savingFreeTest}>
+                {savingFreeTest ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
       <Dialog open={linkOpen} onOpenChange={setLinkOpen}>

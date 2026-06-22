@@ -476,21 +476,15 @@ function TieredPricingPanel() {
 function CategoriesPanel() {
   const { t } = useI18n();
   const { data: categories, isLoading } = useGetCategoriesQuery();
-  const [createCategory, { isLoading: creating }] = useCreateCategoryMutation();
   const [updateCategory, { isLoading: updating }] = useUpdateCategoryMutation();
-  const [deleteCategory, { isLoading: deleting }] = useDeleteCategoryMutation();
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
 
-  function openCreate() {
-    setEditing(null);
-    setName("");
-    setSlug("");
-    setOpen(true);
-  }
+  const debtReview =
+    (categories ?? []).find((c) => c.slug === "debt-review") ?? (categories ?? [])[0] ?? null;
 
   function openEdit(c: Category) {
     setEditing(c);
@@ -502,54 +496,41 @@ function CategoriesPanel() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     const s = slug.trim() || slugify(name);
-    if (!name.trim() || !s) {
+    if (!editing || !name.trim() || !s) {
       toast.error(t("adminPricing.nameSlugRequired"));
       return;
     }
     try {
-      if (editing) {
-        await updateCategory({
-          id: editing.id,
-          name: name.trim(),
-          slug: s,
-        }).unwrap();
-        toast.success(t("adminPricing.categoryUpdated"));
-      } else {
-        await createCategory({ name: name.trim(), slug: s }).unwrap();
-        toast.success(t("adminPricing.categoryCreated"));
-      }
+      await updateCategory({
+        id: editing.id,
+        name: name.trim(),
+        slug: s,
+      }).unwrap();
+      toast.success(t("adminPricing.categoryUpdated"));
       setOpen(false);
     } catch {
       toast.error(t("adminPricing.couldNotSaveCategory"));
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm(t("adminPricing.confirmDeleteCategory")))
-      return;
-    try {
-      await deleteCategory(id).unwrap();
-      toast.success(t("adminPricing.categoryDeleted"));
-    } catch {
-      toast.error(t("adminPricing.deleteCategoryFailed"));
-    }
-  }
-
   return (
     <>
-      <div className="flex justify-end">
-        <Button onClick={openCreate}>
-          <Plus className="size-4" aria-hidden />
-          {t("adminPricing.newCategory")}
-        </Button>
-      </div>
       <Card className="border-border/80 bg-card/50">
+        <CardHeader>
+          <CardTitle>Debt Review</CardTitle>
+          <CardDescription>
+            LeadVon is configured for a single lead category: Debt Review. All inventory and pricing
+            applies to this category.
+          </CardDescription>
+        </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
             <div className="space-y-2 p-6">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : !debtReview ? (
+            <div className="p-6 text-sm text-muted-foreground">
+              Debt Review category is missing. Run database migrations to restore it.
             </div>
           ) : (
             <Table>
@@ -557,106 +538,48 @@ function CategoriesPanel() {
                 <TableRow>
                   <TableHead>{t("adminPricing.name")}</TableHead>
                   <TableHead>{t("adminPricing.slug")}</TableHead>
-                  <TableHead>{t("adminPricing.source")}</TableHead>
                   <TableHead className="text-right">{t("adminPricing.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(categories ?? []).length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
-                      {t("adminPricing.noCategoriesYet")}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  (categories ?? []).map((c) => (
-                    <TableRow key={c.id}>
-                      <TableCell className="font-medium">{c.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{c.slug}</TableCell>
-                      <TableCell>
-                        {c.source_system === "base44" ? (
-                          <Badge variant="secondary">{t("adminPricing.importedFromBase44")}</Badge>
-                        ) : (
-                          <Badge variant="outline">{t("adminPricing.manual")}</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                                aria-label={t("adminPricing.categoryActions")}
-                            >
-                              <MoreHorizontal className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEdit(c)}>
-                              <Pencil className="size-4" />
-                              {t("adminPricing.edit")}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => void handleDelete(c.id)}
-                              disabled={deleting}
-                            >
-                              <Trash2 className="size-4" />
-                              {t("adminPricing.delete")}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                <TableRow>
+                  <TableCell className="font-medium">{debtReview.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{debtReview.slug}</TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="outline" size="sm" onClick={() => openEdit(debtReview)}>
+                      <Pencil className="mr-2 size-4" />
+                      Edit
+                    </Button>
+                  </TableCell>
+                </TableRow>
               </TableBody>
             </Table>
           )}
         </CardContent>
       </Card>
-
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <form onSubmit={(e) => void handleSave(e)}>
+        <form onSubmit={(e) => void handleSave(e)}>
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle>
-                {editing ? t("adminPricing.editCategory") : t("adminPricing.newCategory")}
-              </DialogTitle>
+              <DialogTitle>Edit category</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label htmlFor="cat-name">{t("adminPricing.name")}</Label>
-                <Input
-                  id="cat-name"
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    if (!editing) setSlug(slugify(e.target.value));
-                  }}
-                  required
-                />
+                <Label>{t("adminPricing.name")}</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cat-slug">{t("adminPricing.slug")}</Label>
-                <Input
-                  id="cat-slug"
-                  value={slug}
-                  onChange={(e) => setSlug(slugify(e.target.value))}
-                  required
-                />
+                <Label>{t("adminPricing.slug")}</Label>
+                <Input value={slug} onChange={(e) => setSlug(e.target.value)} required />
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                {t("adminPricing.cancel")}
-              </Button>
-              <Button type="submit" disabled={creating || updating}>
+              <Button type="submit" disabled={updating}>
                 {t("adminPricing.save")}
               </Button>
             </DialogFooter>
-          </form>
-        </DialogContent>
+          </DialogContent>
+        </form>
       </Dialog>
     </>
   );
