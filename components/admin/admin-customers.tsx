@@ -34,6 +34,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -1162,21 +1163,23 @@ export function AdminCustomers() {
             ) : freeDeliverySettings ? (
               <p className="text-sm text-muted-foreground">Not configured yet — set a total and save.</p>
             ) : null}
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <p className="text-sm font-medium">Activate free leads delivery</p>
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="free-delivery-active" className="text-sm font-medium">
+                  Free leads delivery
+                </Label>
                 <p className="text-xs text-muted-foreground">
-                  When enabled, leads are assigned automatically until the total is delivered.
+                  {freeDeliveryActive
+                    ? "On — leads assign automatically until the total is delivered."
+                    : "Off — no free leads will be assigned."}
                 </p>
               </div>
-              <Button
-                type="button"
-                variant={freeDeliveryActive ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFreeDeliveryActive((v) => !v)}
-              >
-                {freeDeliveryActive ? "Active" : "Inactive"}
-              </Button>
+              <Switch
+                id="free-delivery-active"
+                checked={freeDeliveryActive}
+                onCheckedChange={setFreeDeliveryActive}
+                aria-label="Toggle free leads delivery"
+              />
             </div>
             <div className="flex justify-end">
               <Button onClick={() => void submitFreeDelivery()} disabled={savingFreeDelivery}>
