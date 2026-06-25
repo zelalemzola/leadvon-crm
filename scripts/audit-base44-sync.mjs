@@ -91,10 +91,11 @@ async function main() {
     const baseUrl = (
       env.BASE44_BASE_URL || "https://choisir-assur-pro.base44.app/api"
     ).replace(/\/+$/, "");
-    const listUrl = new URL(`${baseUrl}/entities/Lead`);
+    const listUrl = new URL(`${baseUrl}/entities/SaLead`);
     listUrl.searchParams.set("limit", "5");
     listUrl.searchParams.set("skip", "0");
     listUrl.searchParams.set("sort_by", "-created_date");
+    listUrl.searchParams.set("q", JSON.stringify({ last_step: "completed" }));
     try {
       const res = await fetch(listUrl, {
         headers: { api_key: base44Key, Accept: "application/json" },

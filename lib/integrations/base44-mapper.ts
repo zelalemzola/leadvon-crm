@@ -1,33 +1,26 @@
 import { z } from "zod";
-import type { Base44Lead } from "@/lib/integrations/base44";
+import type { Base44SaLead } from "@/lib/integrations/base44";
 
-const base44LeadSchema = z.object({
+const COMPLETED_LAST_STEP = "completed";
+
+const base44SaLeadSchema = z.object({
   id: z.coerce.string().trim().min(1),
   prenom: z.coerce.string().trim().min(1),
   nom: z.coerce.string().trim().min(1),
   telephone: z.coerce.string().trim().min(4),
-  code_postal: z
+  age: z.coerce.string().trim().min(1),
+  province: z
     .union([z.string(), z.null(), z.undefined()])
     .transform((v) => (typeof v === "string" ? v.trim() : undefined))
     .optional(),
-  email: z
-    .union([z.string(), z.null(), z.undefined()])
-    .transform((v) => (typeof v === "string" ? v.trim() : undefined))
-    .optional(),
-  age: z.coerce.number().int().positive().optional(),
-  besoins: z.array(z.string()).nullish(),
-  couvert_mutuelle: z.string().nullish(),
-  mutuelle_actuelle: z.string().nullish(),
-  cotisation_mensuelle: z.string().nullish(),
-  qui_assurer: z.string().nullish(),
-  profession: z.string().nullish(),
-  consent_telephone: z.boolean().nullish(),
-  consent_marketing: z.boolean().nullish(),
+  work: z.string().nullish(),
+  income: z.string().nullish(),
+  debt: z.string().nullish(),
+  review_status: z.string().nullish(),
+  last_step: z.string().nullish(),
   status: z.enum(["new", "contacted", "converted"]).nullish(),
-  // Base44 timestamps are not always strict RFC3339; keep raw value when present.
   created_date: z.coerce.string().trim().min(1).nullish(),
   updated_date: z.coerce.string().trim().min(1).nullish(),
-  created_by: z.string().nullish(),
 });
 
 export type MappedBase44Lead = {
@@ -46,111 +39,94 @@ export type MappedBase44Lead = {
   source_updated_at: string | null;
 };
 
-function normalizeExternalValue(value: string) {
-  return value.trim().toLowerCase();
-}
+const WORK_LABELS: Record<string, string> = {
+  full_time: "Full time",
+  part_time: "Part time",
+  pension: "Pension",
+  unemployed: "Unemployed",
+  self_employed: "Self employed",
+  student: "Student",
+  retired: "Retired",
+};
 
-function toSlug(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 120);
-}
+const INCOME_LABELS: Record<string, string> = {
+  under_5000: "Under R5,000",
+  "5000_10000": "R5,000 – R10,000",
+  "10000_30000": "R10,000 – R30,000",
+  "30000_50000": "R30,000 – R50,000",
+  over_50000: "Over R50,000",
+};
 
-function toTitleCaseWords(value: string) {
+const DEBT_LABELS: Record<string, string> = {
+  under_50000: "Under R50,000",
+  "50000_100000": "R50,000 – R100,000",
+  "100000_200000": "R100,000 – R200,000",
+  "200000_500000": "R200,000 – R500,000",
+  over_500000: "Over R500,000",
+  none: "No debt",
+};
+
+const REVIEW_STATUS_LABELS: Record<string, string> = {
+  no: "No",
+  yes: "Yes",
+  admin: "Admin review",
+  pending: "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  new: "New",
+  contacted: "Contacted",
+  converted: "Converted",
+};
+
+function humanizeCode(value: string) {
   return value
-    .split(" ")
+    .split("_")
     .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
 
-function readStringField(raw: Base44Lead, key: string): string | null {
-  const value = (raw as Record<string, unknown>)[key];
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+function labelValue(
+  value: string | null | undefined,
+  labels: Record<string, string>
+) {
+  if (!value?.trim()) return null;
+  const key = value.trim().toLowerCase();
+  return labels[key] ?? humanizeCode(key);
 }
 
-export function getBase44CategoryCandidates(raw: Base44Lead): string[] {
-  const out: string[] = [];
-  const add = (value: string | null) => {
-    if (!value) return;
-    const normalized = normalizeExternalValue(value);
-    if (!out.includes(normalized)) out.push(normalized);
-  };
-
-  add(readStringField(raw, "category"));
-  add(readStringField(raw, "category_slug"));
-  add(readStringField(raw, "product"));
-  add(readStringField(raw, "vertical"));
-
-  if (Array.isArray(raw.besoins)) {
-    for (const item of raw.besoins) {
-      if (typeof item === "string") add(item);
-    }
-  }
-
-  return out;
+function summaryPart(label: string, value: string | null | undefined) {
+  if (!value?.trim()) return null;
+  return `${label}: ${value.trim()}`;
 }
 
-const categoryTranslations: Record<string, string> = {
-  mutuelle: "Health Insurance",
-  sante: "Health Insurance",
-  "assurance sante": "Health Insurance",
-  "health insurance": "Health Insurance",
-  dentaire: "Dental Insurance",
-  optique: "Vision Insurance",
-  hospitalisation: "Hospital Coverage",
-  prevoyance: "Income Protection",
-  retraite: "Retirement Plan",
-};
+function buildSaLeadSummary(input: z.infer<typeof base44SaLeadSchema>) {
+  const parts = [
+    summaryPart("age", input.age),
+    summaryPart("province", input.province),
+    summaryPart("work", labelValue(input.work, WORK_LABELS)),
+    summaryPart("income", labelValue(input.income, INCOME_LABELS)),
+    summaryPart("debt", labelValue(input.debt, DEBT_LABELS)),
+    summaryPart("review_status", labelValue(input.review_status, REVIEW_STATUS_LABELS)),
+    summaryPart("status", labelValue(input.status, STATUS_LABELS)),
+  ].filter((part): part is string => Boolean(part));
 
-export function translateBase44CategoryToEnglish(value: string): { name: string; slug: string } {
-  const normalized = normalizeExternalValue(value);
-  const translated = categoryTranslations[normalized] ?? toTitleCaseWords(normalized.replace(/[-_]+/g, " "));
-  const slug = toSlug(translated || normalized || "general-insurance") || "general-insurance";
-  return { name: translated || "General Insurance", slug };
+  return parts.join(" - ").slice(0, 2000);
 }
 
-function inferLeadUnitType(quiAssurer?: string | null): "single" | "family" {
-  const text = (quiAssurer ?? "").toLowerCase();
-  if (!text) return "single";
-  if (text.includes("famille")) return "family";
-  if (text.includes("conjoint") || text.includes("enfant") || text.includes("foyer")) return "family";
-  return "single";
-}
-
-function buildSummary(input: z.infer<typeof base44LeadSchema>) {
-  const parts: string[] = [];
-  if (input.email) parts.push(`Email: ${input.email}`);
-  if (typeof input.age === "number") parts.push(`Age: ${input.age}`);
-  if (input.qui_assurer) parts.push(`Coverage target: ${input.qui_assurer}`);
-  if (input.profession) parts.push(`Profession: ${input.profession}`);
-  if (input.couvert_mutuelle) parts.push(`Has mutual cover: ${input.couvert_mutuelle}`);
-  if (input.mutuelle_actuelle) parts.push(`Current insurer: ${input.mutuelle_actuelle}`);
-  if (input.cotisation_mensuelle) parts.push(`Monthly premium: ${input.cotisation_mensuelle}`);
-  if (Array.isArray(input.besoins) && input.besoins.length > 0) {
-    parts.push(`Needs: ${input.besoins.join(", ")}`);
-  }
-  if (input.status) parts.push(`Source status: ${input.status}`);
-  if (typeof input.consent_telephone === "boolean") {
-    parts.push(`Phone consent: ${input.consent_telephone ? "yes" : "no"}`);
-  }
-  if (typeof input.consent_marketing === "boolean") {
-    parts.push(`Marketing consent: ${input.consent_marketing ? "yes" : "no"}`);
-  }
-  return parts.join(" | ").slice(0, 2000);
-}
-
-export function mapBase44LeadToInventoryLead(
-  raw: Base44Lead,
+export function mapBase44SaLeadToInventoryLead(
+  raw: Base44SaLead,
   categoryId: string
 ): { ok: true; data: MappedBase44Lead } | { ok: false; reason: string } {
-  const parsed = base44LeadSchema.safeParse(raw);
+  const lastStep = typeof raw.last_step === "string" ? raw.last_step.trim().toLowerCase() : "";
+  if (lastStep !== COMPLETED_LAST_STEP) {
+    return { ok: false, reason: `last_step_not_completed:${lastStep || "missing"}` };
+  }
+
+  const parsed = base44SaLeadSchema.safeParse(raw);
   if (!parsed.success) {
     return { ok: false, reason: parsed.error.issues.map((i) => i.message).join("; ") };
   }
@@ -160,13 +136,13 @@ export function mapBase44LeadToInventoryLead(
     ok: true,
     data: {
       category_id: categoryId,
-      lead_unit_type: inferLeadUnitType(input.qui_assurer),
+      lead_unit_type: "single",
       phone: input.telephone.trim(),
-      zip_code: input.code_postal ? input.code_postal : null,
+      zip_code: input.province?.trim() ? input.province.trim() : null,
       first_name: input.prenom.trim(),
       last_name: input.nom.trim(),
-      country: "France",
-      summary: buildSummary(input),
+      country: "South Africa",
+      summary: buildSaLeadSummary(input),
       source_system: "base44",
       source_external_id: input.id,
       source_payload: raw as Record<string, unknown>,

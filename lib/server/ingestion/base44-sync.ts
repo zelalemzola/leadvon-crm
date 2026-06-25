@@ -1,9 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/service";
-import { listBase44Leads } from "@/lib/integrations/base44";
-import {
-  getBase44CategoryCandidates,
-  mapBase44LeadToInventoryLead,
-} from "@/lib/integrations/base44-mapper";
+import { listBase44SaLeads } from "@/lib/integrations/base44";
+import { mapBase44SaLeadToInventoryLead } from "@/lib/integrations/base44-mapper";
 import { processLeadIngestRouting } from "@/lib/server/routing/process-lead-ingest";
 
 const PROVIDER = "base44";
@@ -79,21 +76,17 @@ export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
   };
 
   for (let page = 0; page < maxPages; page += 1) {
-    const pageRows = await listBase44Leads({
+    const pageRows = await listBase44SaLeads({
       limit: batchSize,
       skip,
       sortBy: "created_date",
+      query: { last_step: "completed" },
     });
     if (pageRows.length === 0) break;
     fetched += pageRows.length;
 
     for (const raw of pageRows) {
-      const candidates = getBase44CategoryCandidates(raw);
-      void candidates;
-
-      const mappedCategoryId = debtReviewCategoryId;
-
-      const mapped = mapBase44LeadToInventoryLead(raw, mappedCategoryId);
+      const mapped = mapBase44SaLeadToInventoryLead(raw, debtReviewCategoryId);
       if (!mapped.ok) {
         skippedInvalid += 1;
         addSkipReason(`validation:${mapped.reason}`);

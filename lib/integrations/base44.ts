@@ -1,23 +1,20 @@
-type Base44Lead = {
+export type Base44SaLead = {
   id?: string;
-  prenom?: string;
-  nom?: string;
-  telephone?: string;
-  code_postal?: string;
-  email?: string;
-  age?: number;
-  besoins?: string[];
-  couvert_mutuelle?: string;
-  mutuelle_actuelle?: string;
-  cotisation_mensuelle?: string;
-  qui_assurer?: string;
-  profession?: string;
-  consent_telephone?: boolean;
-  consent_marketing?: boolean;
-  status?: "new" | "contacted" | "converted";
-  created_date?: string;
-  updated_date?: string;
-  created_by?: string;
+  prenom?: string | null;
+  nom?: string | null;
+  telephone?: string | null;
+  age?: string | null;
+  province?: string | null;
+  work?: string | null;
+  income?: string | null;
+  debt?: string | null;
+  review_status?: string | null;
+  last_step?: string | null;
+  status?: "new" | "contacted" | "converted" | null;
+  created_date?: string | null;
+  updated_date?: string | null;
+  created_by_id?: string | null;
+  created_by?: string | null;
 };
 
 function getBaseUrl() {
@@ -30,15 +27,19 @@ function getApiKey() {
   return key;
 }
 
-export async function listBase44Leads(args: {
+export async function listBase44SaLeads(args: {
   limit: number;
   skip: number;
   sortBy?: string;
-}): Promise<Base44Lead[]> {
-  const url = new URL(`${getBaseUrl()}/entities/Lead`);
+  query?: Record<string, string>;
+}): Promise<Base44SaLead[]> {
+  const url = new URL(`${getBaseUrl()}/entities/SaLead`);
   url.searchParams.set("limit", String(args.limit));
   url.searchParams.set("skip", String(args.skip));
   url.searchParams.set("sort_by", args.sortBy ?? "created_date");
+  if (args.query && Object.keys(args.query).length > 0) {
+    url.searchParams.set("q", JSON.stringify(args.query));
+  }
 
   const res = await fetch(url.toString(), {
     method: "GET",
@@ -50,11 +51,9 @@ export async function listBase44Leads(args: {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Base44 list failed (${res.status}): ${text || res.statusText}`);
+    throw new Error(`Base44 SaLead list failed (${res.status}): ${text || res.statusText}`);
   }
   const json = (await res.json().catch(() => [])) as unknown;
   if (!Array.isArray(json)) return [];
-  return json as Base44Lead[];
+  return json as Base44SaLead[];
 }
-
-export type { Base44Lead };
