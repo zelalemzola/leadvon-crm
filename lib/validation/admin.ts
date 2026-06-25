@@ -65,8 +65,7 @@ export const organizationPricingOverrideSchema = z.object({
   active: z.boolean().default(true),
 });
 
-export const organizationFreeTestSchema = z.object({
-  quota_total: z.number().int().min(1).max(100000),
+export const organizationFreeDeliverySchema = z.object({
   is_active: z.boolean(),
 });
 

@@ -230,10 +230,8 @@ export type OrganizationPricingOverride = {
   updated_at: string;
 };
 
-export type OrganizationFreeTestAllocation = {
+export type OrganizationFreeDelivery = {
   organization_id: string;
-  quota_total: number;
-  quota_delivered: number;
   is_active: boolean;
   activated_at: string | null;
   activated_by: string | null;
@@ -735,10 +733,20 @@ export const adminApi = createApi({
           .select("organization_id");
         if (leadErr) return { error: leadErr };
 
+        const { data: freeDeliveryRows, error: freeDeliveryErr } = await supabase
+          .from("organization_free_delivery")
+          .select("organization_id, is_active");
+        if (freeDeliveryErr) return { error: freeDeliveryErr };
+
         const countByOrg = new Map<string, number>();
         for (const row of leadRows ?? []) {
           const oid = row.organization_id as string;
           countByOrg.set(oid, (countByOrg.get(oid) ?? 0) + 1);
+        }
+
+        const freeDeliveryByOrg = new Map<string, boolean>();
+        for (const row of freeDeliveryRows ?? []) {
+          freeDeliveryByOrg.set(String(row.organization_id), Boolean(row.is_active));
         }
 
         const membersByOrg = new Map<
@@ -789,6 +797,7 @@ export const adminApi = createApi({
             primary_admin_id: primaryAdmin?.id ?? null,
             primary_admin_email: primaryAdmin?.email ?? null,
             primary_admin_name: primaryAdmin?.full_name ?? null,
+            freeDeliveryActive: freeDeliveryByOrg.get(oid) ?? false,
           };
         });
 
@@ -885,35 +894,35 @@ export const adminApi = createApi({
       ],
     }),
 
-    getOrganizationFreeTestAllocation: builder.query<OrganizationFreeTestAllocation | null, string>({
+    getOrganizationFreeDelivery: builder.query<OrganizationFreeDelivery | null, string>({
       queryFn: async (organizationId) => {
-        const res = await jsonRequest<OrganizationFreeTestAllocation | null>(
-          `/api/admin/customers/${encodeURIComponent(organizationId)}/free-test-leads`,
+        const res = await jsonRequest<OrganizationFreeDelivery | null>(
+          `/api/admin/customers/${encodeURIComponent(organizationId)}/free-delivery`,
           "GET"
         );
         if (res.error) return { error: res.error };
         return { data: res.data ?? null };
       },
       providesTags: (_result, _error, organizationId) => [
-        { type: "Customers", id: `free-test-${organizationId}` },
+        { type: "Customers", id: `free-delivery-${organizationId}` },
       ],
     }),
 
-    upsertOrganizationFreeTestAllocation: builder.mutation<
-      OrganizationFreeTestAllocation,
-      { organization_id: string; quota_total: number; is_active: boolean }
+    upsertOrganizationFreeDelivery: builder.mutation<
+      OrganizationFreeDelivery,
+      { organization_id: string; is_active: boolean }
     >({
       queryFn: async ({ organization_id, ...body }) => {
-        const res = await jsonRequest<OrganizationFreeTestAllocation>(
-          `/api/admin/customers/${encodeURIComponent(organization_id)}/free-test-leads`,
+        const res = await jsonRequest<OrganizationFreeDelivery>(
+          `/api/admin/customers/${encodeURIComponent(organization_id)}/free-delivery`,
           "PUT",
           body
         );
         if (res.error) return { error: res.error };
-        return { data: res.data as OrganizationFreeTestAllocation };
+        return { data: res.data as OrganizationFreeDelivery };
       },
       invalidatesTags: (_result, _error, arg) => [
-        { type: "Customers", id: `free-test-${arg.organization_id}` },
+        { type: "Customers", id: `free-delivery-${arg.organization_id}` },
         "Customers",
         "Leads",
       ],
@@ -1526,8 +1535,8 @@ export const {
   useCreateCustomerMutation,
   useGetOrganizationPricingOverridesQuery,
   useUpsertOrganizationPricingOverrideMutation,
-  useGetOrganizationFreeTestAllocationQuery,
-  useUpsertOrganizationFreeTestAllocationMutation,
+  useGetOrganizationFreeDeliveryQuery,
+  useUpsertOrganizationFreeDeliveryMutation,
   useUpdateCustomerMutation,
   useGetOrganizationFlowCommitmentsQuery,
   useGetFlowCommitmentsOverviewQuery,

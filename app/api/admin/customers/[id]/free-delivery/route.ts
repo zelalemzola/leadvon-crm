@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireStaffUser, writeAuditLog } from "@/lib/server/admin/auth";
-import { organizationFreeTestSchema } from "@/lib/validation/admin";
+import { organizationFreeDeliverySchema } from "@/lib/validation/admin";
 import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -13,7 +13,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
   const { id } = await params;
   const service = createServiceClient();
   const { data, error } = await service
-    .from("organization_free_test_allocations")
+    .from("organization_free_delivery")
     .select("*")
     .eq("organization_id", id)
     .maybeSingle();
@@ -31,7 +31,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
   const { id: organizationId } = await params;
   const body = await request.json().catch(() => null);
-  const parsed = organizationFreeTestSchema.safeParse(body);
+  const parsed = organizationFreeDeliverySchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
@@ -46,29 +46,27 @@ export async function PUT(request: Request, { params }: RouteParams) {
   if (!org) return NextResponse.json({ error: "Organization not found" }, { status: 404 });
 
   const existing = await service
-    .from("organization_free_test_allocations")
-    .select("quota_delivered")
+    .from("organization_free_delivery")
+    .select("is_active, activated_at")
     .eq("organization_id", organizationId)
     .maybeSingle();
 
-  const quotaDelivered = existing.data?.quota_delivered ?? 0;
-  if (parsed.data.quota_total < quotaDelivered) {
-    return NextResponse.json(
-      { error: `Quota cannot be less than already delivered (${quotaDelivered})` },
-      { status: 400 }
-    );
-  }
-
   const isActive = parsed.data.is_active;
+  const wasActive = existing.data?.is_active === true;
+  const activatedAt =
+    isActive && !wasActive
+      ? new Date().toISOString()
+      : isActive
+        ? (existing.data?.activated_at ?? new Date().toISOString())
+        : null;
+
   const { data, error } = await service
-    .from("organization_free_test_allocations")
+    .from("organization_free_delivery")
     .upsert(
       {
         organization_id: organizationId,
-        quota_total: parsed.data.quota_total,
-        quota_delivered: quotaDelivered,
-        is_active: isActive && quotaDelivered < parsed.data.quota_total,
-        activated_at: isActive ? new Date().toISOString() : null,
+        is_active: isActive,
+        activated_at: activatedAt,
         activated_by: isActive ? staff.userId : null,
       },
       { onConflict: "organization_id" }
@@ -82,17 +80,34 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
   await writeAuditLog({
     actorId: staff.userId,
-    action: "customer.free_test_allocation_upsert",
+    action: "customer.free_delivery_upsert",
     entityType: "organization",
     entityId: organizationId,
     details: parsed.data,
   });
 
   if (isActive) {
-    const distributed = await service.rpc("distribute_free_test_leads", { p_category_id: null });
+    const paidFirst = await service.rpc("run_due_customer_lead_flows", {
+      p_category_id: null,
+    });
+    if (paidFirst.error) {
+      return NextResponse.json({ error: paidFirst.error.message }, { status: 400 });
+    }
+
+    const distributed = await service.rpc("distribute_free_delivery_leads", {
+      p_category_id: null,
+    });
     const count =
-      distributed.error ? 0 : typeof distributed.data === "number" ? distributed.data : Number(distributed.data ?? 0);
-    if (count > 0) {
+      distributed.error
+        ? 0
+        : typeof distributed.data === "number"
+          ? distributed.data
+          : Number(distributed.data ?? 0);
+
+    const paidCount =
+      typeof paidFirst.data === "number" ? paidFirst.data : Number(paidFirst.data ?? 0);
+
+    if (count > 0 || paidCount > 0) {
       await processPendingLeadEmails();
     }
   }

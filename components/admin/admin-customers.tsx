@@ -10,8 +10,7 @@ import {
   useGetCategoriesQuery,
   useGetOrganizationPricingOverridesQuery,
   useUpsertOrganizationPricingOverrideMutation,
-  useGetOrganizationFreeTestAllocationQuery,
-  useUpsertOrganizationFreeTestAllocationMutation,
+  useUpsertOrganizationFreeDeliveryMutation,
   useGetOrganizationFlowCommitmentsQuery,
   useUpsertOrganizationFlowCommitmentMutation,
 } from "@/lib/api/admin-api";
@@ -156,8 +155,8 @@ export function AdminCustomers() {
   const { data: categories } = useGetCategoriesQuery();
   const [upsertPricingOverride, { isLoading: savingPricing }] =
     useUpsertOrganizationPricingOverrideMutation();
-  const [upsertFreeTest, { isLoading: savingFreeTest }] =
-    useUpsertOrganizationFreeTestAllocationMutation();
+  const [upsertFreeDelivery, { isLoading: savingFreeDelivery }] =
+    useUpsertOrganizationFreeDeliveryMutation();
   const { data: flowOverview } = useGetFlowCommitmentsOverviewQuery();
   const [upsertFlowCommitment, { isLoading: savingCommitment }] =
     useUpsertOrganizationFlowCommitmentMutation();
@@ -185,11 +184,6 @@ export function AdminCustomers() {
   const [pricingOrgName, setPricingOrgName] = useState("");
   const [singlePriceCents, setSinglePriceCents] = useState("");
   const [familyPriceCents, setFamilyPriceCents] = useState("");
-  const [freeTestOpen, setFreeTestOpen] = useState(false);
-  const [freeTestOrgId, setFreeTestOrgId] = useState<string | null>(null);
-  const [freeTestOrgName, setFreeTestOrgName] = useState("");
-  const [freeTestQuota, setFreeTestQuota] = useState("10");
-  const [freeTestActive, setFreeTestActive] = useState(true);
   const [flowDrafts, setFlowDrafts] = useState<
     Record<string, { leads_per_week: number; monthly_target_leads: number; business_days_only: boolean }>
   >({});
@@ -202,10 +196,6 @@ export function AdminCustomers() {
   const { data: pricingOverrides } = useGetOrganizationPricingOverridesQuery(pricingOrgId ?? "", {
     skip: !pricingOpen || !pricingOrgId,
   });
-  const { data: freeTestAllocation } = useGetOrganizationFreeTestAllocationQuery(
-    freeTestOrgId ?? "",
-    { skip: !freeTestOpen || !freeTestOrgId }
-  );
 
   const debtReviewCategory = (categories ?? []).find((c) => c.slug === "debt-review") ?? categories?.[0];
 
@@ -216,17 +206,6 @@ export function AdminCustomers() {
     setSinglePriceCents(single ? String(single.price_cents) : "");
     setFamilyPriceCents(family ? String(family.price_cents) : "");
   }, [pricingOpen, pricingOverrides]);
-
-  useEffect(() => {
-    if (!freeTestOpen) return;
-    if (freeTestAllocation) {
-      setFreeTestQuota(String(freeTestAllocation.quota_total));
-      setFreeTestActive(freeTestAllocation.is_active);
-    } else {
-      setFreeTestQuota("10");
-      setFreeTestActive(true);
-    }
-  }, [freeTestOpen, freeTestAllocation]);
 
   useEffect(() => {
     if (!paceOpen) return;
@@ -447,27 +426,18 @@ export function AdminCustomers() {
     }
   }
 
-  function openFreeTestDialog(row: CustomerDirectoryRow) {
-    setFreeTestOrgId(row.organization_id);
-    setFreeTestOrgName(row.organizations?.name ?? "Customer");
-    setFreeTestOpen(true);
-  }
-
-  async function submitFreeTestAllocation() {
-    if (!freeTestOrgId) return;
-    const quota = Number(freeTestQuota);
-    if (!Number.isInteger(quota) || quota < 1) {
-      toast.error("Free test lead quota must be at least 1.");
-      return;
-    }
+  async function toggleFreeDelivery(row: CustomerDirectoryRow) {
+    const nextActive = !row.freeDeliveryActive;
     try {
-      await upsertFreeTest({
-        organization_id: freeTestOrgId,
-        quota_total: quota,
-        is_active: freeTestActive,
+      await upsertFreeDelivery({
+        organization_id: row.organization_id,
+        is_active: nextActive,
       }).unwrap();
-      toast.success(freeTestActive ? "Free test leads activated." : "Free test lead settings saved.");
-      setFreeTestOpen(false);
+      toast.success(
+        nextActive
+          ? "Free leads delivery enabled. Inventory will be split equally with other enabled customers."
+          : "Free leads delivery disabled."
+      );
     } catch (err: unknown) {
       toast.error(formatQueryError(err));
     }
@@ -872,9 +842,14 @@ export function AdminCustomers() {
                               <DollarSign className="mr-2 size-4" />
                               Custom pricing
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openFreeTestDialog(row)}>
+                            <DropdownMenuItem
+                              onClick={() => void toggleFreeDelivery(row)}
+                              disabled={savingFreeDelivery}
+                            >
                               <Gift className="mr-2 size-4" />
-                              Free test leads
+                              {row.freeDeliveryActive
+                                ? "Disable free leads delivery"
+                                : "Enable free leads delivery"}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -1123,54 +1098,6 @@ export function AdminCustomers() {
             <div className="flex justify-end">
               <Button onClick={() => void submitPricingOverrides()} disabled={savingPricing}>
                 {savingPricing ? "Saving..." : "Save pricing"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={freeTestOpen} onOpenChange={setFreeTestOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Free test leads</DialogTitle>
-            <DialogDescription>
-              Activate free test leads for {freeTestOrgName}. Incoming inventory is split automatically
-              across all active organizations based on remaining quota.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <Label>Free test lead quota</Label>
-              <Input
-                type="number"
-                min={1}
-                value={freeTestQuota}
-                onChange={(e) => setFreeTestQuota(e.target.value)}
-              />
-            </div>
-            {freeTestAllocation ? (
-              <p className="text-sm text-muted-foreground">
-                Delivered: {freeTestAllocation.quota_delivered} / {freeTestAllocation.quota_total}
-              </p>
-            ) : null}
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <p className="text-sm font-medium">Activate free test leads</p>
-                <p className="text-xs text-muted-foreground">
-                  When enabled, new leads are assigned automatically until quota is reached.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant={freeTestActive ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFreeTestActive((v) => !v)}
-              >
-                {freeTestActive ? "Active" : "Inactive"}
-              </Button>
-            </div>
-            <div className="flex justify-end">
-              <Button onClick={() => void submitFreeTestAllocation()} disabled={savingFreeTest}>
-                {savingFreeTest ? "Saving..." : "Save"}
               </Button>
             </div>
           </div>

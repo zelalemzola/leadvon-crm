@@ -40,15 +40,19 @@ export async function processLeadIngestRouting(categoryId: string, ingestKey: st
     }
   }
 
-  const freeTest = await service.rpc("distribute_free_test_leads", {
+  const freeDelivery = await service.rpc("distribute_free_delivery_leads", {
     p_category_id: categoryId,
   });
-  const freeTestDelivered =
-    freeTest.error ? 0 : typeof freeTest.data === "number" ? freeTest.data : Number(freeTest.data ?? 0);
+  const freeDeliveryDelivered =
+    freeDelivery.error
+      ? 0
+      : typeof freeDelivery.data === "number"
+        ? freeDelivery.data
+        : Number(freeDelivery.data ?? 0);
 
-  if (paidDelivered > 0 || freeTestDelivered > 0) {
+  if (paidDelivered > 0 || freeDeliveryDelivered > 0) {
     await processPendingLeadEmails();
   }
 
-  return { paidDelivered, freeTestDelivered };
+  return { paidDelivered, freeDeliveryDelivered };
 }

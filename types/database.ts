@@ -41,6 +41,7 @@ export type CustomerDirectoryRow = {
   primary_admin_id: string | null;
   primary_admin_email: string | null;
   primary_admin_name: string | null;
+  freeDeliveryActive: boolean;
 };
 
 export type OrganizationPricingOverride = {
@@ -54,10 +55,8 @@ export type OrganizationPricingOverride = {
   updated_at: string;
 };
 
-export type OrganizationFreeTestAllocation = {
+export type OrganizationFreeDelivery = {
   organization_id: string;
-  quota_total: number;
-  quota_delivered: number;
   is_active: boolean;
   activated_at: string | null;
   activated_by: string | null;

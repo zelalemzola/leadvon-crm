@@ -27,12 +27,11 @@ DECLARE
   v_debt text;
   v_phone text;
   v_delivered integer := 0;
-  v_quota_delivered integer;
   v_assignee uuid;
-  v_has_free_test_fn boolean;
+  v_has_free_delivery_fn boolean;
   v_has_prepaid_fn boolean;
   v_has_grant_source boolean;
-  v_has_free_test_alloc boolean;
+  v_has_free_delivery boolean;
 BEGIN
   -- Resolve Soukaina's organization
   SELECT o.id INTO v_org_id
@@ -78,8 +77,8 @@ BEGIN
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
-      AND p.proname = 'deliver_free_test_lead'
-  ) INTO v_has_free_test_fn;
+      AND p.proname = 'deliver_free_delivery_lead'
+  ) INTO v_has_free_delivery_fn;
 
   SELECT EXISTS (
     SELECT 1
@@ -101,8 +100,8 @@ BEGIN
     SELECT 1
     FROM information_schema.tables
     WHERE table_schema = 'public'
-      AND table_name = 'organization_free_test_allocations'
-  ) INTO v_has_free_test_alloc;
+      AND table_name = 'organization_free_delivery'
+  ) INTO v_has_free_delivery;
 
   IF EXISTS (
     SELECT 1
@@ -123,34 +122,22 @@ BEGIN
       WHERE cl.source_lead_id = l.id
     );
 
-  -- Free-test path: ensure quota when the table exists
-  IF v_has_free_test_fn AND v_has_free_test_alloc THEN
-    SELECT COALESCE(quota_delivered, 0) INTO v_quota_delivered
-    FROM public.organization_free_test_allocations
-    WHERE organization_id = v_org_id;
-
-    INSERT INTO public.organization_free_test_allocations (
+  -- Free delivery path: ensure toggle when the table exists
+  IF v_has_free_delivery_fn AND v_has_free_delivery THEN
+    INSERT INTO public.organization_free_delivery (
       organization_id,
-      quota_total,
-      quota_delivered,
       is_active,
       activated_at
     )
     VALUES (
       v_org_id,
-      COALESCE(v_quota_delivered, 0) + 20,
-      COALESCE(v_quota_delivered, 0),
       TRUE,
       now()
     )
     ON CONFLICT (organization_id) DO UPDATE
     SET
-      quota_total = GREATEST(
-        public.organization_free_test_allocations.quota_total,
-        public.organization_free_test_allocations.quota_delivered + 20
-      ),
       is_active = TRUE,
-      activated_at = COALESCE(public.organization_free_test_allocations.activated_at, now()),
+      activated_at = COALESCE(public.organization_free_delivery.activated_at, now()),
       updated_at = now();
   END IF;
 
@@ -195,9 +182,9 @@ BEGIN
     )
     RETURNING id INTO v_lead_id;
 
-    -- Delivery priority: free test → prepaid budget → manual insert
-    IF v_has_free_test_fn AND v_has_free_test_alloc THEN
-      PERFORM public.deliver_free_test_lead(v_org_id, v_lead_id);
+    -- Delivery priority: free delivery → prepaid budget → manual insert
+    IF v_has_free_delivery_fn AND v_has_free_delivery THEN
+      PERFORM public.deliver_free_delivery_lead(v_org_id, v_lead_id);
     ELSIF v_has_prepaid_fn THEN
       PERFORM public.deliver_lead_from_prepaid_budget(v_org_id, v_lead_id);
     ELSE
@@ -246,7 +233,7 @@ BEGIN
           NULL,
           NULL,
           0,
-          'free_test',
+          'free_delivery',
           v_assignee
         FROM public.leads l
         WHERE l.id = v_lead_id;
@@ -280,7 +267,7 @@ BEGIN
     v_delivered := v_delivered + 1;
   END LOOP;
 
-  -- deliver_free_test_lead omits country; backfill from inventory
+  -- deliver_free_delivery_lead may omit country; backfill from inventory
   UPDATE public.customer_leads cl
   SET country = l.country
   FROM public.leads l
