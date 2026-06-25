@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   if (data.user) {
-    await service
+    const { data: linkedProfile, error: profileErr } = await service
       .from("profiles")
       .update({
         role: parsed.data.role,
@@ -44,7 +44,21 @@ export async function POST(request: Request) {
         email: parsed.data.email,
         full_name: parsed.data.full_name || null,
       })
-      .eq("id", data.user.id);
+      .eq("id", data.user.id)
+      .select("id, organization_id")
+      .single();
+
+    if (
+      profileErr ||
+      !linkedProfile ||
+      linkedProfile.organization_id !== auth.organizationId
+    ) {
+      await service.auth.admin.deleteUser(data.user.id);
+      return NextResponse.json(
+        { error: profileErr?.message ?? "Failed to link user to your organization" },
+        { status: 400 }
+      );
+    }
 
     await writeCustomerAuditLog({
       organizationId: auth.organizationId,
@@ -69,6 +83,7 @@ export async function GET() {
     .from("profiles")
     .select("id, email, full_name, role, is_active, lead_assignment_percentage, created_at, updated_at, organization_id")
     .eq("organization_id", auth.organizationId)
+    .in("role", ["customer_admin", "customer_agent"])
     .order("created_at", { ascending: false });
   if (pErr) return NextResponse.json({ error: pErr.message }, { status: 400 });
 

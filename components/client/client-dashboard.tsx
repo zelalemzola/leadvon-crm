@@ -70,7 +70,9 @@ export function ClientDashboard() {
   const [assignedTo, setAssignedTo] = useState<string>("all");
 
   const { data: countries } = useGetCustomerLeadCountriesQuery();
-  const { data: users } = useGetOrgUsersQuery();
+  const { data: users } = useGetOrgUsersQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
 
   const dashboardFilters = useMemo((): CustomerDashboardFilters => {
     const { dateFrom, dateTo } = dateFilterToRange(dateFilter);

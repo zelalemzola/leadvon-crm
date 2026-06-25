@@ -16,6 +16,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useI18n } from "@/components/providers/i18n-provider";
+import { useAppDispatch } from "@/lib/hooks";
+import { clientApi } from "@/lib/api/client-api";
+import { adminApi } from "@/lib/api/admin-api";
 
 export function LoginForm({
   initialError,
@@ -23,6 +26,7 @@ export function LoginForm({
   initialError?: string;
 }) {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const { t, localizePath } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -86,6 +90,8 @@ export function LoginForm({
       await supabase.auth.signOut();
       return;
     }
+    dispatch(clientApi.util.resetApiState());
+    dispatch(adminApi.util.resetApiState());
     if (profile.role === "staff") {
       router.push(localizePath("/admin"));
     } else if (

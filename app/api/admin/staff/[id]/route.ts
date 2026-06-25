@@ -35,7 +35,13 @@ export async function PATCH(
   }
 
   const profilePatch: Record<string, unknown> = {};
-  if (payload.role) profilePatch.role = payload.role;
+  if (payload.role) {
+    profilePatch.role = payload.role;
+    if (payload.role === "staff") {
+      profilePatch.organization_id = null;
+      profilePatch.lead_assignment_percentage = 0;
+    }
+  }
   if (payload.is_active !== undefined) profilePatch.is_active = payload.is_active;
   if (Object.keys(profilePatch).length > 0) {
     const { error } = await service.from("profiles").update(profilePatch).eq("id", id);

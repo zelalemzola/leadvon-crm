@@ -52,7 +52,11 @@ export async function PATCH(
     .select("id, organization_id, role, is_active")
     .eq("id", id)
     .maybeSingle();
-  if (!target || target.organization_id !== me.organizationId) {
+  if (
+    !target ||
+    target.organization_id !== me.organizationId ||
+    (target.role !== "customer_admin" && target.role !== "customer_agent")
+  ) {
     return NextResponse.json({ error: "User not found in organization" }, { status: 404 });
   }
 

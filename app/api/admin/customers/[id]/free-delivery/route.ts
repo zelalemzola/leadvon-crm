@@ -6,35 +6,6 @@ import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-type FreeDeliveryRow = {
-  organization_id: string;
-  leads_per_day: number;
-  is_active: boolean;
-  activated_at: string | null;
-  activated_by: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-async function countDeliveredToday(service: ReturnType<typeof createServiceClient>, organizationId: string) {
-  const startOfDayUtc = new Date();
-  startOfDayUtc.setUTCHours(0, 0, 0, 0);
-
-  const { count, error } = await service
-    .from("customer_leads")
-    .select("id", { count: "exact", head: true })
-    .eq("organization_id", organizationId)
-    .eq("grant_source", "free_delivery")
-    .gte("created_at", startOfDayUtc.toISOString());
-
-  if (error) return { error: error.message };
-  return { count: count ?? 0 };
-}
-
-function withDeliveredToday(row: FreeDeliveryRow, deliveredToday: number) {
-  return { ...row, delivered_today: deliveredToday };
-}
-
 export async function GET(_request: Request, { params }: RouteParams) {
   const staff = await requireStaffUser();
   if ("error" in staff) return staff.error;
@@ -51,18 +22,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  if (!data) {
-    return NextResponse.json({ data: null });
-  }
-
-  const delivered = await countDeliveredToday(service, id);
-  if ("error" in delivered) {
-    return NextResponse.json({ error: delivered.error }, { status: 400 });
-  }
-
-  return NextResponse.json({
-    data: withDeliveredToday(data as FreeDeliveryRow, delivered.count),
-  });
+  return NextResponse.json({ data: data ?? null });
 }
 
 export async function PUT(request: Request, { params }: RouteParams) {
@@ -87,9 +47,17 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
   const existing = await service
     .from("organization_free_delivery")
-    .select("is_active, activated_at")
+    .select("is_active, activated_at, quota_delivered")
     .eq("organization_id", organizationId)
     .maybeSingle();
+
+  const quotaDelivered = existing.data?.quota_delivered ?? 0;
+  if (parsed.data.quota_total < quotaDelivered) {
+    return NextResponse.json(
+      { error: `Total cannot be less than already delivered (${quotaDelivered})` },
+      { status: 400 }
+    );
+  }
 
   const isActive = parsed.data.is_active;
   const wasActive = existing.data?.is_active === true;
@@ -105,8 +73,9 @@ export async function PUT(request: Request, { params }: RouteParams) {
     .upsert(
       {
         organization_id: organizationId,
-        leads_per_day: parsed.data.leads_per_day,
-        is_active: isActive,
+        quota_total: parsed.data.quota_total,
+        quota_delivered: quotaDelivered,
+        is_active: isActive && quotaDelivered < parsed.data.quota_total,
         activated_at: activatedAt,
         activated_by: isActive ? staff.userId : null,
       },
@@ -127,7 +96,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     details: parsed.data,
   });
 
-  if (isActive) {
+  if (data.is_active) {
     const paidFirst = await service.rpc("run_due_customer_lead_flows", {
       p_category_id: null,
     });
@@ -151,14 +120,16 @@ export async function PUT(request: Request, { params }: RouteParams) {
     if (count > 0 || paidCount > 0) {
       await processPendingLeadEmails();
     }
+
+    const refreshed = await service
+      .from("organization_free_delivery")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .single();
+    if (!refreshed.error && refreshed.data) {
+      return NextResponse.json({ data: refreshed.data });
+    }
   }
 
-  const delivered = await countDeliveredToday(service, organizationId);
-  if ("error" in delivered) {
-    return NextResponse.json({ error: delivered.error }, { status: 400 });
-  }
-
-  return NextResponse.json({
-    data: withDeliveredToday(data as FreeDeliveryRow, delivered.count),
-  });
+  return NextResponse.json({ data });
 }

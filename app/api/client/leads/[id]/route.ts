@@ -40,10 +40,15 @@ export async function PATCH(
   if (parsed.data.assigned_to) {
     const { data: assignee } = await service
       .from("profiles")
-      .select("id, organization_id, is_active")
+      .select("id, organization_id, role, is_active")
       .eq("id", parsed.data.assigned_to)
       .maybeSingle();
-    if (!assignee || assignee.organization_id !== auth.organizationId || !assignee.is_active) {
+    if (
+      !assignee ||
+      assignee.organization_id !== auth.organizationId ||
+      !assignee.is_active ||
+      (assignee.role !== "customer_admin" && assignee.role !== "customer_agent")
+    ) {
       return NextResponse.json({ error: "Invalid assignee" }, { status: 400 });
     }
   }

@@ -682,6 +682,7 @@ export const clientApi = createApi({
         return { data: json.data ?? [] };
       },
       providesTags: ["ClientUsers"],
+      keepUnusedDataFor: 0,
     }),
 
     createOrgUser: builder.mutation<

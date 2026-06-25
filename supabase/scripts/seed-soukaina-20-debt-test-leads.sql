@@ -126,19 +126,21 @@ BEGIN
   IF v_has_free_delivery_fn AND v_has_free_delivery THEN
     INSERT INTO public.organization_free_delivery (
       organization_id,
-      leads_per_day,
+      quota_total,
+      quota_delivered,
       is_active,
       activated_at
     )
     VALUES (
       v_org_id,
       20,
+      0,
       TRUE,
       now()
     )
     ON CONFLICT (organization_id) DO UPDATE
     SET
-      leads_per_day = GREATEST(public.organization_free_delivery.leads_per_day, 20),
+      quota_total = GREATEST(public.organization_free_delivery.quota_total, 20),
       is_active = TRUE,
       activated_at = COALESCE(public.organization_free_delivery.activated_at, now()),
       updated_at = now();

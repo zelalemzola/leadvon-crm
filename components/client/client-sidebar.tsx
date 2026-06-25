@@ -18,10 +18,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { useGetClientMeQuery, useGetNotificationsQuery } from "@/lib/api/client-api";
+import { useGetClientMeQuery, useGetNotificationsQuery, clientApi } from "@/lib/api/client-api";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { useNextStep } from "nextstepjs";
+import { useAppDispatch } from "@/lib/hooks";
 
 const baseNav = [
   { href: "/client", key: "client.nav.dashboard", icon: LayoutDashboard },
@@ -40,6 +41,7 @@ function getNavTourId(href: string) {
 export function ClientSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const { data: me } = useGetClientMeQuery();
   const { data: notifications } = useGetNotificationsQuery(undefined, {
     pollingInterval: 60_000,
@@ -62,6 +64,7 @@ export function ClientSidebar() {
 
   async function signOut() {
     const supabase = createClient();
+    dispatch(clientApi.util.resetApiState());
     await supabase.auth.signOut();
     router.push(localizePath("/login"));
     router.refresh();

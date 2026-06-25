@@ -20,7 +20,9 @@ import { useI18n } from "@/components/providers/i18n-provider";
 export function ClientSettings() {
   const { t } = useI18n();
   const { data: me } = useGetClientMeQuery();
-  const { data: users, isLoading } = useGetOrgUsersQuery();
+  const { data: users, isLoading } = useGetOrgUsersQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
   const [createUser, { isLoading: creating }] = useCreateOrgUserMutation();
   const [updateUser, { isLoading: updatingUser }] = useUpdateOrgUserMutation();
   const [email, setEmail] = useState("");

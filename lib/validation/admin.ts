@@ -66,7 +66,7 @@ export const organizationPricingOverrideSchema = z.object({
 });
 
 export const organizationFreeDeliverySchema = z.object({
-  leads_per_day: z.number().int().min(1).max(100000),
+  quota_total: z.number().int().min(1).max(100000),
   is_active: z.boolean(),
 });
 

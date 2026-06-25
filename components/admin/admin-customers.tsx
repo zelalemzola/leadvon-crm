@@ -188,7 +188,7 @@ export function AdminCustomers() {
   const [freeDeliveryOpen, setFreeDeliveryOpen] = useState(false);
   const [freeDeliveryOrgId, setFreeDeliveryOrgId] = useState<string | null>(null);
   const [freeDeliveryOrgName, setFreeDeliveryOrgName] = useState("");
-  const [freeDeliveryQuota, setFreeDeliveryQuota] = useState("10");
+  const [freeDeliveryTotal, setFreeDeliveryTotal] = useState("20");
   const [freeDeliveryActive, setFreeDeliveryActive] = useState(true);
   const [flowDrafts, setFlowDrafts] = useState<
     Record<string, { leads_per_week: number; monthly_target_leads: number; business_days_only: boolean }>
@@ -220,10 +220,10 @@ export function AdminCustomers() {
   useEffect(() => {
     if (!freeDeliveryOpen) return;
     if (freeDeliverySettings) {
-      setFreeDeliveryQuota(String(freeDeliverySettings.leads_per_day || 10));
+      setFreeDeliveryTotal(String(freeDeliverySettings.quota_total || 20));
       setFreeDeliveryActive(freeDeliverySettings.is_active);
     } else {
-      setFreeDeliveryQuota("10");
+      setFreeDeliveryTotal("20");
       setFreeDeliveryActive(true);
     }
   }, [freeDeliveryOpen, freeDeliverySettings]);
@@ -455,20 +455,20 @@ export function AdminCustomers() {
 
   async function submitFreeDelivery() {
     if (!freeDeliveryOrgId) return;
-    const quota = Number(freeDeliveryQuota);
-    if (!Number.isInteger(quota) || quota < 1) {
-      toast.error("Free leads per day must be at least 1.");
+    const total = Number(freeDeliveryTotal);
+    if (!Number.isInteger(total) || total < 1) {
+      toast.error("Total free leads must be at least 1.");
       return;
     }
     try {
       await upsertFreeDelivery({
         organization_id: freeDeliveryOrgId,
-        leads_per_day: quota,
+        quota_total: total,
         is_active: freeDeliveryActive,
       }).unwrap();
       toast.success(
         freeDeliveryActive
-          ? "Free leads delivery saved. Up to this many leads will be delivered per day while active."
+          ? "Free leads delivery saved. Leads will be delivered until the total is reached, then it turns off automatically."
           : "Free leads delivery settings saved."
       );
       setFreeDeliveryOpen(false);
@@ -1137,30 +1137,34 @@ export function AdminCustomers() {
           <DialogHeader>
             <DialogTitle>Free leads delivery</DialogTitle>
             <DialogDescription>
-              Set how many free leads {freeDeliveryOrgName} should receive per day while active.
-              Inventory is distributed fairly across customers until each reaches their daily limit.
+              Set how many free leads {freeDeliveryOrgName} should receive in total. Inventory is
+              distributed fairly across active customers until each reaches their number, then delivery
+              turns off automatically.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1">
-              <Label>Free leads per day</Label>
+              <Label>Total free leads to deliver</Label>
               <Input
                 type="number"
                 min={1}
-                value={freeDeliveryQuota}
-                onChange={(e) => setFreeDeliveryQuota(e.target.value)}
+                value={freeDeliveryTotal}
+                onChange={(e) => setFreeDeliveryTotal(e.target.value)}
               />
             </div>
             {freeDeliverySettings ? (
               <p className="text-sm text-muted-foreground">
-                Delivered today: {freeDeliverySettings.delivered_today} / {freeDeliverySettings.leads_per_day}
+                Delivered: {freeDeliverySettings.quota_delivered} / {freeDeliverySettings.quota_total}
+                {freeDeliverySettings.quota_delivered < freeDeliverySettings.quota_total
+                  ? ` · Remaining: ${freeDeliverySettings.quota_total - freeDeliverySettings.quota_delivered}`
+                  : " · Complete"}
               </p>
             ) : null}
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
                 <p className="text-sm font-medium">Activate free leads delivery</p>
                 <p className="text-xs text-muted-foreground">
-                  When enabled, leads are assigned automatically each day up to the daily limit.
+                  When enabled, leads are assigned automatically until the total is delivered.
                 </p>
               </div>
               <Button

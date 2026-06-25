@@ -106,7 +106,9 @@ export function ClientLeads() {
 
   const { data: categories } = useGetCategoriesQuery();
   const { data: countries } = useGetCustomerLeadCountriesQuery();
-  const { data: users } = useGetOrgUsersQuery();
+  const { data: users } = useGetOrgUsersQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
   const { data, isLoading, isError, error } = useGetCustomerLeadsQuery(
     {
       search,

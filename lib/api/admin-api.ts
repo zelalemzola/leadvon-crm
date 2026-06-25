@@ -232,8 +232,8 @@ export type OrganizationPricingOverride = {
 
 export type OrganizationFreeDelivery = {
   organization_id: string;
-  leads_per_day: number;
-  delivered_today: number;
+  quota_total: number;
+  quota_delivered: number;
   is_active: boolean;
   activated_at: string | null;
   activated_by: string | null;
@@ -912,7 +912,7 @@ export const adminApi = createApi({
 
     upsertOrganizationFreeDelivery: builder.mutation<
       OrganizationFreeDelivery,
-      { organization_id: string; leads_per_day: number; is_active: boolean }
+      { organization_id: string; quota_total: number; is_active: boolean }
     >({
       queryFn: async ({ organization_id, ...body }) => {
         const res = await jsonRequest<OrganizationFreeDelivery>(

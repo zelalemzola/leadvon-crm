@@ -31,6 +31,8 @@ export async function POST(request: Request) {
       .from("profiles")
       .update({
         role: "staff",
+        organization_id: null,
+        lead_assignment_percentage: 0,
         is_active: true,
         email,
         full_name: full_name || null,
