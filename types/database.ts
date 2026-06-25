@@ -57,6 +57,8 @@ export type OrganizationPricingOverride = {
 
 export type OrganizationFreeDelivery = {
   organization_id: string;
+  leads_per_day: number;
+  delivered_today: number;
   is_active: boolean;
   activated_at: string | null;
   activated_by: string | null;

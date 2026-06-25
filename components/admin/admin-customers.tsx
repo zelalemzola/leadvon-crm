@@ -10,6 +10,7 @@ import {
   useGetCategoriesQuery,
   useGetOrganizationPricingOverridesQuery,
   useUpsertOrganizationPricingOverrideMutation,
+  useGetOrganizationFreeDeliveryQuery,
   useUpsertOrganizationFreeDeliveryMutation,
   useGetOrganizationFlowCommitmentsQuery,
   useUpsertOrganizationFlowCommitmentMutation,
@@ -184,6 +185,11 @@ export function AdminCustomers() {
   const [pricingOrgName, setPricingOrgName] = useState("");
   const [singlePriceCents, setSinglePriceCents] = useState("");
   const [familyPriceCents, setFamilyPriceCents] = useState("");
+  const [freeDeliveryOpen, setFreeDeliveryOpen] = useState(false);
+  const [freeDeliveryOrgId, setFreeDeliveryOrgId] = useState<string | null>(null);
+  const [freeDeliveryOrgName, setFreeDeliveryOrgName] = useState("");
+  const [freeDeliveryQuota, setFreeDeliveryQuota] = useState("10");
+  const [freeDeliveryActive, setFreeDeliveryActive] = useState(true);
   const [flowDrafts, setFlowDrafts] = useState<
     Record<string, { leads_per_week: number; monthly_target_leads: number; business_days_only: boolean }>
   >({});
@@ -196,6 +202,10 @@ export function AdminCustomers() {
   const { data: pricingOverrides } = useGetOrganizationPricingOverridesQuery(pricingOrgId ?? "", {
     skip: !pricingOpen || !pricingOrgId,
   });
+  const { data: freeDeliverySettings } = useGetOrganizationFreeDeliveryQuery(
+    freeDeliveryOrgId ?? "",
+    { skip: !freeDeliveryOpen || !freeDeliveryOrgId }
+  );
 
   const debtReviewCategory = (categories ?? []).find((c) => c.slug === "debt-review") ?? categories?.[0];
 
@@ -206,6 +216,17 @@ export function AdminCustomers() {
     setSinglePriceCents(single ? String(single.price_cents) : "");
     setFamilyPriceCents(family ? String(family.price_cents) : "");
   }, [pricingOpen, pricingOverrides]);
+
+  useEffect(() => {
+    if (!freeDeliveryOpen) return;
+    if (freeDeliverySettings) {
+      setFreeDeliveryQuota(String(freeDeliverySettings.leads_per_day || 10));
+      setFreeDeliveryActive(freeDeliverySettings.is_active);
+    } else {
+      setFreeDeliveryQuota("10");
+      setFreeDeliveryActive(true);
+    }
+  }, [freeDeliveryOpen, freeDeliverySettings]);
 
   useEffect(() => {
     if (!paceOpen) return;
@@ -426,18 +447,31 @@ export function AdminCustomers() {
     }
   }
 
-  async function toggleFreeDelivery(row: CustomerDirectoryRow) {
-    const nextActive = !row.freeDeliveryActive;
+  function openFreeDeliveryDialog(row: CustomerDirectoryRow) {
+    setFreeDeliveryOrgId(row.organization_id);
+    setFreeDeliveryOrgName(row.organizations?.name ?? "Customer");
+    setFreeDeliveryOpen(true);
+  }
+
+  async function submitFreeDelivery() {
+    if (!freeDeliveryOrgId) return;
+    const quota = Number(freeDeliveryQuota);
+    if (!Number.isInteger(quota) || quota < 1) {
+      toast.error("Free leads per day must be at least 1.");
+      return;
+    }
     try {
       await upsertFreeDelivery({
-        organization_id: row.organization_id,
-        is_active: nextActive,
+        organization_id: freeDeliveryOrgId,
+        leads_per_day: quota,
+        is_active: freeDeliveryActive,
       }).unwrap();
       toast.success(
-        nextActive
-          ? "Free leads delivery enabled. Inventory will be split equally with other enabled customers."
-          : "Free leads delivery disabled."
+        freeDeliveryActive
+          ? "Free leads delivery saved. Up to this many leads will be delivered per day while active."
+          : "Free leads delivery settings saved."
       );
+      setFreeDeliveryOpen(false);
     } catch (err: unknown) {
       toast.error(formatQueryError(err));
     }
@@ -842,14 +876,9 @@ export function AdminCustomers() {
                               <DollarSign className="mr-2 size-4" />
                               Custom pricing
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => void toggleFreeDelivery(row)}
-                              disabled={savingFreeDelivery}
-                            >
+                            <DropdownMenuItem onClick={() => openFreeDeliveryDialog(row)}>
                               <Gift className="mr-2 size-4" />
-                              {row.freeDeliveryActive
-                                ? "Disable free leads delivery"
-                                : "Enable free leads delivery"}
+                              Free leads delivery
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -1098,6 +1127,54 @@ export function AdminCustomers() {
             <div className="flex justify-end">
               <Button onClick={() => void submitPricingOverrides()} disabled={savingPricing}>
                 {savingPricing ? "Saving..." : "Save pricing"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={freeDeliveryOpen} onOpenChange={setFreeDeliveryOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Free leads delivery</DialogTitle>
+            <DialogDescription>
+              Set how many free leads {freeDeliveryOrgName} should receive per day while active.
+              Inventory is distributed fairly across customers until each reaches their daily limit.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>Free leads per day</Label>
+              <Input
+                type="number"
+                min={1}
+                value={freeDeliveryQuota}
+                onChange={(e) => setFreeDeliveryQuota(e.target.value)}
+              />
+            </div>
+            {freeDeliverySettings ? (
+              <p className="text-sm text-muted-foreground">
+                Delivered today: {freeDeliverySettings.delivered_today} / {freeDeliverySettings.leads_per_day}
+              </p>
+            ) : null}
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <p className="text-sm font-medium">Activate free leads delivery</p>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, leads are assigned automatically each day up to the daily limit.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant={freeDeliveryActive ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFreeDeliveryActive((v) => !v)}
+              >
+                {freeDeliveryActive ? "Active" : "Inactive"}
+              </Button>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => void submitFreeDelivery()} disabled={savingFreeDelivery}>
+                {savingFreeDelivery ? "Saving..." : "Save"}
               </Button>
             </div>
           </div>

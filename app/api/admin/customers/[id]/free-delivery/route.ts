@@ -6,6 +6,35 @@ import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
+type FreeDeliveryRow = {
+  organization_id: string;
+  leads_per_day: number;
+  is_active: boolean;
+  activated_at: string | null;
+  activated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+async function countDeliveredToday(service: ReturnType<typeof createServiceClient>, organizationId: string) {
+  const startOfDayUtc = new Date();
+  startOfDayUtc.setUTCHours(0, 0, 0, 0);
+
+  const { count, error } = await service
+    .from("customer_leads")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .eq("grant_source", "free_delivery")
+    .gte("created_at", startOfDayUtc.toISOString());
+
+  if (error) return { error: error.message };
+  return { count: count ?? 0 };
+}
+
+function withDeliveredToday(row: FreeDeliveryRow, deliveredToday: number) {
+  return { ...row, delivered_today: deliveredToday };
+}
+
 export async function GET(_request: Request, { params }: RouteParams) {
   const staff = await requireStaffUser();
   if ("error" in staff) return staff.error;
@@ -22,7 +51,18 @@ export async function GET(_request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ data: data ?? null });
+  if (!data) {
+    return NextResponse.json({ data: null });
+  }
+
+  const delivered = await countDeliveredToday(service, id);
+  if ("error" in delivered) {
+    return NextResponse.json({ error: delivered.error }, { status: 400 });
+  }
+
+  return NextResponse.json({
+    data: withDeliveredToday(data as FreeDeliveryRow, delivered.count),
+  });
 }
 
 export async function PUT(request: Request, { params }: RouteParams) {
@@ -65,6 +105,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     .upsert(
       {
         organization_id: organizationId,
+        leads_per_day: parsed.data.leads_per_day,
         is_active: isActive,
         activated_at: activatedAt,
         activated_by: isActive ? staff.userId : null,
@@ -112,5 +153,12 @@ export async function PUT(request: Request, { params }: RouteParams) {
     }
   }
 
-  return NextResponse.json({ data });
+  const delivered = await countDeliveredToday(service, organizationId);
+  if ("error" in delivered) {
+    return NextResponse.json({ error: delivered.error }, { status: 400 });
+  }
+
+  return NextResponse.json({
+    data: withDeliveredToday(data as FreeDeliveryRow, delivered.count),
+  });
 }
