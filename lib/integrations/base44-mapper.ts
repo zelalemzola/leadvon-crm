@@ -21,8 +21,8 @@ const base44LeadSchema = z.object({
   cotisation_mensuelle: z.string().nullish(),
   qui_assurer: z.string().nullish(),
   profession: z.string().nullish(),
-  consent_telephone: z.boolean().optional(),
-  consent_marketing: z.boolean().optional(),
+  consent_telephone: z.boolean().nullish(),
+  consent_marketing: z.boolean().nullish(),
   status: z.enum(["new", "contacted", "converted"]).nullish(),
   // Base44 timestamps are not always strict RFC3339; keep raw value when present.
   created_date: z.coerce.string().trim().min(1).nullish(),
