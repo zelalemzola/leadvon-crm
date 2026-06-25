@@ -6,6 +6,30 @@ import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
+type FreeDeliveryRow = Record<string, unknown> & {
+  organization_id: string;
+  quota_total?: number;
+  quota_delivered?: number;
+  leads_per_day?: number;
+  is_active?: boolean;
+  activated_at?: string | null;
+  activated_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+function normalizeFreeDelivery(row: FreeDeliveryRow | null) {
+  if (!row) return null;
+  const quotaDelivered = Number(row.quota_delivered ?? 0);
+  const quotaTotal = Number(row.quota_total ?? row.leads_per_day ?? 0);
+  return {
+    ...row,
+    quota_total: quotaTotal,
+    quota_delivered: quotaDelivered,
+    is_active: Boolean(row.is_active),
+  };
+}
+
 export async function GET(_request: Request, { params }: RouteParams) {
   const staff = await requireStaffUser();
   if ("error" in staff) return staff.error;
@@ -22,7 +46,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ data: data ?? null });
+  return NextResponse.json({ data: normalizeFreeDelivery(data as FreeDeliveryRow | null) });
 }
 
 export async function PUT(request: Request, { params }: RouteParams) {
@@ -33,7 +57,10 @@ export async function PUT(request: Request, { params }: RouteParams) {
   const body = await request.json().catch(() => null);
   const parsed = organizationFreeDeliverySchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: parsed.error.issues.map((issue) => issue.message).join("; ") },
+      { status: 400 }
+    );
   }
 
   const service = createServiceClient();
@@ -47,11 +74,12 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
   const existing = await service
     .from("organization_free_delivery")
-    .select("is_active, activated_at, quota_delivered")
+    .select("*")
     .eq("organization_id", organizationId)
     .maybeSingle();
 
-  const quotaDelivered = existing.data?.quota_delivered ?? 0;
+  const existingRow = normalizeFreeDelivery(existing.data as FreeDeliveryRow | null);
+  const quotaDelivered = existingRow?.quota_delivered ?? 0;
   if (parsed.data.quota_total < quotaDelivered) {
     return NextResponse.json(
       { error: `Total cannot be less than already delivered (${quotaDelivered})` },
@@ -60,12 +88,12 @@ export async function PUT(request: Request, { params }: RouteParams) {
   }
 
   const isActive = parsed.data.is_active;
-  const wasActive = existing.data?.is_active === true;
+  const wasActive = existingRow?.is_active === true;
   const activatedAt =
     isActive && !wasActive
       ? new Date().toISOString()
       : isActive
-        ? (existing.data?.activated_at ?? new Date().toISOString())
+        ? (existingRow?.activated_at ?? new Date().toISOString())
         : null;
 
   const { data, error } = await service
@@ -85,7 +113,11 @@ export async function PUT(request: Request, { params }: RouteParams) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    const hint =
+      error.message.includes("quota_total") || error.message.includes("schema")
+        ? `${error.message} Run migration 20260625160000_free_delivery_total_only.sql in Supabase.`
+        : error.message;
+    return NextResponse.json({ error: hint }, { status: 400 });
   }
 
   await writeAuditLog({
@@ -96,7 +128,9 @@ export async function PUT(request: Request, { params }: RouteParams) {
     details: parsed.data,
   });
 
-  if (data.is_active) {
+  const normalized = normalizeFreeDelivery(data as FreeDeliveryRow);
+
+  if (normalized?.is_active) {
     const paidFirst = await service.rpc("run_due_customer_lead_flows", {
       p_category_id: null,
     });
@@ -107,13 +141,12 @@ export async function PUT(request: Request, { params }: RouteParams) {
     const distributed = await service.rpc("distribute_free_delivery_leads", {
       p_category_id: null,
     });
-    const count =
-      distributed.error
-        ? 0
-        : typeof distributed.data === "number"
-          ? distributed.data
-          : Number(distributed.data ?? 0);
+    if (distributed.error) {
+      return NextResponse.json({ error: distributed.error.message }, { status: 400 });
+    }
 
+    const count =
+      typeof distributed.data === "number" ? distributed.data : Number(distributed.data ?? 0);
     const paidCount =
       typeof paidFirst.data === "number" ? paidFirst.data : Number(paidFirst.data ?? 0);
 
@@ -127,9 +160,9 @@ export async function PUT(request: Request, { params }: RouteParams) {
       .eq("organization_id", organizationId)
       .single();
     if (!refreshed.error && refreshed.data) {
-      return NextResponse.json({ data: refreshed.data });
+      return NextResponse.json({ data: normalizeFreeDelivery(refreshed.data as FreeDeliveryRow) });
     }
   }
 
-  return NextResponse.json({ data });
+  return NextResponse.json({ data: normalized });
 }

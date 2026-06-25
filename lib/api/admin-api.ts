@@ -349,7 +349,11 @@ async function jsonRequest<T>(
     const msg =
       typeof json.error === "string"
         ? json.error
-        : json.error?.message ?? "Request failed";
+        : json.error && typeof json.error === "object" && "message" in json.error
+          ? String((json.error as { message?: string }).message ?? "Request failed")
+          : json.error != null
+            ? JSON.stringify(json.error)
+            : "Request failed";
     return { error: { status: res.status, data: msg } };
   }
   return { data: json.data ?? (json as unknown as T) };

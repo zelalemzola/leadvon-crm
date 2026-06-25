@@ -1152,13 +1152,15 @@ export function AdminCustomers() {
                 onChange={(e) => setFreeDeliveryTotal(e.target.value)}
               />
             </div>
-            {freeDeliverySettings ? (
+            {freeDeliverySettings && freeDeliverySettings.quota_total > 0 ? (
               <p className="text-sm text-muted-foreground">
                 Delivered: {freeDeliverySettings.quota_delivered} / {freeDeliverySettings.quota_total}
                 {freeDeliverySettings.quota_delivered < freeDeliverySettings.quota_total
                   ? ` · Remaining: ${freeDeliverySettings.quota_total - freeDeliverySettings.quota_delivered}`
                   : " · Complete"}
               </p>
+            ) : freeDeliverySettings ? (
+              <p className="text-sm text-muted-foreground">Not configured yet — set a total and save.</p>
             ) : null}
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
