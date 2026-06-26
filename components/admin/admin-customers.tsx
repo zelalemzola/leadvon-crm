@@ -1138,9 +1138,9 @@ export function AdminCustomers() {
           <DialogHeader>
             <DialogTitle>Free leads delivery</DialogTitle>
             <DialogDescription>
-              Set how many free leads {freeDeliveryOrgName} should receive in total. Inventory is
-              distributed fairly across active customers until each reaches their number, then delivery
-              turns off automatically.
+              Set how many free leads {freeDeliveryOrgName} should receive. Only inventory from the
+              campaign start day onward is used. Delivery turns off automatically when the total is
+              reached; toggle on again later to start a new campaign.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1154,12 +1154,20 @@ export function AdminCustomers() {
               />
             </div>
             {freeDeliverySettings && freeDeliverySettings.quota_total > 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Delivered: {freeDeliverySettings.quota_delivered} / {freeDeliverySettings.quota_total}
-                {freeDeliverySettings.quota_delivered < freeDeliverySettings.quota_total
-                  ? ` · Remaining: ${freeDeliverySettings.quota_total - freeDeliverySettings.quota_delivered}`
-                  : " · Complete"}
-              </p>
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <p>
+                  Delivered: {freeDeliverySettings.quota_delivered} / {freeDeliverySettings.quota_total}
+                  {freeDeliverySettings.quota_delivered < freeDeliverySettings.quota_total
+                    ? ` · Remaining: ${freeDeliverySettings.quota_total - freeDeliverySettings.quota_delivered}`
+                    : " · Complete"}
+                </p>
+                {freeDeliverySettings.eligible_from ? (
+                  <p>
+                    Campaign inventory from:{" "}
+                    {new Date(freeDeliverySettings.eligible_from).toLocaleDateString()}
+                  </p>
+                ) : null}
+              </div>
             ) : freeDeliverySettings ? (
               <p className="text-sm text-muted-foreground">Not configured yet — set a total and save.</p>
             ) : null}

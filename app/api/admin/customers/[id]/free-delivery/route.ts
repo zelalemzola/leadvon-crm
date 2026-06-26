@@ -14,9 +14,16 @@ type FreeDeliveryRow = Record<string, unknown> & {
   is_active?: boolean;
   activated_at?: string | null;
   activated_by?: string | null;
+  eligible_from?: string | null;
   created_at?: string;
   updated_at?: string;
 };
+
+function startOfUtcDayIso(date = new Date()) {
+  const d = new Date(date);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+}
 
 function normalizeFreeDelivery(row: FreeDeliveryRow | null) {
   if (!row) return null;
@@ -27,6 +34,7 @@ function normalizeFreeDelivery(row: FreeDeliveryRow | null) {
     quota_total: quotaTotal,
     quota_delivered: quotaDelivered,
     is_active: Boolean(row.is_active),
+    eligible_from: row.eligible_from ?? null,
   };
 }
 
@@ -79,7 +87,25 @@ export async function PUT(request: Request, { params }: RouteParams) {
     .maybeSingle();
 
   const existingRow = normalizeFreeDelivery(existing.data as FreeDeliveryRow | null);
-  const quotaDelivered = existingRow?.quota_delivered ?? 0;
+  const priorDelivered = existingRow?.quota_delivered ?? 0;
+  const priorTotal = existingRow?.quota_total ?? 0;
+  const wasComplete = priorTotal > 0 && priorDelivered >= priorTotal;
+  const isActive = parsed.data.is_active;
+  const wasActive = existingRow?.is_active === true;
+  const turningOn = isActive && !wasActive;
+  const resumingMidCampaign =
+    turningOn && priorDelivered > 0 && priorDelivered < priorTotal;
+  const startingNewCampaign = turningOn && !resumingMidCampaign;
+
+  let quotaDelivered = priorDelivered;
+  let eligibleFrom =
+    existingRow?.eligible_from ?? (startingNewCampaign ? startOfUtcDayIso() : null);
+
+  if (startingNewCampaign) {
+    quotaDelivered = 0;
+    eligibleFrom = startOfUtcDayIso();
+  }
+
   if (parsed.data.quota_total < quotaDelivered) {
     return NextResponse.json(
       { error: `Total cannot be less than already delivered (${quotaDelivered})` },
@@ -87,10 +113,8 @@ export async function PUT(request: Request, { params }: RouteParams) {
     );
   }
 
-  const isActive = parsed.data.is_active;
-  const wasActive = existingRow?.is_active === true;
   const activatedAt =
-    isActive && !wasActive
+    turningOn
       ? new Date().toISOString()
       : isActive
         ? (existingRow?.activated_at ?? new Date().toISOString())
@@ -103,6 +127,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
         organization_id: organizationId,
         quota_total: parsed.data.quota_total,
         quota_delivered: quotaDelivered,
+        eligible_from: eligibleFrom ?? startOfUtcDayIso(),
         is_active: isActive && quotaDelivered < parsed.data.quota_total,
         activated_at: activatedAt,
         activated_by: isActive ? staff.userId : null,
@@ -114,8 +139,10 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
   if (error) {
     const hint =
-      error.message.includes("quota_total") || error.message.includes("schema")
-        ? `${error.message} Run migration 20260625160000_free_delivery_total_only.sql in Supabase.`
+      error.message.includes("quota_total") ||
+      error.message.includes("eligible_from") ||
+      error.message.includes("schema")
+        ? `${error.message} Run migrations 20260625160000 and 20260626120000 in Supabase.`
         : error.message;
     return NextResponse.json({ error: hint }, { status: 400 });
   }
@@ -125,7 +152,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     action: "customer.free_delivery_upsert",
     entityType: "organization",
     entityId: organizationId,
-    details: parsed.data,
+    details: { ...parsed.data, starting_new_campaign: startingNewCampaign },
   });
 
   const normalized = normalizeFreeDelivery(data as FreeDeliveryRow);

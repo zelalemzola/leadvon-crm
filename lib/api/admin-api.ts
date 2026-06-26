@@ -234,6 +234,7 @@ export type OrganizationFreeDelivery = {
   organization_id: string;
   quota_total: number;
   quota_delivered: number;
+  eligible_from: string;
   is_active: boolean;
   activated_at: string | null;
   activated_by: string | null;
