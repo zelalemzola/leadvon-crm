@@ -11,6 +11,7 @@ import {
   useGetOrganizationPricingOverridesQuery,
   useUpsertOrganizationPricingOverrideMutation,
   useGetOrganizationFreeDeliveryQuery,
+  useGetOrganizationAssignedLeadsQuery,
   useUpsertOrganizationFreeDeliveryMutation,
   useGetOrganizationFlowCommitmentsQuery,
   useUpsertOrganizationFlowCommitmentMutation,
@@ -65,6 +66,24 @@ import { useI18n } from "@/components/providers/i18n-provider";
 type StatusFilter = "all" | "active" | "inactive";
 type SortKey = "joined" | "org" | "contact" | "members" | "leads";
 type SortDir = "asc" | "desc";
+
+function grantSourceLabel(source: string, t: (key: string) => string) {
+  if (source === "free_delivery") return t("adminCustomers.assignedLeadsFreeDelivery");
+  if (source === "signup_free" || source === "free_test") {
+    return t("adminCustomers.assignedLeadsSignupFree");
+  }
+  return t("adminCustomers.assignedLeadsPaid");
+}
+
+function grantSourceBadgeClass(source: string) {
+  if (source === "free_delivery") {
+    return "bg-violet-500/15 text-violet-300 hover:bg-violet-500/25";
+  }
+  if (source === "signup_free" || source === "free_test") {
+    return "bg-amber-500/15 text-amber-300 hover:bg-amber-500/25";
+  }
+  return "bg-sky-500/15 text-sky-300 hover:bg-sky-500/25";
+}
 
 function CustomerSortHead({
   label,
@@ -130,8 +149,8 @@ function sortCustomers(
         vb = b.membersCount;
         break;
       case "leads":
-        va = a.leadsPurchasedCount;
-        vb = b.leadsPurchasedCount;
+        va = a.leadsAssignedCount;
+        vb = b.leadsAssignedCount;
         break;
       default:
         return 0;
@@ -191,6 +210,9 @@ export function AdminCustomers() {
   const [freeDeliveryOrgName, setFreeDeliveryOrgName] = useState("");
   const [freeDeliveryTotal, setFreeDeliveryTotal] = useState("20");
   const [freeDeliveryActive, setFreeDeliveryActive] = useState(true);
+  const [assignedLeadsOpen, setAssignedLeadsOpen] = useState(false);
+  const [assignedLeadsOrgId, setAssignedLeadsOrgId] = useState<string | null>(null);
+  const [assignedLeadsOrgName, setAssignedLeadsOrgName] = useState("");
   const [flowDrafts, setFlowDrafts] = useState<
     Record<string, { leads_per_week: number; monthly_target_leads: number; business_days_only: boolean }>
   >({});
@@ -207,6 +229,14 @@ export function AdminCustomers() {
     freeDeliveryOrgId ?? "",
     { skip: !freeDeliveryOpen || !freeDeliveryOrgId }
   );
+  const {
+    data: assignedLeadsData,
+    isLoading: assignedLeadsLoading,
+    isError: assignedLeadsError,
+    error: assignedLeadsErrorObj,
+  } = useGetOrganizationAssignedLeadsQuery(assignedLeadsOrgId ?? "", {
+    skip: !assignedLeadsOpen || !assignedLeadsOrgId,
+  });
 
   const debtReviewCategory = (categories ?? []).find((c) => c.slug === "debt-review") ?? categories?.[0];
 
@@ -300,6 +330,8 @@ export function AdminCustomers() {
       "members",
       "active_members",
       "purchased_leads_org",
+      "free_delivery_leads_org",
+      "assigned_leads_org",
       "is_active",
       "created_at",
     ];
@@ -313,6 +345,8 @@ export function AdminCustomers() {
         r.membersCount,
         r.activeMembersCount,
         r.leadsPurchasedCount,
+        r.leadsFreeDeliveryCount,
+        r.leadsAssignedCount,
         r.is_active,
         r.created_at,
       ]
@@ -446,6 +480,12 @@ export function AdminCustomers() {
     } catch (err: unknown) {
       toast.error(formatQueryError(err));
     }
+  }
+
+  function openAssignedLeadsDialog(row: CustomerDirectoryRow) {
+    setAssignedLeadsOrgId(row.organization_id);
+    setAssignedLeadsOrgName(row.organizations?.name ?? t("adminCustomers.customerOrganization"));
+    setAssignedLeadsOpen(true);
   }
 
   function openFreeDeliveryDialog(row: CustomerDirectoryRow) {
@@ -830,8 +870,20 @@ export function AdminCustomers() {
                           {row.membersCount} ({row.activeMembersCount} {t("adminCustomers.active")})
                         </Badge>
                       </TableCell>
-                      <TableCell className="tabular-nums text-muted-foreground">
-                        {row.leadsPurchasedCount}
+                      <TableCell className="tabular-nums">
+                        <button
+                          type="button"
+                          onClick={() => openAssignedLeadsDialog(row)}
+                          className="rounded-md px-1 py-0.5 text-left hover:bg-muted/60"
+                          title={t("adminCustomers.purchasedLeadsHint")}
+                        >
+                          <div className="text-muted-foreground">{row.leadsPurchasedCount}</div>
+                          {row.leadsFreeDeliveryCount > 0 ? (
+                            <div className="text-xs text-violet-300">
+                              +{row.leadsFreeDeliveryCount} {t("adminCustomers.freeDeliveryLeads")}
+                            </div>
+                          ) : null}
+                        </button>
                       </TableCell>
                       <TableCell>
                         {typeof row.is_active !== "boolean" ? (
@@ -876,6 +928,9 @@ export function AdminCustomers() {
                             <DropdownMenuItem onClick={() => openPricingDialog(row)}>
                               <DollarSign className="mr-2 size-4" />
                               Custom pricing
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openAssignedLeadsDialog(row)}>
+                              {t("adminCustomers.assignedLeadsView")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openFreeDeliveryDialog(row)}>
                               <Gift className="mr-2 size-4" />
@@ -1177,6 +1232,21 @@ export function AdminCustomers() {
                     {new Date(freeDeliverySettings.distribute_after).toLocaleString()}
                   </p>
                 ) : null}
+                {freeDeliverySettings.quota_delivered > 0 ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="h-auto p-0 text-xs"
+                    onClick={() => {
+                      if (!freeDeliveryOrgId) return;
+                      setAssignedLeadsOrgId(freeDeliveryOrgId);
+                      setAssignedLeadsOrgName(freeDeliveryOrgName);
+                      setAssignedLeadsOpen(true);
+                    }}
+                  >
+                    {t("adminCustomers.assignedLeadsView")}
+                  </Button>
+                ) : null}
               </div>
             ) : freeDeliverySettings ? (
               <p className="text-sm text-muted-foreground">Not configured yet — set a total and save.</p>
@@ -1205,6 +1275,85 @@ export function AdminCustomers() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={assignedLeadsOpen} onOpenChange={setAssignedLeadsOpen}>
+        <DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {t("adminCustomers.assignedLeadsTitle")} — {assignedLeadsOrgName}
+            </DialogTitle>
+            <DialogDescription>{t("adminCustomers.assignedLeadsDesc")}</DialogDescription>
+          </DialogHeader>
+          {assignedLeadsLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : assignedLeadsError ? (
+            <p className="text-sm text-rose-300">
+              {formatQueryError(assignedLeadsErrorObj)}
+            </p>
+          ) : (
+            <div className="space-y-3 overflow-y-auto pr-1">
+              {assignedLeadsData?.summary ? (
+                <div className="flex flex-wrap gap-2 text-sm">
+                  <Badge className="bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
+                    {t("adminCustomers.assignedLeadsPaid")}: {assignedLeadsData.summary.paid}
+                  </Badge>
+                  <Badge className="bg-violet-500/15 text-violet-300 hover:bg-violet-500/25">
+                    {t("adminCustomers.assignedLeadsFreeDelivery")}:{" "}
+                    {assignedLeadsData.summary.free_delivery}
+                  </Badge>
+                  {assignedLeadsData.summary.signup_free > 0 ? (
+                    <Badge className="bg-amber-500/15 text-amber-300 hover:bg-amber-500/25">
+                      {t("adminCustomers.assignedLeadsSignupFree")}:{" "}
+                      {assignedLeadsData.summary.signup_free}
+                    </Badge>
+                  ) : null}
+                </div>
+              ) : null}
+              {(assignedLeadsData?.leads.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {t("adminCustomers.assignedLeadsEmpty")}
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("adminCustomers.assignedLeadsName")}</TableHead>
+                      <TableHead>{t("adminCustomers.assignedLeadsPhone")}</TableHead>
+                      <TableHead>{t("adminCustomers.assignedLeadsCategory")}</TableHead>
+                      <TableHead>{t("adminCustomers.assignedLeadsSource")}</TableHead>
+                      <TableHead>{t("adminCustomers.assignedLeadsAssigned")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {assignedLeadsData?.leads.map((lead) => (
+                      <TableRow key={lead.id}>
+                        <TableCell className="font-medium">
+                          {lead.first_name} {lead.last_name}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{lead.phone}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {lead.category_name ?? "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={grantSourceBadgeClass(lead.grant_source)}>
+                            {grantSourceLabel(lead.grant_source, t)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {new Date(lead.created_at).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
       <Dialog open={linkOpen} onOpenChange={setLinkOpen}>

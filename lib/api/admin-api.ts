@@ -243,6 +243,31 @@ export type OrganizationFreeDelivery = {
   updated_at: string;
 };
 
+export type OrganizationAssignedLead = {
+  id: string;
+  source_lead_id: string;
+  phone: string;
+  first_name: string;
+  last_name: string;
+  country: string | null;
+  grant_source: string;
+  created_at: string;
+  category_id: string | null;
+  category_name: string | null;
+};
+
+export type OrganizationAssignedLeadsResponse = {
+  organization_id: string;
+  organization_name: string;
+  summary: {
+    total: number;
+    paid: number;
+    free_delivery: number;
+    signup_free: number;
+  };
+  leads: OrganizationAssignedLead[];
+};
+
 /** Tier 1 admin dashboard: lead analytics scope (catalog counts unchanged). */
 export type AdminDashboardFilters = {
   /** Rolling window when dateFrom + dateTo are not both set. Default 30. */
@@ -747,12 +772,17 @@ export const adminApi = createApi({
         if (freeDeliveryErr) return { error: freeDeliveryErr };
 
         const countByOrg = new Map<string, number>();
+        const freeDeliveryCountByOrg = new Map<string, number>();
         for (const row of leadRows ?? []) {
           const source = row.grant_source as string | null;
-          if (source === "free_delivery" || source === "free_test" || source === "signup_free") {
+          const oid = row.organization_id as string;
+          if (source === "free_delivery") {
+            freeDeliveryCountByOrg.set(oid, (freeDeliveryCountByOrg.get(oid) ?? 0) + 1);
             continue;
           }
-          const oid = row.organization_id as string;
+          if (source === "free_test" || source === "signup_free") {
+            continue;
+          }
           countByOrg.set(oid, (countByOrg.get(oid) ?? 0) + 1);
         }
 
@@ -801,6 +831,9 @@ export const adminApi = createApi({
             phone: (org.phone as string | null) ?? null,
             created_at: String(org.created_at),
             leadsPurchasedCount: countByOrg.get(oid) ?? 0,
+            leadsFreeDeliveryCount: freeDeliveryCountByOrg.get(oid) ?? 0,
+            leadsAssignedCount:
+              (countByOrg.get(oid) ?? 0) + (freeDeliveryCountByOrg.get(oid) ?? 0),
             adminsCount: admins.length,
             agentsCount: agents.length,
             membersCount: members.length,
@@ -920,6 +953,20 @@ export const adminApi = createApi({
       ],
     }),
 
+    getOrganizationAssignedLeads: builder.query<OrganizationAssignedLeadsResponse, string>({
+      queryFn: async (organizationId) => {
+        const res = await jsonRequest<OrganizationAssignedLeadsResponse>(
+          `/api/admin/customers/${encodeURIComponent(organizationId)}/assigned-leads`,
+          "GET"
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data as OrganizationAssignedLeadsResponse };
+      },
+      providesTags: (_result, _error, organizationId) => [
+        { type: "Customers", id: `assigned-leads-${organizationId}` },
+      ],
+    }),
+
     upsertOrganizationFreeDelivery: builder.mutation<
       OrganizationFreeDelivery,
       { organization_id: string; quota_total: number; is_active: boolean }
@@ -935,6 +982,7 @@ export const adminApi = createApi({
       },
       invalidatesTags: (_result, _error, arg) => [
         { type: "Customers", id: `free-delivery-${arg.organization_id}` },
+        { type: "Customers", id: `assigned-leads-${arg.organization_id}` },
         "Customers",
         "Leads",
       ],
@@ -1548,6 +1596,7 @@ export const {
   useGetOrganizationPricingOverridesQuery,
   useUpsertOrganizationPricingOverrideMutation,
   useGetOrganizationFreeDeliveryQuery,
+  useGetOrganizationAssignedLeadsQuery,
   useUpsertOrganizationFreeDeliveryMutation,
   useUpdateCustomerMutation,
   useGetOrganizationFlowCommitmentsQuery,

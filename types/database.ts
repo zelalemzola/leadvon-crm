@@ -33,6 +33,8 @@ export type CustomerDirectoryRow = {
   phone: string | null;
   created_at: string;
   leadsPurchasedCount: number;
+  leadsFreeDeliveryCount: number;
+  leadsAssignedCount: number;
   adminsCount: number;
   agentsCount: number;
   membersCount: number;
