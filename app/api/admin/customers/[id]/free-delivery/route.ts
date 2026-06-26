@@ -169,7 +169,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     const extendGrace = await service
       .from("organization_free_delivery")
       .update({ distribute_after: graceStartsAt })
-      .eq("is_active", true);
+      .or("is_active.eq.true,organization_id.eq." + organizationId);
     if (extendGrace.error) {
       return NextResponse.json({ error: extendGrace.error.message }, { status: 400 });
     }

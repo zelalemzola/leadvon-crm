@@ -7,6 +7,7 @@ DECLARE
   v_magalela_id uuid;
   v_removed integer;
   v_returned integer;
+  v_orphaned integer;
 BEGIN
   SELECT id INTO v_magalela_id
   FROM public.organizations
@@ -18,6 +19,7 @@ BEGIN
     RAISE EXCEPTION 'magalela organization not found';
   END IF;
 
+  -- Unsell while customer_leads still exist (normal path).
   UPDATE public.leads l
   SET sold_at = NULL
   FROM public.customer_leads cl
@@ -32,6 +34,19 @@ BEGIN
     AND grant_source = 'free_delivery';
 
   GET DIAGNOSTICS v_removed = ROW_COUNT;
+
+  -- If customer_leads were already removed, still return orphaned sold inventory.
+  UPDATE public.leads l
+  SET sold_at = NULL
+  WHERE l.sold_at IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.customer_leads cl
+      WHERE cl.source_lead_id = l.id
+    );
+
+  GET DIAGNOSTICS v_orphaned = ROW_COUNT;
+  v_returned := v_returned + v_orphaned;
 
   UPDATE public.organization_free_delivery d
   SET
