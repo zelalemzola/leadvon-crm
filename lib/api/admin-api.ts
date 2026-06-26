@@ -235,6 +235,7 @@ export type OrganizationFreeDelivery = {
   quota_total: number;
   quota_delivered: number;
   eligible_from: string;
+  distribute_after: string;
   is_active: boolean;
   activated_at: string | null;
   activated_by: string | null;
@@ -737,7 +738,7 @@ export const adminApi = createApi({
 
         const { data: leadRows, error: leadErr } = await supabase
           .from("customer_leads")
-          .select("organization_id");
+          .select("organization_id, grant_source");
         if (leadErr) return { error: leadErr };
 
         const { data: freeDeliveryRows, error: freeDeliveryErr } = await supabase
@@ -747,6 +748,10 @@ export const adminApi = createApi({
 
         const countByOrg = new Map<string, number>();
         for (const row of leadRows ?? []) {
+          const source = row.grant_source as string | null;
+          if (source === "free_delivery" || source === "free_test" || source === "signup_free") {
+            continue;
+          }
           const oid = row.organization_id as string;
           countByOrg.set(oid, (countByOrg.get(oid) ?? 0) + 1);
         }

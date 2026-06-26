@@ -19,7 +19,7 @@ BEGIN
 
   DELETE FROM public.customer_leads
   WHERE organization_id = v_magalela_id
-    AND grant_source = 'free_delivery';
+    AND grant_source IN ('free_delivery', 'free_test');
 
   GET DIAGNOSTICS v_removed = ROW_COUNT;
 

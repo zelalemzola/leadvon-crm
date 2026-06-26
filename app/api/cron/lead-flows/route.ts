@@ -21,15 +21,29 @@ async function run(request: Request) {
   }
 
   const service = createServiceClient();
-  const { data, error } = await service.rpc("run_due_customer_lead_flows");
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  const paidFirst = await service.rpc("run_due_customer_lead_flows");
+  if (paidFirst.error) {
+    return NextResponse.json({ error: paidFirst.error.message }, { status: 400 });
   }
-  const leadsDelivered = typeof data === "number" ? data : Number(data ?? 0);
+  const freeDelivery = await service.rpc("distribute_free_delivery_leads");
+  if (freeDelivery.error) {
+    return NextResponse.json({ error: freeDelivery.error.message }, { status: 400 });
+  }
+  const paidCount = typeof paidFirst.data === "number" ? paidFirst.data : Number(paidFirst.data ?? 0);
+  const freeCount =
+    typeof freeDelivery.data === "number" ? freeDelivery.data : Number(freeDelivery.data ?? 0);
+  const leadsDelivered = paidCount + freeCount;
   if (leadsDelivered > 0) {
     await processPendingLeadEmails();
   }
-  return NextResponse.json({ data: { leads_delivered: leadsDelivered, processed: leadsDelivered } });
+  return NextResponse.json({
+    data: {
+      leads_delivered: leadsDelivered,
+      paid_leads_delivered: paidCount,
+      free_delivery_leads_delivered: freeCount,
+      processed: leadsDelivered,
+    },
+  });
 }
 
 export async function GET(request: Request) {

@@ -6,6 +6,8 @@ import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
+const FREE_DELIVERY_GRACE_MS = 5 * 60 * 1000;
+
 type FreeDeliveryRow = Record<string, unknown> & {
   organization_id: string;
   quota_total?: number;
@@ -15,6 +17,7 @@ type FreeDeliveryRow = Record<string, unknown> & {
   activated_at?: string | null;
   activated_by?: string | null;
   eligible_from?: string | null;
+  distribute_after?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -35,7 +38,12 @@ function normalizeFreeDelivery(row: FreeDeliveryRow | null) {
     quota_delivered: quotaDelivered,
     is_active: Boolean(row.is_active),
     eligible_from: row.eligible_from ?? null,
+    distribute_after: row.distribute_after ?? null,
   };
+}
+
+function distributeAfterIso(date = new Date()) {
+  return new Date(date.getTime() + FREE_DELIVERY_GRACE_MS).toISOString();
 }
 
 export async function GET(_request: Request, { params }: RouteParams) {
@@ -120,6 +128,14 @@ export async function PUT(request: Request, { params }: RouteParams) {
         ? (existingRow?.activated_at ?? new Date().toISOString())
         : null;
 
+  const graceStartsAt = distributeAfterIso();
+  const distributeAfter =
+    turningOn
+      ? graceStartsAt
+      : isActive
+        ? (existingRow?.distribute_after ?? graceStartsAt)
+        : (existingRow?.distribute_after ?? graceStartsAt);
+
   const { data, error } = await service
     .from("organization_free_delivery")
     .upsert(
@@ -128,6 +144,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
         quota_total: parsed.data.quota_total,
         quota_delivered: quotaDelivered,
         eligible_from: eligibleFrom ?? startOfUtcDayIso(),
+        distribute_after: distributeAfter,
         is_active: isActive && quotaDelivered < parsed.data.quota_total,
         activated_at: activatedAt,
         activated_by: isActive ? staff.userId : null,
@@ -141,10 +158,21 @@ export async function PUT(request: Request, { params }: RouteParams) {
     const hint =
       error.message.includes("quota_total") ||
       error.message.includes("eligible_from") ||
+      error.message.includes("distribute_after") ||
       error.message.includes("schema")
-        ? `${error.message} Run migrations 20260625160000 and 20260626120000 in Supabase.`
+        ? `${error.message} Run migrations 20260625160000 through 20260626130000 in Supabase.`
         : error.message;
     return NextResponse.json({ error: hint }, { status: 400 });
+  }
+
+  if (turningOn && isActive) {
+    const extendGrace = await service
+      .from("organization_free_delivery")
+      .update({ distribute_after: graceStartsAt })
+      .eq("is_active", true);
+    if (extendGrace.error) {
+      return NextResponse.json({ error: extendGrace.error.message }, { status: 400 });
+    }
   }
 
   await writeAuditLog({

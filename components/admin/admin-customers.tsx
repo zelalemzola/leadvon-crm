@@ -1139,8 +1139,10 @@ export function AdminCustomers() {
             <DialogTitle>Free leads delivery</DialogTitle>
             <DialogDescription>
               Set how many free leads {freeDeliveryOrgName} should receive. Only inventory from the
-              campaign start day onward is used. Delivery turns off automatically when the total is
-              reached; toggle on again later to start a new campaign.
+              campaign start day onward is used. After turning delivery on, the system waits 5 minutes
+              before assigning leads so you can enable other customers first for a fair split. Delivery
+              turns off automatically when the total is reached; toggle on again later to start a new
+              campaign.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1167,6 +1169,14 @@ export function AdminCustomers() {
                     {new Date(freeDeliverySettings.eligible_from).toLocaleDateString()}
                   </p>
                 ) : null}
+                {freeDeliverySettings.is_active &&
+                freeDeliverySettings.distribute_after &&
+                new Date(freeDeliverySettings.distribute_after) > new Date() ? (
+                  <p>
+                    Distribution starts:{" "}
+                    {new Date(freeDeliverySettings.distribute_after).toLocaleString()}
+                  </p>
+                ) : null}
               </div>
             ) : freeDeliverySettings ? (
               <p className="text-sm text-muted-foreground">Not configured yet — set a total and save.</p>
@@ -1178,7 +1188,7 @@ export function AdminCustomers() {
                 </Label>
                 <p className="text-xs text-muted-foreground">
                   {freeDeliveryActive
-                    ? "On — leads assign automatically until the total is delivered."
+                    ? "On — leads assign automatically after the 5-minute setup window until the total is delivered."
                     : "Off — no free leads will be assigned."}
                 </p>
               </div>
