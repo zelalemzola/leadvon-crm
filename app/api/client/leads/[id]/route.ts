@@ -32,7 +32,7 @@ export async function PATCH(
 
   const { data: existingLead } = await service
     .from("customer_leads")
-    .select("id, status, first_name, last_name, assigned_to, organization_id")
+    .select("id, status, first_name, last_name, assigned_to, organization_id, first_contacted_at")
     .eq("id", id)
     .eq("organization_id", auth.organizationId)
     .maybeSingle();
@@ -59,10 +59,18 @@ export async function PATCH(
     assigned_to?: string | null;
     call_count?: number;
     status_updated_at?: string;
+    first_contacted_at?: string;
   } = {};
   if (parsed.data.status !== undefined) {
     updatePayload.status = parsed.data.status;
     updatePayload.status_updated_at = new Date().toISOString();
+    if (
+      existingLead?.status === "new" &&
+      parsed.data.status !== "new" &&
+      !existingLead.first_contacted_at
+    ) {
+      updatePayload.first_contacted_at = new Date().toISOString();
+    }
   }
   if (parsed.data.notes !== undefined) updatePayload.notes = parsed.data.notes;
   if (parsed.data.assigned_to !== undefined) updatePayload.assigned_to = parsed.data.assigned_to;

@@ -74,11 +74,14 @@ export async function computeTieredQuote(args: {
       throw new Error(overrideError.message);
     }
 
-    if ((overrideRows ?? []).length > 0) {
+    const pricedOverrides = (overrideRows ?? []).filter(
+      (row) => Number(row.price_cents) > 0
+    );
+    if (pricedOverrides.length > 0) {
       const selectedOverride =
         (args.unitType
-          ? (overrideRows ?? []).find((row) => String(row.unit_type) === args.unitType)
-          : undefined) ?? overrideRows?.[0];
+          ? pricedOverrides.find((row) => String(row.unit_type) === args.unitType)
+          : undefined) ?? pricedOverrides[0];
 
       if (selectedOverride) {
         const pricePerLead = Number(selectedOverride.price_cents);
@@ -141,6 +144,12 @@ export async function computeTieredQuote(args: {
       : undefined) ?? rateRows[0];
 
   const pricePerLead = Number(selectedRate.price_cents);
+  if (!Number.isFinite(pricePerLead) || pricePerLead <= 0) {
+    throw new TieredPricingError(
+      "NO_TIER_RATE",
+      "Tier price must be greater than zero for this category"
+    );
+  }
   return {
     category_id: args.categoryId,
     unit_type: String(selectedRate.unit_type),

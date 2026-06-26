@@ -42,6 +42,7 @@ export function ClientBilling() {
     useCreateTieredFlowSessionMutation();
   const [runLeadFlowsNow, { isLoading: runningFlows }] = useRunLeadFlowsNowMutation();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [selectedUnitType, setSelectedUnitType] = useState<string>("");
   const [monthlyTargetLeads, setMonthlyTargetLeads] = useState<number>(100);
   const [tieredQuote, setTieredQuote] = useState<{
     price_per_lead_cents: number;
@@ -66,13 +67,17 @@ export function ClientBilling() {
   );
   const tierBreakpoints = pricingTiersData?.tiers ?? [];
   const unitTypeOptions = pricingTiersData?.unit_types ?? [];
-  const effectiveUnitType = unitTypeOptions[0] ?? "single";
+  const categoryMinimumOrder = Math.max(
+    1,
+    pricingTiersData?.minimum_order_qty ?? tieredQuote?.minimum_order_qty ?? 1
+  );
+  const effectiveUnitType = selectedUnitType || unitTypeOptions[0] || "single";
 
   const estimatedLeadsPerWeek = useMemo(
     () => Math.max(1, Math.round((monthlyTargetLeads || 1) / 4.333)),
     [monthlyTargetLeads]
   );
-  const sliderMinimum = Math.max(1, tieredQuote?.minimum_order_qty ?? 1);
+  const sliderMinimum = Math.max(1, categoryMinimumOrder);
   const sliderMaximum = 2000;
   const sliderStep = 1;
   const sliderMarks = useMemo(() => {
@@ -117,6 +122,14 @@ export function ClientBilling() {
   const tieredHandledRef = useRef<string | null>(null);
 
   useEffect(() => {
+    setSelectedUnitType("");
+  }, [activeCategoryId]);
+
+  useEffect(() => {
+    setMonthlyTargetLeads((prev) => Math.max(sliderMinimum, prev));
+  }, [sliderMinimum, activeCategoryId]);
+
+  useEffect(() => {
     const tieredState = searchParams.get("tiered");
     if (!tieredState) {
       tieredHandledRef.current = null;
@@ -149,9 +162,14 @@ export function ClientBilling() {
         try {
           const quote = await getTieredQuote({
             category_id: activeCategoryId,
-              unit_type: effectiveUnitType,
+            unit_type: effectiveUnitType,
             quantity: monthlyTargetLeads,
           }).unwrap();
+          if (!quote.price_per_lead_cents || !quote.total_cents) {
+            setTieredQuote(null);
+            setTieredQuoteError(t("clientBilling.zeroPriceError"));
+            return;
+          }
           setTieredQuote(quote);
           setTieredQuoteError("");
         } catch (err: unknown) {
@@ -165,7 +183,7 @@ export function ClientBilling() {
       })();
     }, 300);
     return () => clearTimeout(timer);
-  }, [activeCategoryId, effectiveUnitType, monthlyTargetLeads, getTieredQuote]);
+  }, [activeCategoryId, effectiveUnitType, monthlyTargetLeads, getTieredQuote, t]);
 
   async function activateLeadFlow() {
     if (!activeCategoryId) {
@@ -281,6 +299,27 @@ export function ClientBilling() {
                   </p>
                 )}
               </div>
+              {unitTypeOptions.length > 1 ? (
+                <div className="space-y-2">
+                  <Label>{t("clientBilling.leadType")}</Label>
+                  <Select value={effectiveUnitType} onValueChange={setSelectedUnitType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("clientBilling.selectLeadType")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {unitTypeOptions.map((unit) => (
+                        <SelectItem key={unit} value={unit}>
+                          {unit === "single"
+                            ? t("clientBilling.singleUnit")
+                            : unit === "family"
+                              ? t("clientBilling.familyUnit")
+                              : unit}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
               <div className="grid gap-4 md:grid-cols-2 md:items-start">
                 <div className="space-y-2 md:min-w-0">
                   <Label>{t("clientBilling.estimatedWeeklyLabel")}</Label>

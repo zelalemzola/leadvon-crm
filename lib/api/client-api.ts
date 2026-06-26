@@ -49,6 +49,7 @@ export type CustomerLead = {
   status: CustomerLeadStatus;
   assigned_to: string | null;
   status_updated_at: string;
+  first_contacted_at?: string | null;
   created_at: string;
   updated_at: string;
   lead_unit_type?: LeadUnitType;
@@ -64,6 +65,8 @@ export type CustomerDashboardStats = {
   byStatus: Record<CustomerLeadStatus, number>;
   leadsByDay: { day: string; count: number }[];
   byCategory: { name: string; count: number }[];
+  avgTimeToFirstContactMs: number | null;
+  contactedLeads: number;
 };
 
 export type CustomerDashboardFilters = {
@@ -186,6 +189,51 @@ export type ClientTieredPricingTier = {
 export type ClientPricingTiersPayload = {
   tiers: ClientTieredPricingTier[];
   unit_types: string[];
+  rates_by_tier?: Record<string, { unit_type: string; price_cents: number }[]>;
+  minimum_order_qty?: number;
+};
+
+export type AgentPerformanceRow = {
+  agent_id: string;
+  name: string;
+  email: string | null;
+  is_active: boolean;
+  assignment_percentage: number;
+  total_assigned: number;
+  contacted: number;
+  still_new: number;
+  qualified_closed: number;
+  conversion_rate: number;
+  avg_call_count: number;
+  by_status: Record<CustomerLeadStatus, number>;
+  avg_time_to_first_contact_ms: number | null;
+  median_time_to_first_contact_ms: number | null;
+  avg_time_to_first_contact: { value: number; unit: "minutes" | "hours" | "days" } | null;
+  median_time_to_first_contact: { value: number; unit: "minutes" | "hours" | "days" } | null;
+};
+
+export type AgentPerformancePayload = {
+  summary: {
+    total_leads: number;
+    total_agents: number;
+    active_agents: number;
+    avg_time_to_first_contact_ms: number | null;
+    avg_time_to_first_contact: { value: number; unit: "minutes" | "hours" | "days" } | null;
+    contacted_leads: number;
+    by_status: Record<CustomerLeadStatus, number>;
+  };
+  agents: AgentPerformanceRow[];
+  leaderboard: {
+    agent_id: string;
+    name: string;
+    conversion_rate: number;
+    total_assigned: number;
+  }[];
+};
+
+export type AgentPerformanceFilters = {
+  dateFrom?: string | null;
+  dateTo?: string | null;
 };
 
 function sb() {
@@ -230,6 +278,7 @@ export const clientApi = createApi({
     "ClientDeliveryLedger",
     "ClientInvoices",
     "ClientNotifications",
+    "AgentPerformance",
   ],
   endpoints: (builder) => ({
     getClientMe: builder.query<ClientMe | null, void>({
@@ -355,7 +404,7 @@ export const clientApi = createApi({
         if (res.error) return { error: res.error };
         return { data: res.data! };
       },
-      invalidatesTags: ["ClientLeads", "ClientDashboard", "ClientAudit", "ClientNotifications"],
+      invalidatesTags: ["ClientLeads", "ClientDashboard", "ClientAudit", "ClientNotifications", "AgentPerformance"],
     }),
 
     getCustomerDashboard: builder.query<CustomerDashboardStats, CustomerDashboardFilters | void>({
@@ -419,15 +468,28 @@ export const clientApi = createApi({
           byStatus[s] = r.count ?? 0;
         }
 
-        let byDayQ = sb().from("customer_leads").select("created_at");
+        let byDayQ = sb().from("customer_leads").select("created_at, first_contacted_at, status");
         byDayQ = applyDashboardFilters(byDayQ);
         const byDayRes = await byDayQ;
         if (byDayRes.error) return { error: byDayRes.error };
         const byDayMap = new Map<string, number>();
+        const ttfcMs: number[] = [];
+        let contactedLeads = 0;
         for (const row of byDayRes.data ?? []) {
           const k = new Date(row.created_at as string).toISOString().slice(0, 10);
           byDayMap.set(k, (byDayMap.get(k) ?? 0) + 1);
+          if (row.status !== "new") contactedLeads += 1;
+          if (row.first_contacted_at) {
+            const start = new Date(row.created_at as string).getTime();
+            const end = new Date(row.first_contacted_at as string).getTime();
+            const delta = end - start;
+            if (Number.isFinite(delta) && delta >= 0) ttfcMs.push(delta);
+          }
         }
+        const avgTimeToFirstContactMs =
+          ttfcMs.length > 0
+            ? Math.round(ttfcMs.reduce((sum, ms) => sum + ms, 0) / ttfcMs.length)
+            : null;
 
         let catQ = sb().from("customer_leads").select("categories(name)");
         catQ = applyDashboardFilters(catQ);
@@ -449,6 +511,8 @@ export const clientApi = createApi({
             byCategory: [...byCatMap.entries()]
               .map(([name, count]) => ({ name, count }))
               .sort((a, b) => b.count - a.count),
+            avgTimeToFirstContactMs,
+            contactedLeads,
           },
         };
       },
@@ -667,8 +731,28 @@ export const clientApi = createApi({
         if (!res.ok) {
           return { error: { status: res.status, data: json.error ?? "Request failed" } };
         }
-        return { data: json.data ?? { tiers: [], unit_types: [] } };
+        return { data: json.data ?? { tiers: [], unit_types: [], rates_by_tier: {}, minimum_order_qty: 1 } };
       },
+    }),
+
+    getAgentPerformance: builder.query<AgentPerformancePayload, AgentPerformanceFilters | void>({
+      queryFn: async (raw) => {
+        const f = raw ?? {};
+        const params = new URLSearchParams();
+        if (f.dateFrom) params.set("date_from", f.dateFrom);
+        if (f.dateTo) params.set("date_to", f.dateTo);
+        const qs = params.toString();
+        const res = await fetch(`/api/client/agents/performance${qs ? `?${qs}` : ""}`);
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: AgentPerformancePayload;
+          error?: string;
+        };
+        if (!res.ok) {
+          return { error: { status: res.status, data: json.error ?? "Request failed" } };
+        }
+        return { data: json.data! };
+      },
+      providesTags: ["AgentPerformance", "ClientDashboard"],
     }),
 
     getOrgUsers: builder.query<OrgUserWithLastLogin[], void>({
@@ -877,4 +961,5 @@ export const {
   useUpsertLeadFlowMutation,
   useUpdateLeadFlowMutation,
   useRunLeadFlowsNowMutation,
+  useGetAgentPerformanceQuery,
 } = clientApi;

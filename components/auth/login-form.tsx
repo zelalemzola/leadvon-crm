@@ -143,7 +143,15 @@ export function LoginForm({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">{t("auth.login.password")}</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">{t("auth.login.password")}</Label>
+              <Link
+                href={localizePath("/forgot-password")}
+                className="text-xs font-medium text-primary underline underline-offset-2"
+              >
+                {t("auth.login.forgotPassword")}
+              </Link>
+            </div>
             <Input
               id="password"
               type="password"

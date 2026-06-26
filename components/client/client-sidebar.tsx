@@ -14,6 +14,7 @@ import {
   User,
   Compass,
   Bell,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -59,7 +60,11 @@ export function ClientSidebar() {
     : baseNav;
   const nav =
     me?.role === "customer_admin"
-      ? [...navCore, { href: "/client/settings", key: "client.nav.settings", icon: Settings }]
+      ? [
+          ...navCore,
+          { href: "/client/agents", key: "client.nav.agents", icon: BarChart3 },
+          { href: "/client/settings", key: "client.nav.settings", icon: Settings },
+        ]
       : navCore;
 
   async function signOut() {

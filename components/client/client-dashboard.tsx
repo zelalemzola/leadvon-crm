@@ -36,6 +36,7 @@ import {
   XCircle,
   Ban,
   Copy,
+  Timer,
 } from "lucide-react";
 import { useI18n } from "@/components/providers/i18n-provider";
 import {
@@ -281,8 +282,24 @@ export function ClientDashboard() {
             const conversionBase = contacted || 1;
             const conversionRate = ((data.byStatus.qualified + data.byStatus.closed) / conversionBase) * 100;
             const topCategory = data.byCategory[0];
+            const ttfcMinutes =
+              data.avgTimeToFirstContactMs !== null
+                ? Math.round(data.avgTimeToFirstContactMs / 60_000)
+                : null;
+            const ttfcHours =
+              data.avgTimeToFirstContactMs !== null
+                ? Math.round(data.avgTimeToFirstContactMs / 3_600_000)
+                : null;
+            const ttfcLabel =
+              ttfcMinutes === null
+                ? t("clientDashboard.na")
+                : ttfcMinutes < 60
+                  ? `${ttfcMinutes} ${t("clientAgentPerformance.minutes")}`
+                  : ttfcHours !== null && ttfcHours < 48
+                    ? `${ttfcHours} ${t("clientAgentPerformance.hours")}`
+                    : `${Math.round((ttfcHours ?? 0) / 24)} ${t("clientAgentPerformance.days")}`;
             return (
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 <Card className="border-border/70 bg-card/50">
                   <CardContent className="p-4">
                     <p className="text-xs text-muted-foreground">{t("clientDashboard.contactedLeads")}</p>
@@ -293,6 +310,17 @@ export function ClientDashboard() {
                   <CardContent className="p-4">
                     <p className="text-xs text-muted-foreground">{t("clientDashboard.qualifiedClosedRate")}</p>
                     <p className="mt-1 text-2xl font-semibold tabular-nums">{conversionRate.toFixed(1)}%</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-border/70 bg-card/50">
+                  <CardContent className="flex items-start gap-3 p-4">
+                    <Timer className="mt-0.5 size-4 text-primary" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">
+                        {t("clientDashboard.avgTimeToFirstContact")}
+                      </p>
+                      <p className="mt-1 text-2xl font-semibold tabular-nums">{ttfcLabel}</p>
+                    </div>
                   </CardContent>
                 </Card>
                 <Card className="border-border/70 bg-card/50">
