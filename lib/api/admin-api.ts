@@ -164,6 +164,11 @@ export type DeliverSignupFreeLeadResult = {
   grant_source: "signup_free";
 };
 
+export type DeliverFreeLeadResult = {
+  customer_lead_id: string;
+  grant_source: "free_delivery";
+};
+
 export type AdminFlowCommitmentRow = {
   id: string;
   organization_id: string;
@@ -1580,6 +1585,21 @@ export const adminApi = createApi({
       },
       invalidatesTags: ["Leads", "Dashboard", "Customers"],
     }),
+    deliverFreeLead: builder.mutation<
+      DeliverFreeLeadResult,
+      { organization_id: string; source_lead_id: string }
+    >({
+      queryFn: async (body) => {
+        const res = await jsonRequest<DeliverFreeLeadResult>(
+          "/api/admin/leads/deliver-free",
+          "POST",
+          body
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data as DeliverFreeLeadResult };
+      },
+      invalidatesTags: ["Leads", "Dashboard", "Customers"],
+    }),
   }),
 });
 
@@ -1630,6 +1650,7 @@ export const {
   useGetDeliveryEntitlementsQuery,
   useDeliverPrepaidLeadMutation,
   useDeliverSignupFreeLeadMutation,
+  useDeliverFreeLeadMutation,
   useGetCategoryPricingTiersQuery,
   useGetCategoryPricingTierRatesQuery,
   useCreateCategoryPricingTierMutation,

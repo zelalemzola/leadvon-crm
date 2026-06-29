@@ -9,6 +9,7 @@ import {
   Upload,
   Download,
   CreditCard,
+  Gift,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -20,6 +21,7 @@ import {
   useDeleteLeadMutation,
   useDeliverPrepaidLeadMutation,
   useDeliverSignupFreeLeadMutation,
+  useDeliverFreeLeadMutation,
   type AdminLeadsAvailability,
   type AdminLeadsSourceFilter,
   type AdminLeadsSort,
@@ -137,6 +139,10 @@ export function AdminLeads() {
   const [signupFreeDialogOpen, setSignupFreeDialogOpen] = useState(false);
   const [signupFreeLead, setSignupFreeLead] = useState<LeadWithCategory | null>(null);
   const [signupFreeOrgId, setSignupFreeOrgId] = useState("");
+  const [freeDialogOpen, setFreeDialogOpen] = useState(false);
+  const [freeLead, setFreeLead] = useState<LeadWithCategory | null>(null);
+  const [freeOrgId, setFreeOrgId] = useState("");
+  const [summaryLead, setSummaryLead] = useState<LeadWithCategory | null>(null);
   const [editing, setEditing] = useState<LeadWithCategory | null>(null);
   const [form, setForm] = useState(emptyForm);
   const importRef = useRef<HTMLInputElement | null>(null);
@@ -168,6 +174,8 @@ export function AdminLeads() {
     useDeliverPrepaidLeadMutation();
   const [deliverSignupFree, { isLoading: deliveringSignupFree }] =
     useDeliverSignupFreeLeadMutation();
+  const [deliverFree, { isLoading: deliveringFree }] =
+    useDeliverFreeLeadMutation();
 
   const loading = leadsLoading || catLoading;
   const rows = leads?.rows ?? [];
@@ -209,6 +217,12 @@ export function AdminLeads() {
     }
   }, [prepaidDialogOpen, prepaidOrgId, orgChoices]);
 
+  useEffect(() => {
+    if (freeDialogOpen && !freeOrgId && orgChoices.length > 0) {
+      setFreeOrgId(orgChoices[0][0]);
+    }
+  }, [freeDialogOpen, freeOrgId, orgChoices]);
+
   function openCreate() {
     setEditing(null);
     setForm({
@@ -243,6 +257,12 @@ export function AdminLeads() {
     setSignupFreeLead(row);
     setSignupFreeOrgId(orgChoices[0]?.[0] ?? "");
     setSignupFreeDialogOpen(true);
+  }
+
+  function openFreeDeliver(row: LeadWithCategory) {
+    setFreeLead(row);
+    setFreeOrgId(orgChoices[0]?.[0] ?? "");
+    setFreeDialogOpen(true);
   }
 
   async function handlePrepaidDeliver(e: React.FormEvent) {
@@ -284,6 +304,29 @@ export function AdminLeads() {
       toast.success(t("adminLeads.deliveredToCustomerForFree"));
       setSignupFreeDialogOpen(false);
       setSignupFreeLead(null);
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "data" in err
+          ? String((err as { data?: { message?: string } }).data)
+          : t("adminLeads.deliveryFailed");
+      toast.error(msg);
+    }
+  }
+
+  async function handleFreeDeliver(e: React.FormEvent) {
+    e.preventDefault();
+    if (!freeLead || !freeOrgId) {
+      toast.error(t("adminLeads.selectOrganization"));
+      return;
+    }
+    try {
+      await deliverFree({
+        organization_id: freeOrgId,
+        source_lead_id: freeLead.id,
+      }).unwrap();
+      toast.success(t("adminLeads.deliveredToCustomerFree"));
+      setFreeDialogOpen(false);
+      setFreeLead(null);
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object" && "data" in err
@@ -706,8 +749,19 @@ export function AdminLeads() {
                         <TableCell>
                           <LeadSourceBadge lead={row} t={t} />
                         </TableCell>
-                        <TableCell className="max-w-[240px] truncate text-muted-foreground">
-                          {row.summary || t("admin.dashboard.na")}
+                        <TableCell className="max-w-[240px] text-muted-foreground">
+                          {row.summary ? (
+                            <button
+                              type="button"
+                              onClick={() => setSummaryLead(row)}
+                              title={t("adminLeads.viewSummary")}
+                              className="block max-w-full truncate text-left text-primary underline-offset-2 hover:underline"
+                            >
+                              {row.summary}
+                            </button>
+                          ) : (
+                            t("admin.dashboard.na")
+                          )}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {new Date(row.created_at).toLocaleDateString()}
@@ -749,6 +803,14 @@ export function AdminLeads() {
                                 >
                                   <CreditCard className="size-4" />
                                   {t("adminLeads.deliverPrepaid")}
+                                </DropdownMenuItem>
+                              ) : null}
+                              {!row.sold_at ? (
+                                <DropdownMenuItem
+                                  onClick={() => openFreeDeliver(row)}
+                                >
+                                  <Gift className="size-4" />
+                                  {t("adminLeads.deliverFree")}
                                 </DropdownMenuItem>
                               ) : null}
                               <DropdownMenuItem onClick={() => openEdit(row)}>
@@ -933,6 +995,107 @@ export function AdminLeads() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={freeDialogOpen}
+        onOpenChange={(open) => {
+          setFreeDialogOpen(open);
+          if (!open) setFreeLead(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={(e) => void handleFreeDeliver(e)}>
+            <DialogHeader>
+              <DialogTitle>{t("adminLeads.deliverLeadFree")}</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4 text-sm">
+              <p className="text-muted-foreground">
+                {t("adminLeads.deliverLeadFreeDesc")}
+              </p>
+              {freeLead ? (
+                <p className="rounded-md border border-border/80 bg-muted/40 px-3 py-2 text-xs">
+                  {freeLead.first_name} {freeLead.last_name} ·{" "}
+                  {freeLead.categories?.name ?? t("admin.dashboard.na")} · {t("adminLeads.unit")}:{" "}
+                  {freeLead.lead_unit_type ?? "single"}
+                </p>
+              ) : null}
+              <div className="space-y-2">
+                <Label>{t("adminLeads.organization")}</Label>
+                <Select
+                  value={freeOrgId}
+                  onValueChange={setFreeOrgId}
+                  disabled={orgChoices.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        orgChoices.length === 0
+                          ? t("adminLeads.noCustomersWithOrgs")
+                          : t("adminLeads.selectOrganizationLabel")
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {orgChoices.map(([id, name]) => (
+                      <SelectItem key={id} value={id}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setFreeDialogOpen(false)}
+              >
+                {t("adminLeads.cancel")}
+              </Button>
+              <Button
+                type="submit"
+                disabled={deliveringFree || orgChoices.length === 0}
+              >
+                {t("adminLeads.deliver")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={summaryLead !== null}
+        onOpenChange={(open) => {
+          if (!open) setSummaryLead(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("adminLeads.summaryDetail")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-sm">
+            {summaryLead ? (
+              <p className="text-xs text-muted-foreground">
+                {summaryLead.first_name} {summaryLead.last_name} ·{" "}
+                {summaryLead.categories?.name ?? t("admin.dashboard.na")}
+              </p>
+            ) : null}
+            <p className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words leading-relaxed">
+              {summaryLead?.summary || t("adminLeads.noSummary")}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSummaryLead(null)}
+            >
+              {t("adminLeads.cancel")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
