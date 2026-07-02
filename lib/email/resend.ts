@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { renderNewLeadEmail } from "@/lib/email/templates/new-lead";
+import { renderNewLeadsDigestEmail } from "@/lib/email/templates/new-lead";
 
 let resendClient: Resend | null = null;
 
@@ -29,15 +29,10 @@ export function getAppBaseUrl() {
   return configured.startsWith("http") ? configured : `https://${configured}`;
 }
 
-export async function sendNewLeadEmail(input: {
+export async function sendNewLeadsDigestEmail(input: {
   to: string;
   recipientName: string;
-  leadName: string;
-  categoryName: string;
-  phone: string;
-  country: string;
-  zipCode?: string | null;
-  assignedAgentName?: string | null;
+  leadCount: number;
   locale?: string;
 }) {
   const resend = getResend();
@@ -50,14 +45,9 @@ export async function sendNewLeadEmail(input: {
 
   const localePrefix = input.locale === "fr" ? "/fr" : "/en";
   const leadsUrl = `${getAppBaseUrl()}${localePrefix}/client/leads`;
-  const { subject, html } = renderNewLeadEmail({
+  const { subject, html } = renderNewLeadsDigestEmail({
     recipientName: input.recipientName,
-    leadName: input.leadName,
-    categoryName: input.categoryName,
-    phone: input.phone,
-    country: input.country,
-    zipCode: input.zipCode,
-    assignedAgentName: input.assignedAgentName,
+    leadCount: input.leadCount,
     leadsUrl,
   });
 

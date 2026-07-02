@@ -13,6 +13,11 @@ import type {
   PackageWithCategory,
   Profile,
   SupportContact,
+  CustomerCallScript,
+  SmsAutomation,
+  SmsBalance,
+  SmsMessage,
+  SmsTransaction,
 } from "@/types/database";
 
 type CustomerLeadStatus =
@@ -236,6 +241,13 @@ export type AgentPerformanceFilters = {
   dateTo?: string | null;
 };
 
+export type OrgSmsSenderSettings = {
+  id: string;
+  name: string;
+  twilio_from_number: string | null;
+  twilio_messaging_service_sid: string | null;
+};
+
 function sb() {
   return createClient();
 }
@@ -279,6 +291,8 @@ export const clientApi = createApi({
     "ClientInvoices",
     "ClientNotifications",
     "AgentPerformance",
+    "Sms",
+    "CallScripts",
   ],
   endpoints: (builder) => ({
     getClientMe: builder.query<ClientMe | null, void>({
@@ -928,6 +942,199 @@ export const clientApi = createApi({
         "ClientNotifications",
       ],
     }),
+
+    getSmsOverview: builder.query<
+      {
+        balance: SmsBalance | null;
+        messages: (SmsMessage & { customer_leads?: { first_name: string; last_name: string } | null })[];
+        transactions: SmsTransaction[];
+      },
+      void
+    >({
+      queryFn: async () => {
+        const res = await fetch("/api/client/sms");
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: {
+            balance: SmsBalance | null;
+            messages: (SmsMessage & { customer_leads?: { first_name: string; last_name: string } | null })[];
+            transactions: SmsTransaction[];
+          };
+          error?: string;
+        };
+        if (!res.ok) {
+          return { error: { status: res.status, data: json.error ?? "Request failed" } };
+        }
+        return {
+          data: json.data ?? { balance: null, messages: [], transactions: [] },
+        };
+      },
+      providesTags: ["Sms"],
+    }),
+
+    createSmsTopupSession: builder.mutation<{ url: string }, { amount_cents: number }>({
+      queryFn: async (body) => {
+        const res = await requestJson<{ url: string }>(
+          "/api/client/billing/sms-topup-session",
+          "POST",
+          body
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data! };
+      },
+    }),
+
+    getSmsAutomations: builder.query<SmsAutomation[], void>({
+      queryFn: async () => {
+        const res = await fetch("/api/client/sms/automations");
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: SmsAutomation[];
+          error?: string;
+        };
+        if (!res.ok) {
+          return { error: { status: res.status, data: json.error ?? "Request failed" } };
+        }
+        return { data: json.data ?? [] };
+      },
+      providesTags: ["Sms"],
+    }),
+
+    createSmsAutomation: builder.mutation<
+      SmsAutomation,
+      {
+        name: string;
+        trigger_status: CustomerLeadStatus;
+        message_template: string;
+        is_active?: boolean;
+      }
+    >({
+      queryFn: async (body) => {
+        const res = await requestJson<SmsAutomation>("/api/client/sms/automations", "POST", body);
+        if (res.error) return { error: res.error };
+        return { data: res.data! };
+      },
+      invalidatesTags: ["Sms", "ClientAudit"],
+    }),
+
+    updateSmsAutomation: builder.mutation<
+      SmsAutomation,
+      {
+        id: string;
+        name?: string;
+        trigger_status?: CustomerLeadStatus;
+        message_template?: string;
+        is_active?: boolean;
+      }
+    >({
+      queryFn: async ({ id, ...body }) => {
+        const res = await requestJson<SmsAutomation>(`/api/client/sms/automations/${id}`, "PATCH", body);
+        if (res.error) return { error: res.error };
+        return { data: res.data! };
+      },
+      invalidatesTags: ["Sms", "ClientAudit"],
+    }),
+
+    deleteSmsAutomation: builder.mutation<{ ok: true }, { id: string }>({
+      queryFn: async ({ id }) => {
+        const res = await fetch(`/api/client/sms/automations/${id}`, { method: "DELETE" });
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          return { error: { status: res.status, data: json.error ?? "Request failed" } };
+        }
+        return { data: { ok: true } };
+      },
+      invalidatesTags: ["Sms", "ClientAudit"],
+    }),
+
+    sendLeadSms: builder.mutation<{ message_id: string }, { lead_id: string; message: string }>({
+      queryFn: async (body) => {
+        const res = await requestJson<{ message_id: string }>("/api/client/sms", "POST", body);
+        if (res.error) return { error: res.error };
+        return { data: res.data! };
+      },
+      invalidatesTags: ["Sms", "ClientAudit"],
+    }),
+
+    getOrgSmsSenderSettings: builder.query<OrgSmsSenderSettings | null, void>({
+      queryFn: async () => {
+        const res = await fetch("/api/client/organization/sms-sender");
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: OrgSmsSenderSettings | null;
+          error?: string;
+        };
+        if (!res.ok) {
+          return { error: { status: res.status, data: json.error ?? "Request failed" } };
+        }
+        return { data: json.data ?? null };
+      },
+      providesTags: ["Sms"],
+    }),
+
+    updateOrgSmsSenderSettings: builder.mutation<
+      OrgSmsSenderSettings,
+      {
+        twilio_from_number?: string | null;
+        twilio_messaging_service_sid?: string | null;
+      }
+    >({
+      queryFn: async (body) => {
+        const res = await requestJson<OrgSmsSenderSettings>(
+          "/api/client/organization/sms-sender",
+          "PATCH",
+          body
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data! };
+      },
+      invalidatesTags: ["Sms", "ClientAudit"],
+    }),
+
+    getCallScripts: builder.query<CustomerCallScript[], void>({
+      queryFn: async () => {
+        const res = await fetch("/api/client/call-scripts");
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: CustomerCallScript[];
+          error?: string;
+        };
+        if (!res.ok) {
+          return { error: { status: res.status, data: json.error ?? "Request failed" } };
+        }
+        return { data: json.data ?? [] };
+      },
+      providesTags: ["CallScripts"],
+    }),
+
+    createCallScript: builder.mutation<CustomerCallScript, { title: string; content: string }>({
+      queryFn: async (body) => {
+        const res = await requestJson<CustomerCallScript>("/api/client/call-scripts", "POST", body);
+        if (res.error) return { error: res.error };
+        return { data: res.data! };
+      },
+      invalidatesTags: ["CallScripts", "ClientAudit"],
+    }),
+
+    updateCallScript: builder.mutation<
+      CustomerCallScript,
+      { id: string; title?: string; content?: string }
+    >({
+      queryFn: async ({ id, ...body }) => {
+        const res = await requestJson<CustomerCallScript>(`/api/client/call-scripts/${id}`, "PATCH", body);
+        if (res.error) return { error: res.error };
+        return { data: res.data! };
+      },
+      invalidatesTags: ["CallScripts", "ClientAudit"],
+    }),
+
+    deleteCallScript: builder.mutation<{ ok: true }, { id: string }>({
+      queryFn: async ({ id }) => {
+        const res = await fetch(`/api/client/call-scripts/${id}`, { method: "DELETE" });
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          return { error: { status: res.status, data: json.error ?? "Request failed" } };
+        }
+        return { data: { ok: true } };
+      },
+      invalidatesTags: ["CallScripts", "ClientAudit"],
+    }),
   }),
 });
 
@@ -962,4 +1169,17 @@ export const {
   useUpdateLeadFlowMutation,
   useRunLeadFlowsNowMutation,
   useGetAgentPerformanceQuery,
+  useGetSmsOverviewQuery,
+  useCreateSmsTopupSessionMutation,
+  useGetSmsAutomationsQuery,
+  useCreateSmsAutomationMutation,
+  useUpdateSmsAutomationMutation,
+  useDeleteSmsAutomationMutation,
+  useSendLeadSmsMutation,
+  useGetOrgSmsSenderSettingsQuery,
+  useUpdateOrgSmsSenderSettingsMutation,
+  useGetCallScriptsQuery,
+  useCreateCallScriptMutation,
+  useUpdateCallScriptMutation,
+  useDeleteCallScriptMutation,
 } = clientApi;

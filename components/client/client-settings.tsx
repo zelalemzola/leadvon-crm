@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   useCreateOrgUserMutation,
   useGetClientMeQuery,
+  useGetOrgSmsSenderSettingsQuery,
   useGetOrgUsersQuery,
+  useUpdateOrgSmsSenderSettingsMutation,
   useUpdateOrgUserMutation,
 } from "@/lib/api/client-api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,12 +27,16 @@ export function ClientSettings() {
   });
   const [createUser, { isLoading: creating }] = useCreateOrgUserMutation();
   const [updateUser, { isLoading: updatingUser }] = useUpdateOrgUserMutation();
+  const { data: smsSender } = useGetOrgSmsSenderSettingsQuery();
+  const [updateSmsSender, { isLoading: updatingSmsSender }] = useUpdateOrgSmsSenderSettingsMutation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tempPasswordByUser, setTempPasswordByUser] = useState<Record<string, string>>({});
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<"customer_admin" | "customer_agent">("customer_agent");
   const [assignmentDraft, setAssignmentDraft] = useState<Record<string, string>>({});
+  const [twilioFromNumber, setTwilioFromNumber] = useState("");
+  const [twilioMessagingServiceSid, setTwilioMessagingServiceSid] = useState("");
   const isOrgAdmin = me?.role === "customer_admin" && me?.is_active;
 
   const activeAgentShareTotal = useMemo(
@@ -40,6 +46,40 @@ export function ClientSettings() {
         .reduce((sum, u) => sum + (u.lead_assignment_percentage ?? 0), 0),
     [users]
   );
+
+  useEffect(() => {
+    setTwilioFromNumber(smsSender?.twilio_from_number ?? "");
+    setTwilioMessagingServiceSid(smsSender?.twilio_messaging_service_sid ?? "");
+  }, [smsSender?.twilio_from_number, smsSender?.twilio_messaging_service_sid]);
+
+  async function saveSmsSenderSettings(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isOrgAdmin) {
+      toast.error(t("clientSettings.onlyAdminsUpdateSmsSender"));
+      return;
+    }
+
+    const from = twilioFromNumber.trim();
+    const sid = twilioMessagingServiceSid.trim();
+    if (from && sid) {
+      toast.error(t("clientSettings.smsSenderChooseOne"));
+      return;
+    }
+
+    try {
+      await updateSmsSender({
+        twilio_from_number: from || null,
+        twilio_messaging_service_sid: sid || null,
+      }).unwrap();
+      toast.success(t("clientSettings.smsSenderSaved"));
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "data" in err
+          ? String((err as { data?: unknown }).data)
+          : t("clientSettings.smsSenderSaveFailed");
+      toast.error(msg);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -153,6 +193,43 @@ export function ClientSettings() {
           {t("clientSettings.subtitle")}
         </p>
       </header>
+
+      <Card className="max-w-2xl border-border/70 bg-card/50">
+        <CardHeader>
+          <CardTitle className="text-base">{t("clientSettings.smsSenderTitle")}</CardTitle>
+          <CardDescription>
+            {t("clientSettings.smsSenderDesc")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={(e) => void saveSmsSenderSettings(e)} className="grid gap-4">
+            <div className="space-y-2">
+              <Label>{t("clientSettings.twilioFromNumber")}</Label>
+              <Input
+                value={twilioFromNumber}
+                onChange={(e) => setTwilioFromNumber(e.target.value)}
+                placeholder={t("clientSettings.twilioFromNumberPlaceholder")}
+                disabled={!isOrgAdmin || updatingSmsSender}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{t("clientSettings.twilioMessagingServiceSid")}</Label>
+              <Input
+                value={twilioMessagingServiceSid}
+                onChange={(e) => setTwilioMessagingServiceSid(e.target.value)}
+                placeholder={t("clientSettings.twilioMessagingServiceSidPlaceholder")}
+                disabled={!isOrgAdmin || updatingSmsSender}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">{t("clientSettings.smsSenderHint")}</p>
+            <div>
+              <Button type="submit" disabled={!isOrgAdmin || updatingSmsSender}>
+                {updatingSmsSender ? t("clientSettings.saving") : t("clientSettings.saveSmsSender")}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
       <Card id="tour-client-settings-create-user" className="max-w-2xl border-border/70 bg-card/50">
         <CardHeader>

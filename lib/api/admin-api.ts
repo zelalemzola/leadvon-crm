@@ -149,7 +149,7 @@ export type FinanceSnapshotData = {
 };
 
 export type AdminLeadsAvailability = "all" | "available" | "sold";
-export type AdminLeadsSourceFilter = "all" | "manual" | "base44";
+export type AdminLeadsSourceFilter = "all" | "manual" | "base44" | "funnel";
 export type AdminLeadsSort = "newest" | "oldest";
 
 export type DeliverPrepaidLeadResult = {
@@ -167,6 +167,16 @@ export type DeliverSignupFreeLeadResult = {
 export type DeliverFreeLeadResult = {
   customer_lead_id: string;
   grant_source: "free_delivery";
+};
+
+export type FunnelSyncResult = {
+  fetched: number;
+  inserted: number;
+  updated: number;
+  skipped_invalid: number;
+  skip_reasons: Record<string, number>;
+  next_skip: number;
+  cursor_updated_at: string | null;
 };
 
 export type AdminFlowCommitmentRow = {
@@ -391,6 +401,35 @@ async function jsonRequest<T>(
   return { data: json.data ?? (json as unknown as T) };
 }
 
+export type AdminSmsBalanceRow = {
+  id: string;
+  organization_id: string;
+  balance_cents: number;
+  organizations?: { id: string; name: string } | null;
+};
+
+export type AdminSmsMessageRow = {
+  id: string;
+  organization_id: string;
+  to_phone: string;
+  cost_cents: number;
+  delivery_status: string;
+  created_at: string;
+  organizations?: { id: string; name: string } | null;
+  customer_leads?: { first_name?: string; last_name?: string } | null;
+};
+
+export type AdminSmsOverview = {
+  totals: {
+    organizations: number;
+    total_balance_cents: number;
+    messages_sent: number;
+    total_sms_spend_cents: number;
+  };
+  balances: AdminSmsBalanceRow[];
+  recent_messages: AdminSmsMessageRow[];
+};
+
 export const adminApi = createApi({
   reducerPath: "adminApi",
   baseQuery: fakeBaseQuery(),
@@ -407,6 +446,7 @@ export const adminApi = createApi({
     "Entitlements",
     "FlowCommitments",
     "TieredPricing",
+    "AdminSms",
   ],
   endpoints: (builder) => ({
     getDashboardStats: builder.query<DashboardStats, AdminDashboardFilters | void>({
@@ -563,6 +603,7 @@ export const adminApi = createApi({
         if (availability === "sold") listQuery = listQuery.not("sold_at", "is", null);
         if (source === "manual") listQuery = listQuery.eq("source_system", "manual");
         if (source === "base44") listQuery = listQuery.eq("source_system", "base44");
+        if (source === "funnel") listQuery = listQuery.eq("source_system", "funnel");
         if (country.trim()) {
           listQuery = listQuery.ilike("country", `%${country.trim()}%`);
         }
@@ -584,6 +625,7 @@ export const adminApi = createApi({
         if (availability === "sold") countQuery = countQuery.not("sold_at", "is", null);
         if (source === "manual") countQuery = countQuery.eq("source_system", "manual");
         if (source === "base44") countQuery = countQuery.eq("source_system", "base44");
+        if (source === "funnel") countQuery = countQuery.eq("source_system", "funnel");
         if (country.trim()) {
           countQuery = countQuery.ilike("country", `%${country.trim()}%`);
         }
@@ -1600,6 +1642,43 @@ export const adminApi = createApi({
       },
       invalidatesTags: ["Leads", "Dashboard", "Customers"],
     }),
+    syncFunnelLeads: builder.mutation<FunnelSyncResult, void>({
+      queryFn: async () => {
+        const res = await jsonRequest<FunnelSyncResult>(
+          "/api/admin/leads/sync-funnel",
+          "POST"
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data as FunnelSyncResult };
+      },
+      invalidatesTags: ["Leads", "Dashboard"],
+    }),
+
+    getAdminSmsOverview: builder.query<AdminSmsOverview, void>({
+      queryFn: async () => {
+        const res = await fetch("/api/admin/sms/overview");
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: AdminSmsOverview;
+          error?: string;
+        };
+        if (!res.ok) {
+          return { error: { status: res.status, data: json.error ?? "Request failed" } };
+        }
+        return {
+          data: json.data ?? {
+            totals: {
+              organizations: 0,
+              total_balance_cents: 0,
+              messages_sent: 0,
+              total_sms_spend_cents: 0,
+            },
+            balances: [],
+            recent_messages: [],
+          },
+        };
+      },
+      providesTags: ["AdminSms"],
+    }),
   }),
 });
 
@@ -1651,6 +1730,7 @@ export const {
   useDeliverPrepaidLeadMutation,
   useDeliverSignupFreeLeadMutation,
   useDeliverFreeLeadMutation,
+  useSyncFunnelLeadsMutation,
   useGetCategoryPricingTiersQuery,
   useGetCategoryPricingTierRatesQuery,
   useCreateCategoryPricingTierMutation,
@@ -1658,4 +1738,5 @@ export const {
   useDeleteCategoryPricingTierMutation,
   useUpsertCategoryPricingTierRateMutation,
   useUpdateCategoryMinimumOrderQtyMutation,
+  useGetAdminSmsOverviewQuery,
 } = adminApi;

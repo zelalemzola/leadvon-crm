@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { requireCustomerUser, writeCustomerAuditLog } from "@/lib/server/client/auth";
 import { clientLeadPatchSchema } from "@/lib/validation/client";
 import { createLeadStatusNotifications } from "@/lib/server/notifications/dispatch";
+import { runSmsAutomationsForStatusChange } from "@/lib/server/sms/run-automations";
 
 export async function PATCH(
   request: Request,
@@ -115,6 +116,14 @@ export async function PATCH(
       oldStatus: existingLead.status,
       newStatus: parsed.data.status,
       assignedTo: existingLead.assigned_to,
+    });
+
+    await runSmsAutomationsForStatusChange({
+      organizationId: auth.organizationId,
+      leadId: id,
+      newStatus: parsed.data.status,
+      actorId: auth.userId,
+      statusCallbackUrl: new URL("/api/webhooks/twilio/sms-status", request.url).toString(),
     });
   }
 

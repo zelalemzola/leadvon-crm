@@ -15,6 +15,8 @@ import {
   Compass,
   Bell,
   BarChart3,
+  MessageSquare,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -28,6 +30,8 @@ import { useAppDispatch } from "@/lib/hooks";
 const baseNav = [
   { href: "/client", key: "client.nav.dashboard", icon: LayoutDashboard },
   { href: "/client/leads", key: "client.nav.leads", icon: Users },
+  { href: "/client/call-scripts", key: "client.nav.callScripts", icon: FileText },
+  { href: "/client/sms", key: "client.nav.sms", icon: MessageSquare },
   { href: "/client/notifications", key: "client.nav.notifications", icon: Bell },
   { href: "/client/billing", key: "client.nav.billing", icon: CreditCard },
   { href: "/client/activity", key: "client.nav.activity", icon: ScrollText },

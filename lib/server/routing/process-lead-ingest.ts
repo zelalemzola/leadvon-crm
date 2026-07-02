@@ -1,5 +1,4 @@
 import { createServiceClient } from "@/lib/supabase/service";
-import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
 
 export async function processLeadIngestRouting(categoryId: string, ingestKey: string) {
   const service = createServiceClient();
@@ -49,10 +48,6 @@ export async function processLeadIngestRouting(categoryId: string, ingestKey: st
       : typeof freeDelivery.data === "number"
         ? freeDelivery.data
         : Number(freeDelivery.data ?? 0);
-
-  if (paidDelivered > 0 || freeDeliveryDelivered > 0) {
-    await processPendingLeadEmails();
-  }
 
   return { paidDelivered, freeDeliveryDelivered };
 }

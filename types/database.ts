@@ -4,6 +4,8 @@ export type Organization = {
   id: string;
   name: string;
   phone: string | null;
+  twilio_from_number?: string | null;
+  twilio_messaging_service_sid?: string | null;
   created_at: string;
 };
 
@@ -248,4 +250,65 @@ export type CustomerAuditLog = {
   entity_id: string | null;
   details: Record<string, unknown>;
   created_at: string;
+};
+
+export type SmsBalance = {
+  id: string;
+  organization_id: string;
+  balance_cents: number;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SmsTransaction = {
+  id: string;
+  organization_id: string;
+  sms_balance_id: string;
+  tx_type: "credit" | "debit";
+  amount_cents: number;
+  reference_type: string;
+  reference_id: string | null;
+  description: string;
+  created_at: string;
+};
+
+export type SmsAutomation = {
+  id: string;
+  organization_id: string;
+  name: string;
+  trigger_status: string;
+  message_template: string;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SmsMessage = {
+  id: string;
+  organization_id: string;
+  customer_lead_id: string | null;
+  automation_id: string | null;
+  actor_id: string | null;
+  to_phone: string;
+  body: string;
+  cost_cents: number;
+  twilio_sid: string | null;
+  delivery_status: string;
+  error_message: string | null;
+  delivered_at?: string | null;
+  failed_at?: string | null;
+  refunded_at?: string | null;
+  created_at: string;
+};
+
+export type CustomerCallScript = {
+  id: string;
+  organization_id: string;
+  title: string;
+  content: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 };

@@ -15,6 +15,7 @@ import {
   Activity,
   DollarSign,
   Landmark,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ const nav = [
   { href: "/admin/distribution", key: "admin.nav.distribution", icon: Activity },
   { href: "/admin/margins", key: "admin.nav.margins", icon: DollarSign },
   { href: "/admin/finance", key: "admin.nav.finance", icon: Landmark },
+  { href: "/admin/sms", key: "admin.nav.sms", icon: MessageSquare },
   { href: "/admin/leads", key: "admin.nav.leads", icon: Users },
   { href: "/admin/customers", key: "admin.nav.customers", icon: Contact },
   { href: "/admin/pricing", key: "admin.nav.pricing", icon: Package },

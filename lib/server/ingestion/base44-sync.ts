@@ -2,6 +2,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { listBase44SaLeads } from "@/lib/integrations/base44";
 import { mapBase44SaLeadToInventoryLead } from "@/lib/integrations/base44-mapper";
 import { processLeadIngestRouting } from "@/lib/server/routing/process-lead-ingest";
+import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
 
 const PROVIDER = "base44";
 
@@ -185,6 +186,8 @@ export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
   if (cursorError) {
     throw new Error(`Failed to persist sync cursor: ${cursorError.message}`);
   }
+
+  await processPendingLeadEmails();
 
   return {
     fetched,

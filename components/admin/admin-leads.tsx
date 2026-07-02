@@ -10,6 +10,7 @@ import {
   Download,
   CreditCard,
   Gift,
+  RefreshCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -22,6 +23,7 @@ import {
   useDeliverPrepaidLeadMutation,
   useDeliverSignupFreeLeadMutation,
   useDeliverFreeLeadMutation,
+  useSyncFunnelLeadsMutation,
   type AdminLeadsAvailability,
   type AdminLeadsSourceFilter,
   type AdminLeadsSort,
@@ -106,6 +108,17 @@ function LeadSourceBadge({
       </Badge>
     );
   }
+  if (source === "funnel") {
+    const externalId = lead.source_external_id?.trim();
+    return (
+      <Badge
+        className="bg-violet-500/15 text-violet-300 hover:bg-violet-500/25"
+        title={externalId ? `${t("adminLeads.sourceFunnelId")}: ${externalId}` : undefined}
+      >
+        {t("adminLeads.sourceFunnel")}
+      </Badge>
+    );
+  }
   if (source === "manual") {
     return (
       <Badge variant="outline" className="text-muted-foreground">
@@ -176,6 +189,8 @@ export function AdminLeads() {
     useDeliverSignupFreeLeadMutation();
   const [deliverFree, { isLoading: deliveringFree }] =
     useDeliverFreeLeadMutation();
+  const [syncFunnelLeads, { isLoading: syncingFunnel }] =
+    useSyncFunnelLeadsMutation();
 
   const loading = leadsLoading || catLoading;
   const rows = leads?.rows ?? [];
@@ -394,6 +409,21 @@ export function AdminLeads() {
     }
   }
 
+  async function handleSyncFunnelLeads() {
+    try {
+      const res = await syncFunnelLeads().unwrap();
+      toast.success(
+        `${t("adminLeads.syncFunnelDone")} ${res.fetched} ${t("adminLeads.fetched")}, ${res.inserted} ${t("adminLeads.inserted")}, ${res.updated} ${t("adminLeads.updated")}, ${res.skipped_invalid} ${t("adminLeads.skipped")}`
+      );
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "data" in err
+          ? String((err as { data?: { message?: string } }).data)
+          : t("adminLeads.syncFunnelFailed");
+      toast.error(msg);
+    }
+  }
+
   function exportCsv() {
     const headers = [
       "id",
@@ -515,6 +545,10 @@ export function AdminLeads() {
               <Upload className="size-4" />
               {t("adminLeads.importCsv")}
             </Button>
+            <Button variant="outline" onClick={() => void handleSyncFunnelLeads()} disabled={syncingFunnel}>
+              <RefreshCcw className="size-4" />
+              {syncingFunnel ? t("adminLeads.syncingFunnel") : t("adminLeads.syncFunnel")}
+            </Button>
             <input
               ref={importRef}
               type="file"
@@ -602,6 +636,7 @@ export function AdminLeads() {
                 <SelectItem value="all">{t("adminLeads.allSources")}</SelectItem>
                 <SelectItem value="manual">{t("adminLeads.sourceManual")}</SelectItem>
                 <SelectItem value="base44">{t("adminLeads.sourceBase44")}</SelectItem>
+                <SelectItem value="funnel">{t("adminLeads.sourceFunnel")}</SelectItem>
               </SelectContent>
             </Select>
           </div>

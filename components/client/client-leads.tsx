@@ -12,6 +12,8 @@ import {
   Copy,
   UserRound,
   UserX2,
+  Download,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useGetCategoriesQuery } from "@/lib/api/admin-api";
@@ -20,6 +22,7 @@ import {
   useGetCustomerLeadCountriesQuery,
   useUpdateCustomerLeadMutation,
   useGetOrgUsersQuery,
+  useSendLeadSmsMutation,
   type CustomerLead,
   type CustomerLeadSort,
 } from "@/lib/api/client-api";
@@ -101,6 +104,8 @@ export function ClientLeads() {
   const [modalStatus, setModalStatus] = useState<string>("new");
   const [modalAssignee, setModalAssignee] = useState<string>("unassigned");
   const [modalNotes, setModalNotes] = useState("");
+  const [modalSmsMessage, setModalSmsMessage] = useState("");
+  const [exporting, setExporting] = useState(false);
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
   const [activeSummary, setActiveSummary] = useState("");
 
@@ -126,6 +131,7 @@ export function ClientLeads() {
     }
   );
   const [updateLead] = useUpdateCustomerLeadMutation();
+  const [sendLeadSms, { isLoading: sendingSms }] = useSendLeadSmsMutation();
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
@@ -167,7 +173,58 @@ export function ClientLeads() {
     setModalStatus(row.status);
     setModalAssignee(row.assigned_to ?? "unassigned");
     setModalNotes(row.notes ?? "");
+    setModalSmsMessage("");
     setDialogOpen(true);
+  }
+
+  async function exportLeadsCsv() {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (search.trim()) params.set("search", search.trim());
+      if (categoryId !== "all") params.set("category_id", categoryId);
+      if (country !== "all") params.set("country", country);
+      if (unitType !== "all") params.set("unit_type", unitType);
+      if (status !== "all") params.set("status", status);
+      if (assignee !== "all") params.set("assigned_to", assignee);
+      const qs = params.toString();
+      const res = await fetch(`/api/client/leads/export${qs ? `?${qs}` : ""}`);
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(json.error ?? "Export failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `customer-leads-export-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(t("clientLeads.exportSuccess"));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t("clientLeads.exportFailed");
+      toast.error(msg);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function sendSmsFromModal() {
+    if (!activeLead || !modalSmsMessage.trim()) return;
+    try {
+      await sendLeadSms({
+        lead_id: activeLead.id,
+        message: modalSmsMessage.trim(),
+      }).unwrap();
+      toast.success(t("clientLeads.smsSent"));
+      setModalSmsMessage("");
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "data" in err
+          ? String((err as { data?: unknown }).data)
+          : t("clientLeads.smsFailed");
+      toast.error(msg);
+    }
   }
 
   function openSummaryView(summary?: string | null) {
@@ -198,13 +255,19 @@ export function ClientLeads() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 lg:p-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{t("clientLeads.title")}</h1>
-        <p className="text-sm text-muted-foreground">
-          {total > 0
-            ? `${total} ${t("clientLeads.leadsFound")}`
-            : t("clientLeads.subtitle")}
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">{t("clientLeads.title")}</h1>
+          <p className="text-sm text-muted-foreground">
+            {total > 0
+              ? `${total} ${t("clientLeads.leadsFound")}`
+              : t("clientLeads.subtitle")}
+          </p>
+        </div>
+        <Button variant="outline" disabled={exporting} onClick={() => void exportLeadsCsv()}>
+          <Download className="mr-2 size-4" />
+          {exporting ? t("clientLeads.exporting") : t("clientLeads.exportCsv")}
+        </Button>
       </header>
 
       <Card id="tour-client-leads-filters" className="border-border/70 bg-card/50">
@@ -562,6 +625,28 @@ export function ClientLeads() {
                   onChange={(e) => setModalNotes(e.target.value)}
                   placeholder={t("clientLeads.notesPlaceholder")}
                 />
+              </div>
+              <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
+                <Label className="flex items-center gap-2">
+                  <MessageSquare className="size-4" />
+                  {t("clientLeads.sendSms")}
+                </Label>
+                <Textarea
+                  rows={3}
+                  value={modalSmsMessage}
+                  onChange={(e) => setModalSmsMessage(e.target.value)}
+                  placeholder={t("clientLeads.smsPlaceholder")}
+                />
+                <p className="text-xs text-muted-foreground">{t("clientLeads.smsCostHint")}</p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={!modalSmsMessage.trim() || sendingSms}
+                  onClick={() => void sendSmsFromModal()}
+                >
+                  {t("clientLeads.sendSmsButton")}
+                </Button>
               </div>
             </div>
           ) : null}

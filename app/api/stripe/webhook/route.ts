@@ -54,6 +54,18 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
     }
+    if (purpose === "sms_topup" && orgId && amountTotal > 0) {
+      const ref = `checkout_session:${session.id}`;
+      const { error } = await service.rpc("apply_sms_topup", {
+        p_organization_id: orgId,
+        p_amount_cents: amountTotal,
+        p_reference_id: ref,
+        p_description: "Stripe SMS balance top-up",
+      });
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+    }
     if (purpose === "prepaid_entitlement" && orgId && amountTotal > 0) {
       const ref = `checkout_session:${session.id}`;
       const ent = await service.rpc("create_delivery_entitlement", {

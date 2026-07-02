@@ -57,62 +57,49 @@ export function emailLayout({
 </html>`;
 }
 
-export function renderNewLeadEmail({
+export function renderNewLeadsDigestEmail({
   recipientName,
-  leadName,
-  categoryName,
-  phone,
-  country,
-  zipCode,
-  assignedAgentName,
+  leadCount,
   leadsUrl,
 }: {
   recipientName: string;
-  leadName: string;
-  categoryName: string;
-  phone: string;
-  country: string;
-  zipCode?: string | null;
-  assignedAgentName?: string | null;
+  leadCount: number;
   leadsUrl: string;
 }) {
+  const safeCount = Math.max(1, Math.floor(leadCount));
   const greeting = recipientName.trim() ? `Hello ${recipientName},` : "Hello,";
+  const summary =
+    safeCount === 1
+      ? "A new lead has been delivered to your organization and is now available in your LeadVon portal."
+      : `${safeCount} new leads have been delivered to your organization and are now available in your LeadVon portal.`;
+  const subject =
+    safeCount === 1
+      ? "New lead delivered to your LeadVon portal"
+      : `${safeCount} new leads delivered to your LeadVon portal`;
+  const preview =
+    safeCount === 1
+      ? "A new lead is ready for review in your LeadVon portal."
+      : `${safeCount} new leads are ready for review in your LeadVon portal.`;
+  const heading = safeCount === 1 ? "New Lead Delivered" : "New Leads Delivered";
+  const ctaLabel = safeCount === 1 ? "View lead in portal" : "View leads in portal";
+
   const bodyHtml = `
     <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#cbd5e1;">${greeting}</p>
-    <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#cbd5e1;">
-      A new lead has been delivered to your organization and is now available in your LeadVon portal.
-    </p>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0b1220;border:1px solid #1e293b;border-radius:12px;">
-      <tr>
-        <td style="padding:16px 18px;border-bottom:1px solid #1e293b;">
-          <p style="margin:0;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8;">Lead</p>
-          <p style="margin:6px 0 0;font-size:16px;font-weight:600;color:#f8fafc;">${leadName}</p>
-        </td>
-      </tr>
-      <tr>
-        <td style="padding:16px 18px;">
-          <p style="margin:0 0 8px;font-size:14px;color:#cbd5e1;"><strong style="color:#f8fafc;">Product:</strong> ${categoryName || "—"}</p>
-          <p style="margin:0 0 8px;font-size:14px;color:#cbd5e1;"><strong style="color:#f8fafc;">Phone:</strong> ${phone || "—"}</p>
-          <p style="margin:0 0 8px;font-size:14px;color:#cbd5e1;"><strong style="color:#f8fafc;">Country:</strong> ${country || "—"}</p>
-          <p style="margin:0 0 8px;font-size:14px;color:#cbd5e1;"><strong style="color:#f8fafc;">Zip code:</strong> ${zipCode || "—"}</p>
-          <p style="margin:0;font-size:14px;color:#cbd5e1;"><strong style="color:#f8fafc;">Assigned agent:</strong> ${assignedAgentName || "Unassigned"}</p>
-        </td>
-      </tr>
-    </table>
-    <p style="margin:20px 0 0;font-size:14px;line-height:1.7;color:#94a3b8;">
-      Please review the lead promptly so your team can begin outreach while the opportunity is fresh.
+    <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#cbd5e1;">${summary}</p>
+    <p style="margin:0;font-size:14px;line-height:1.7;color:#94a3b8;">
+      Please sign in to review ${safeCount === 1 ? "the lead" : "your leads"} and begin outreach while the opportunity is fresh.
     </p>`;
 
   return {
-    subject: `New lead received: ${leadName}`,
+    subject,
     html: emailLayout({
-      preview: `A new lead (${leadName}) is ready in your LeadVon portal.`,
-      heading: "New Lead Received",
+      preview,
+      heading,
       bodyHtml,
-      ctaLabel: "View lead in portal",
+      ctaLabel,
       ctaUrl: leadsUrl,
       footerNote:
-        "This is an automated notification from LeadVon. If you were not expecting this message, please contact your account administrator.",
+        "This is a no-reply email. Please do not reply to this message.<br /><br />This is an automated notification from LeadVon. If you were not expecting this message, please contact your account administrator.",
     }),
   };
 }

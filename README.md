@@ -51,3 +51,34 @@ Optional host hardening:
 - Keep server-side role checks in layouts and APIs (already implemented).
 - Use MFA for admin users and monitor admin audit logs.
 
+## SMS (Twilio)
+
+Configure these environment variables to enable outbound SMS:
+
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_FROM_NUMBER` (or `TWILIO_MESSAGING_SERVICE_SID`)
+- Optional hardening: `TWILIO_VALIDATE_WEBHOOK_SIGNATURE=true`
+
+SMS billing uses a separate prepaid balance per organization ($0.30 per message). Customers top up via Stripe (`purpose: sms_topup`). Apply the migration `20260702120000_sms_call_scripts.sql` before using SMS features.
+For delivery reconciliation + failed-send refunds, also apply `20260702133000_sms_delivery_reconciliation.sql`.
+To allow each customer to send from their own sender, apply `20260702150000_org_twilio_sender_settings.sql` and configure sender values under Client -> Settings.
+
+## External Lead Sync
+
+CRM can ingest external leads from:
+
+- `base44` (existing sync)
+- `funnel` (`leadvon-funnel` prelander submissions)
+
+Required env vars for funnel sync:
+
+- `FUNNEL_SUPABASE_URL`
+- `FUNNEL_SUPABASE_SERVICE_ROLE_KEY`
+- Optional: `FUNNEL_INGEST_BATCH_SIZE` (default 100)
+- Optional: `FUNNEL_DEFAULT_CATEGORY_ID` (fallback when debt-review category is missing)
+
+Trigger endpoint:
+
+- `POST /api/cron/funnel-sync` with `x-cron-secret: $CRON_SECRET`
+

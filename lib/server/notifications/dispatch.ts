@@ -1,95 +1,104 @@
 import { createServiceClient } from "@/lib/supabase/service";
-import { sendNewLeadEmail } from "@/lib/email/resend";
+import { sendNewLeadsDigestEmail } from "@/lib/email/resend";
 
-type PendingLeadNotification = {
-  id: string;
-  recipient_id: string;
-  entity_id: string | null;
-  metadata: Record<string, unknown> | null;
-  profiles: {
-    email: string | null;
-    full_name: string | null;
-  } | null;
+type NotificationProfile = {
+  email: string | null;
+  full_name: string | null;
 };
 
-export async function processPendingLeadEmails(limit = 25) {
-  const service = createServiceClient();
-  const { data: pending, error } = await service
-    .from("customer_notifications")
-    .select("id, recipient_id, entity_id, metadata, profiles:recipient_id(email, full_name)")
-    .eq("type", "lead_received")
-    .is("email_sent_at", null)
-    .order("created_at", { ascending: true })
-    .limit(limit);
+type PendingLeadNotificationRow = {
+  id: string;
+  recipient_id: string;
+  profiles: NotificationProfile | NotificationProfile[] | null;
+};
 
-  if (error) {
-    return { processed: 0, sent: 0, skipped: 0, failed: 0, error: error.message };
+type RecipientDigest = {
+  notificationIds: string[];
+  email: string;
+  fullName: string;
+};
+
+function normalizeProfile(profiles: PendingLeadNotificationRow["profiles"]) {
+  if (Array.isArray(profiles)) return profiles[0] ?? null;
+  return profiles;
+}
+
+function groupPendingByRecipient(rows: PendingLeadNotificationRow[]) {
+  const groups = new Map<string, RecipientDigest>();
+
+  for (const row of rows) {
+    const profile = normalizeProfile(row.profiles);
+    const existing = groups.get(row.recipient_id);
+    if (existing) {
+      existing.notificationIds.push(row.id);
+      continue;
+    }
+
+    groups.set(row.recipient_id, {
+      notificationIds: [row.id],
+      email: profile?.email?.trim() ?? "",
+      fullName: profile?.full_name?.trim() ?? "",
+    });
   }
 
+  return groups;
+}
+
+export async function processPendingLeadEmails(batchLimit = 500) {
+  const service = createServiceClient();
+  let processed = 0;
   let sent = 0;
   let skipped = 0;
   let failed = 0;
 
-  for (const rawRow of pending ?? []) {
-    const row = rawRow as PendingLeadNotification & {
-      profiles: PendingLeadNotification["profiles"] | PendingLeadNotification["profiles"][];
-    };
-    const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
-    const recipientEmail = profile?.email?.trim();
-    const metadata = row.metadata ?? {};
-    const leadName = String(metadata.lead_name ?? "New lead");
-    const categoryName = String(metadata.category_name ?? "");
-    const phone = String(metadata.phone ?? "");
-    const country = String(metadata.country ?? "");
-    const zipCode = metadata.zip_code ? String(metadata.zip_code) : null;
-    let assignedAgentName: string | null = null;
-    let resolvedCountry = country;
-    let resolvedZipCode = zipCode;
+  while (true) {
+    const { data: pending, error } = await service
+      .from("customer_notifications")
+      .select("id, recipient_id, profiles:recipient_id(email, full_name)")
+      .eq("type", "lead_received")
+      .is("email_sent_at", null)
+      .order("created_at", { ascending: true })
+      .limit(batchLimit);
 
-    if (row.entity_id) {
-      const { data: lead } = await service
-        .from("customer_leads")
-        .select("assigned_to, country, zip_code, assignee:profiles!customer_leads_assigned_to_fkey(full_name, email)")
-        .eq("id", row.entity_id)
-        .maybeSingle();
-      if (lead) {
-        const assignee = lead.assignee as { full_name?: string | null; email?: string | null } | null;
-        assignedAgentName = assignee?.full_name || assignee?.email || null;
-        resolvedCountry = lead.country || resolvedCountry;
-        resolvedZipCode = lead.zip_code || resolvedZipCode;
+    if (error) {
+      return { processed, sent, skipped, failed, error: error.message };
+    }
+
+    if (!pending?.length) break;
+
+    const groups = groupPendingByRecipient(pending as PendingLeadNotificationRow[]);
+    const sentAt = new Date().toISOString();
+
+    for (const group of groups.values()) {
+      const result = await sendNewLeadsDigestEmail({
+        to: group.email,
+        recipientName: group.fullName,
+        leadCount: group.notificationIds.length,
+      });
+
+      if (result.ok) {
+        await service
+          .from("customer_notifications")
+          .update({ email_sent_at: sentAt })
+          .in("id", group.notificationIds);
+        sent += 1;
+        continue;
       }
+
+      if (result.skipped) {
+        skipped += 1;
+        continue;
+      }
+
+      failed += 1;
     }
 
-    const result = await sendNewLeadEmail({
-      to: recipientEmail ?? "",
-      recipientName: profile?.full_name ?? "",
-      leadName,
-      categoryName,
-      phone,
-      country: resolvedCountry,
-      zipCode: resolvedZipCode,
-      assignedAgentName,
-    });
-
-    if (result.ok) {
-      await service
-        .from("customer_notifications")
-        .update({ email_sent_at: new Date().toISOString() })
-        .eq("id", row.id);
-      sent += 1;
-      continue;
-    }
-
-    if (result.skipped) {
-      skipped += 1;
-      continue;
-    }
-
-    failed += 1;
+    processed += pending.length;
+    if (pending.length < batchLimit) break;
   }
 
   return {
-    processed: (pending ?? []).length,
+    processed,
     sent,
     skipped,
     failed,
