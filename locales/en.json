@@ -801,7 +801,22 @@
     "unread": "Unread",
     "markAllRead": "Mark all as read",
     "markedAllRead": "All notifications marked as read",
-    "markReadFailed": "Could not update notifications"
+    "markReadFailed": "Could not update notifications",
+    "pushTitle": "Browser notifications",
+    "pushDescription": "Allow LeadVon to send browser alerts when new leads arrive or your team updates lead status — even when this tab is in the background.",
+    "pushSignInDescription": "Browser notifications are requested automatically when you sign in. Sign out and sign in again if you need to update your choice.",
+    "pushEnabledDescription": "Browser notifications are enabled for this device.",
+    "pushBlockedDescription": "Notifications are blocked in your browser settings. Enable them for this site to receive alerts.",
+    "pushUnsupported": "Browser push notifications are not supported on this device or browser.",
+    "pushEnable": "Enable notifications",
+    "pushDisable": "Disable on this device",
+    "pushEnabled": "Browser notifications enabled",
+    "pushDisabled": "Browser notifications disabled",
+    "pushEnableFailed": "Could not enable browser notifications",
+    "pushDisableFailed": "Could not disable browser notifications",
+    "pushBlocked": "Notification permission was denied",
+    "pushNotConfigured": "Browser notifications are not configured yet",
+    "pushLoading": "Checking notification support..."
   },
   "adminPrepaid": {
     "enterValidUsd": "Enter a valid USD amount.",

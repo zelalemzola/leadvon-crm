@@ -82,3 +82,27 @@ Trigger endpoint:
 
 - `POST /api/cron/funnel-sync` with `x-cron-secret: $CRON_SECRET`
 
+## Browser push notifications (Web Push)
+
+Client users can opt in on **Client → Notifications** to receive browser alerts when new leads arrive or status changes.
+
+Required env vars:
+
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY` — VAPID public key (safe for the browser)
+- `VAPID_PRIVATE_KEY` — VAPID private key (server only)
+- Optional: `VAPID_SUBJECT` — contact URI, e.g. `mailto:support@leadvoncrm.com`
+
+Generate keys:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Apply migration `20260702160000_web_push_subscriptions.sql` before enabling push.
+
+Pending push delivery for DB-triggered notifications (new leads, assignments) is processed by the existing notifications cron:
+
+- `POST /api/cron/notifications` with `Authorization: Bearer $CRON_SECRET`
+
+Status-change notifications attempt immediate push delivery from the API when configured.
+

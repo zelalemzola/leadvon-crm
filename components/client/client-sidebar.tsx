@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { clearPushPromptSession } from "@/lib/push/client";
 import { useGetClientMeQuery, useGetNotificationsQuery, clientApi } from "@/lib/api/client-api";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
@@ -73,6 +74,7 @@ export function ClientSidebar() {
 
   async function signOut() {
     const supabase = createClient();
+    if (me?.id) clearPushPromptSession(me.id);
     dispatch(clientApi.util.resetApiState());
     await supabase.auth.signOut();
     router.push(localizePath("/login"));

@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useI18n } from "@/components/providers/i18n-provider";
+import { PushNotificationsPrompt } from "@/components/client/push-notifications-prompt";
 
 function notificationIcon(type: string) {
   if (type === "lead_assigned") return UserRound;
@@ -64,6 +65,8 @@ export function ClientNotifications() {
           {t("clientNotifications.markAllRead")}
         </Button>
       </header>
+
+      <PushNotificationsPrompt />
 
       <Card className="border-border/70 bg-card/50">
         <CardHeader className="pb-3">

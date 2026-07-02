@@ -787,7 +787,22 @@
     "unread": "Non lu",
     "markAllRead": "Tout marquer comme lu",
     "markedAllRead": "Toutes les notifications ont ete marquees comme lues",
-    "markReadFailed": "Impossible de mettre a jour les notifications"
+    "markReadFailed": "Impossible de mettre a jour les notifications",
+    "pushTitle": "Notifications navigateur",
+    "pushDescription": "Autorisez LeadVon a envoyer des alertes navigateur lorsque de nouveaux leads arrivent ou que votre equipe met a jour un statut — meme si cet onglet est en arriere-plan.",
+    "pushSignInDescription": "Les notifications navigateur sont demandees automatiquement a la connexion. Deconnectez-vous puis reconnectez-vous pour modifier votre choix.",
+    "pushEnabledDescription": "Les notifications navigateur sont activees sur cet appareil.",
+    "pushBlockedDescription": "Les notifications sont bloquees dans les parametres de votre navigateur. Activez-les pour ce site afin de recevoir des alertes.",
+    "pushUnsupported": "Les notifications navigateur ne sont pas prises en charge sur cet appareil ou navigateur.",
+    "pushEnable": "Activer les notifications",
+    "pushDisable": "Desactiver sur cet appareil",
+    "pushEnabled": "Notifications navigateur activees",
+    "pushDisabled": "Notifications navigateur desactivees",
+    "pushEnableFailed": "Impossible d'activer les notifications navigateur",
+    "pushDisableFailed": "Impossible de desactiver les notifications navigateur",
+    "pushBlocked": "L'autorisation de notification a ete refusee",
+    "pushNotConfigured": "Les notifications navigateur ne sont pas encore configurees",
+    "pushLoading": "Verification de la prise en charge des notifications..."
   },
   "adminPrepaid": {
     "enterValidUsd": "Saisissez un montant USD valide.",

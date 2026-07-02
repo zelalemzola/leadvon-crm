@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
+import {
+  processPendingLeadEmails,
+  processPendingPushNotifications,
+} from "@/lib/server/notifications/dispatch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +14,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await processPendingLeadEmails();
-  return NextResponse.json({ data: result });
+  const [email, push] = await Promise.all([
+    processPendingLeadEmails(),
+    processPendingPushNotifications(),
+  ]);
+  return NextResponse.json({ data: { email, push } });
 }
