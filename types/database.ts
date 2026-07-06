@@ -102,6 +102,7 @@ export type Lead = {
   last_name: string;
   country: string;
   summary: string;
+  review_status?: string | null;
   created_at: string;
   updated_at: string;
   sold_at: string | null;

@@ -8,6 +8,7 @@ export const leadSchema = z.object({
   last_name: z.string().trim().min(1).max(120),
   country: z.string().trim().min(1).max(120),
   summary: z.string().max(2000).optional(),
+  review_status: z.string().trim().max(64).nullable().optional(),
   // Backward compatibility for older imports/forms.
   notes: z.string().max(2000).optional(),
   sold_at: z.string().datetime().nullable().optional(),
@@ -68,6 +69,16 @@ export const organizationPricingOverrideSchema = z.object({
 export const organizationFreeDeliverySchema = z.object({
   quota_total: z.number().int().min(1).max(100000),
   is_active: z.boolean(),
+  allowed_category_ids: z.array(z.string().uuid()).optional().default([]),
+  allowed_source_systems: z
+    .array(z.enum(["manual", "base44", "funnel"]))
+    .optional()
+    .default([]),
+  allowed_review_statuses: z.array(z.string().trim().min(1).max(64)).optional().default([]),
+  /** YYYY-MM-DD (UTC). Omit to use the default start-of-today when starting a new campaign. */
+  eligible_from: z
+    .union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal(""), z.null()])
+    .optional(),
 });
 
 export const updateStaffSchema = z.object({

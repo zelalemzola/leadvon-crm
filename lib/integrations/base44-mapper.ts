@@ -1,5 +1,8 @@
 import { z } from "zod";
 import type { Base44SaLead } from "@/lib/integrations/base44";
+import {
+  normalizeReviewStatusCode,
+} from "@/lib/integrations/review-status";
 
 const COMPLETED_LAST_STEP = "completed";
 
@@ -32,6 +35,7 @@ export type MappedBase44Lead = {
   last_name: string;
   country: string;
   summary: string;
+  review_status: string | null;
   source_system: "base44";
   source_external_id: string;
   source_payload: Record<string, unknown>;
@@ -64,15 +68,6 @@ const DEBT_LABELS: Record<string, string> = {
   "200000_500000": "R200,000 – R500,000",
   over_500000: "Over R500,000",
   none: "No debt",
-};
-
-const REVIEW_STATUS_LABELS: Record<string, string> = {
-  no: "No",
-  yes: "Yes",
-  admin: "Admin review",
-  pending: "Pending",
-  approved: "Approved",
-  rejected: "Rejected",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -110,7 +105,6 @@ function buildSaLeadSummary(input: z.infer<typeof base44SaLeadSchema>) {
     summaryPart("work", labelValue(input.work, WORK_LABELS)),
     summaryPart("income", labelValue(input.income, INCOME_LABELS)),
     summaryPart("debt", labelValue(input.debt, DEBT_LABELS)),
-    summaryPart("review_status", labelValue(input.review_status, REVIEW_STATUS_LABELS)),
     summaryPart("status", labelValue(input.status, STATUS_LABELS)),
   ].filter((part): part is string => Boolean(part));
 
@@ -143,6 +137,7 @@ export function mapBase44SaLeadToInventoryLead(
       last_name: input.nom.trim(),
       country: "South Africa",
       summary: buildSaLeadSummary(input),
+      review_status: normalizeReviewStatusCode(input.review_status),
       source_system: "base44",
       source_external_id: input.id,
       source_payload: raw as Record<string, unknown>,

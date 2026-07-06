@@ -18,6 +18,9 @@ type FreeDeliveryRow = Record<string, unknown> & {
   activated_by?: string | null;
   eligible_from?: string | null;
   distribute_after?: string | null;
+  allowed_category_ids?: string[] | null;
+  allowed_source_systems?: string[] | null;
+  allowed_review_statuses?: string[] | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -26,6 +29,13 @@ function startOfUtcDayIso(date = new Date()) {
   const d = new Date(date);
   d.setUTCHours(0, 0, 0, 0);
   return d.toISOString();
+}
+
+function parseEligibleFromDateInput(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  return startOfUtcDayIso(new Date(`${trimmed}T00:00:00.000Z`));
 }
 
 function normalizeFreeDelivery(row: FreeDeliveryRow | null) {
@@ -39,6 +49,15 @@ function normalizeFreeDelivery(row: FreeDeliveryRow | null) {
     is_active: Boolean(row.is_active),
     eligible_from: row.eligible_from ?? null,
     distribute_after: row.distribute_after ?? null,
+    allowed_category_ids: Array.isArray(row.allowed_category_ids)
+      ? row.allowed_category_ids
+      : [],
+    allowed_source_systems: Array.isArray(row.allowed_source_systems)
+      ? row.allowed_source_systems
+      : [],
+    allowed_review_statuses: Array.isArray(row.allowed_review_statuses)
+      ? row.allowed_review_statuses
+      : [],
   };
 }
 
@@ -106,11 +125,15 @@ export async function PUT(request: Request, { params }: RouteParams) {
   const startingNewCampaign = turningOn && !resumingMidCampaign;
 
   let quotaDelivered = priorDelivered;
-  let eligibleFrom =
-    existingRow?.eligible_from ?? (startingNewCampaign ? startOfUtcDayIso() : null);
+  const requestedEligibleFrom = parseEligibleFromDateInput(parsed.data.eligible_from);
+  let eligibleFrom = existingRow?.eligible_from ?? null;
 
   if (startingNewCampaign) {
     quotaDelivered = 0;
+    eligibleFrom = requestedEligibleFrom ?? startOfUtcDayIso();
+  } else if (requestedEligibleFrom) {
+    eligibleFrom = requestedEligibleFrom;
+  } else if (!eligibleFrom && isActive) {
     eligibleFrom = startOfUtcDayIso();
   }
 
@@ -145,6 +168,9 @@ export async function PUT(request: Request, { params }: RouteParams) {
         quota_delivered: quotaDelivered,
         eligible_from: eligibleFrom ?? startOfUtcDayIso(),
         distribute_after: distributeAfter,
+        allowed_category_ids: parsed.data.allowed_category_ids,
+        allowed_source_systems: parsed.data.allowed_source_systems,
+        allowed_review_statuses: parsed.data.allowed_review_statuses,
         is_active: isActive && quotaDelivered < parsed.data.quota_total,
         activated_at: activatedAt,
         activated_by: isActive ? staff.userId : null,
@@ -159,8 +185,11 @@ export async function PUT(request: Request, { params }: RouteParams) {
       error.message.includes("quota_total") ||
       error.message.includes("eligible_from") ||
       error.message.includes("distribute_after") ||
+      error.message.includes("allowed_category_ids") ||
+      error.message.includes("allowed_source_systems") ||
+      error.message.includes("allowed_review_statuses") ||
       error.message.includes("schema")
-        ? `${error.message} Run migrations 20260625160000 through 20260626130000 in Supabase.`
+        ? `${error.message} Run migrations 20260625160000 through 20260706210000 in Supabase.`
         : error.message;
     return NextResponse.json({ error: hint }, { status: 400 });
   }

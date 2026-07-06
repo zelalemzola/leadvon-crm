@@ -16,6 +16,11 @@ import {
   useGetOrganizationFlowCommitmentsQuery,
   useUpsertOrganizationFlowCommitmentMutation,
 } from "@/lib/api/admin-api";
+import { FilterMultiSelect } from "@/components/admin/filter-multi-select";
+import {
+  FREE_DELIVERY_SOURCE_OPTIONS,
+  REVIEW_STATUS_OPTIONS,
+} from "@/lib/integrations/review-status";
 import type { CustomerDirectoryRow } from "@/types/database";
 import {
   Card,
@@ -210,6 +215,10 @@ export function AdminCustomers() {
   const [freeDeliveryOrgName, setFreeDeliveryOrgName] = useState("");
   const [freeDeliveryTotal, setFreeDeliveryTotal] = useState("20");
   const [freeDeliveryActive, setFreeDeliveryActive] = useState(true);
+  const [freeDeliveryCategoryIds, setFreeDeliveryCategoryIds] = useState<string[]>([]);
+  const [freeDeliverySources, setFreeDeliverySources] = useState<string[]>([]);
+  const [freeDeliveryReviewStatuses, setFreeDeliveryReviewStatuses] = useState<string[]>([]);
+  const [freeDeliveryEligibleFrom, setFreeDeliveryEligibleFrom] = useState("");
   const [assignedLeadsOpen, setAssignedLeadsOpen] = useState(false);
   const [assignedLeadsOrgId, setAssignedLeadsOrgId] = useState<string | null>(null);
   const [assignedLeadsOrgName, setAssignedLeadsOrgName] = useState("");
@@ -253,9 +262,21 @@ export function AdminCustomers() {
     if (freeDeliverySettings) {
       setFreeDeliveryTotal(String(freeDeliverySettings.quota_total || 20));
       setFreeDeliveryActive(freeDeliverySettings.is_active);
+      setFreeDeliveryCategoryIds(freeDeliverySettings.allowed_category_ids ?? []);
+      setFreeDeliverySources(freeDeliverySettings.allowed_source_systems ?? []);
+      setFreeDeliveryReviewStatuses(freeDeliverySettings.allowed_review_statuses ?? []);
+      setFreeDeliveryEligibleFrom(
+        freeDeliverySettings.eligible_from
+          ? freeDeliverySettings.eligible_from.slice(0, 10)
+          : ""
+      );
     } else {
       setFreeDeliveryTotal("20");
       setFreeDeliveryActive(true);
+      setFreeDeliveryCategoryIds([]);
+      setFreeDeliverySources([]);
+      setFreeDeliveryReviewStatuses([]);
+      setFreeDeliveryEligibleFrom("");
     }
   }, [freeDeliveryOpen, freeDeliverySettings]);
 
@@ -506,6 +527,12 @@ export function AdminCustomers() {
         organization_id: freeDeliveryOrgId,
         quota_total: total,
         is_active: freeDeliveryActive,
+        allowed_category_ids: freeDeliveryCategoryIds,
+        allowed_source_systems: freeDeliverySources,
+        allowed_review_statuses: freeDeliveryReviewStatuses,
+        ...(freeDeliveryEligibleFrom.trim()
+          ? { eligible_from: freeDeliveryEligibleFrom.trim() }
+          : {}),
       }).unwrap();
       toast.success(
         freeDeliveryActive
@@ -1189,68 +1216,118 @@ export function AdminCustomers() {
         </DialogContent>
       </Dialog>
       <Dialog open={freeDeliveryOpen} onOpenChange={setFreeDeliveryOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden sm:max-w-2xl">
+          <DialogHeader className="shrink-0">
             <DialogTitle>Free leads delivery</DialogTitle>
             <DialogDescription>
-              Set how many free leads {freeDeliveryOrgName} should receive. Only inventory from the
-              campaign start day onward is used. After turning delivery on, the system waits 5 minutes
-              before assigning leads so you can enable other customers first for a fair split. Delivery
-              turns off automatically when the total is reached; toggle on again later to start a new
-              campaign.
+              Set how many free leads {freeDeliveryOrgName} should receive. Only inventory created on
+              or after the deliver-from date is used (defaults to today when left empty on a new
+              campaign). After turning delivery on, the system waits 5 minutes before assigning leads
+              so you can enable other customers first for a fair split. Delivery turns off
+              automatically when the total is reached; toggle on again later to start a new campaign.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <Label>Total free leads to deliver</Label>
-              <Input
-                type="number"
-                min={1}
-                value={freeDeliveryTotal}
-                onChange={(e) => setFreeDeliveryTotal(e.target.value)}
-              />
-            </div>
-            {freeDeliverySettings && freeDeliverySettings.quota_total > 0 ? (
-              <div className="space-y-1 text-sm text-muted-foreground">
-                <p>
-                  Delivered: {freeDeliverySettings.quota_delivered} / {freeDeliverySettings.quota_total}
-                  {freeDeliverySettings.quota_delivered < freeDeliverySettings.quota_total
-                    ? ` · Remaining: ${freeDeliverySettings.quota_total - freeDeliverySettings.quota_delivered}`
-                    : " · Complete"}
-                </p>
-                {freeDeliverySettings.eligible_from ? (
-                  <p>
-                    Campaign inventory from:{" "}
-                    {new Date(freeDeliverySettings.eligible_from).toLocaleDateString()}
-                  </p>
-                ) : null}
-                {freeDeliverySettings.is_active &&
-                freeDeliverySettings.distribute_after &&
-                new Date(freeDeliverySettings.distribute_after) > new Date() ? (
-                  <p>
-                    Distribution starts:{" "}
-                    {new Date(freeDeliverySettings.distribute_after).toLocaleString()}
-                  </p>
-                ) : null}
-                {freeDeliverySettings.quota_delivered > 0 ? (
-                  <Button
-                    type="button"
-                    variant="link"
-                    className="h-auto p-0 text-xs"
-                    onClick={() => {
-                      if (!freeDeliveryOrgId) return;
-                      setAssignedLeadsOrgId(freeDeliveryOrgId);
-                      setAssignedLeadsOrgName(freeDeliveryOrgName);
-                      setAssignedLeadsOpen(true);
-                    }}
-                  >
-                    {t("adminCustomers.assignedLeadsView")}
-                  </Button>
-                ) : null}
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="space-y-4 py-1">
+              <div className="space-y-1">
+                <Label>Total free leads to deliver</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={freeDeliveryTotal}
+                  onChange={(e) => setFreeDeliveryTotal(e.target.value)}
+                />
               </div>
-            ) : freeDeliverySettings ? (
-              <p className="text-sm text-muted-foreground">Not configured yet — set a total and save.</p>
-            ) : null}
+              <div className="space-y-1">
+                <Label htmlFor="free-delivery-eligible-from">Deliver leads created from</Label>
+                <Input
+                  id="free-delivery-eligible-from"
+                  type="date"
+                  value={freeDeliveryEligibleFrom}
+                  onChange={(e) => setFreeDeliveryEligibleFrom(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Optional. Leave empty to use today (UTC) when starting a new campaign. Existing
+                  campaigns keep their current date if unchanged.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <FilterMultiSelect
+                  label="Lead categories"
+                  placeholder="All categories"
+                  options={(categories ?? []).map((category) => ({
+                    value: category.id,
+                    label: category.name,
+                  }))}
+                  value={freeDeliveryCategoryIds}
+                  onChange={setFreeDeliveryCategoryIds}
+                />
+                <FilterMultiSelect
+                  label="Lead sources"
+                  placeholder="All sources"
+                  options={FREE_DELIVERY_SOURCE_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
+                  value={freeDeliverySources}
+                  onChange={setFreeDeliverySources}
+                />
+                <FilterMultiSelect
+                  label="Review status"
+                  placeholder="All review statuses"
+                  options={REVIEW_STATUS_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
+                  value={freeDeliveryReviewStatuses}
+                  onChange={setFreeDeliveryReviewStatuses}
+                  className="sm:col-span-2"
+                />
+              </div>
+              {freeDeliverySettings && freeDeliverySettings.quota_total > 0 ? (
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p>
+                    Delivered: {freeDeliverySettings.quota_delivered} / {freeDeliverySettings.quota_total}
+                    {freeDeliverySettings.quota_delivered < freeDeliverySettings.quota_total
+                      ? ` · Remaining: ${freeDeliverySettings.quota_total - freeDeliverySettings.quota_delivered}`
+                      : " · Complete"}
+                  </p>
+                  {freeDeliverySettings.eligible_from ? (
+                    <p>
+                      Campaign inventory from:{" "}
+                      {new Date(freeDeliverySettings.eligible_from).toLocaleDateString()}
+                    </p>
+                  ) : null}
+                  {freeDeliverySettings.is_active &&
+                  freeDeliverySettings.distribute_after &&
+                  new Date(freeDeliverySettings.distribute_after) > new Date() ? (
+                    <p>
+                      Distribution starts:{" "}
+                      {new Date(freeDeliverySettings.distribute_after).toLocaleString()}
+                    </p>
+                  ) : null}
+                  {freeDeliverySettings.quota_delivered > 0 ? (
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="h-auto p-0 text-xs"
+                      onClick={() => {
+                        if (!freeDeliveryOrgId) return;
+                        setAssignedLeadsOrgId(freeDeliveryOrgId);
+                        setAssignedLeadsOrgName(freeDeliveryOrgName);
+                        setAssignedLeadsOpen(true);
+                      }}
+                    >
+                      {t("adminCustomers.assignedLeadsView")}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : freeDeliverySettings ? (
+                <p className="text-sm text-muted-foreground">Not configured yet — set a total and save.</p>
+              ) : null}
+            </div>
+          </div>
+          <div className="shrink-0 space-y-3 border-t pt-4">
             <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
               <div className="space-y-0.5">
                 <Label htmlFor="free-delivery-active" className="text-sm font-medium">

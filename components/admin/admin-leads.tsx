@@ -26,8 +26,10 @@ import {
   useSyncFunnelLeadsMutation,
   type AdminLeadsAvailability,
   type AdminLeadsSourceFilter,
+  type AdminLeadsReviewStatusFilter,
   type AdminLeadsSort,
 } from "@/lib/api/admin-api";
+import { reviewStatusLabel, REVIEW_STATUS_OPTIONS } from "@/lib/integrations/review-status";
 import type { LeadWithCategory } from "@/types/database";
 import { Button } from "@/components/ui/button";
 import {
@@ -140,6 +142,8 @@ export function AdminLeads() {
   const [availabilityFilter, setAvailabilityFilter] =
     useState<AdminLeadsAvailability>("all");
   const [sourceFilter, setSourceFilter] = useState<AdminLeadsSourceFilter>("all");
+  const [reviewStatusFilter, setReviewStatusFilter] =
+    useState<AdminLeadsReviewStatusFilter>("all");
   const [countryFilter, setCountryFilter] = useState("");
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
@@ -174,6 +178,7 @@ export function AdminLeads() {
     pageSize: 20,
     availability: availabilityFilter,
     source: sourceFilter,
+    reviewStatus: reviewStatusFilter,
     country: countryFilter,
     createdFrom: createdFrom || undefined,
     createdTo: createdTo || undefined,
@@ -435,6 +440,7 @@ export function AdminLeads() {
       "lead_unit_type",
       "category",
       "summary",
+      "review_status",
       "source_system",
       "status",
       "created_at",
@@ -450,6 +456,7 @@ export function AdminLeads() {
         r.lead_unit_type ?? "single",
         r.categories?.name ?? "",
         (r.summary ?? "").replaceAll('"', '""'),
+        reviewStatusLabel(r.review_status),
         normalizeLeadSource(r.source_system),
         r.sold_at ? "sold" : "available",
         r.created_at,
@@ -641,6 +648,29 @@ export function AdminLeads() {
             </Select>
           </div>
           <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">{t("adminLeads.reviewStatus")}</Label>
+            <Select
+              value={reviewStatusFilter}
+              onValueChange={(v) => {
+                setReviewStatusFilter(v as AdminLeadsReviewStatusFilter);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("adminLeads.allReviewStatuses")}</SelectItem>
+                <SelectItem value="__none__">{t("adminLeads.reviewStatusUnset")}</SelectItem>
+                {REVIEW_STATUS_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">{t("adminLeads.country")}</Label>
             <Input
               value={countryFilter}
@@ -744,6 +774,7 @@ export function AdminLeads() {
                     <TableHead>{t("adminLeads.unit")}</TableHead>
                     <TableHead>{t("adminLeads.category")}</TableHead>
                     <TableHead>{t("adminLeads.source")}</TableHead>
+                    <TableHead>{t("adminLeads.reviewStatus")}</TableHead>
                     <TableHead>{t("adminLeads.summary")}</TableHead>
                     <TableHead>{t("adminLeads.created")}</TableHead>
                     <TableHead>{t("adminLeads.status")}</TableHead>
@@ -753,7 +784,7 @@ export function AdminLeads() {
                 <TableBody>
                   {rows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={12} className="h-24 text-center">
+                      <TableCell colSpan={13} className="h-24 text-center">
                         {t("adminLeads.noLeadsMatch")}
                       </TableCell>
                     </TableRow>
@@ -783,6 +814,9 @@ export function AdminLeads() {
                         </TableCell>
                         <TableCell>
                           <LeadSourceBadge lead={row} t={t} />
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {reviewStatusLabel(row.review_status)}
                         </TableCell>
                         <TableCell className="max-w-[240px] text-muted-foreground">
                           {row.summary ? (
@@ -1116,6 +1150,12 @@ export function AdminLeads() {
               <p className="text-xs text-muted-foreground">
                 {summaryLead.first_name} {summaryLead.last_name} ·{" "}
                 {summaryLead.categories?.name ?? t("admin.dashboard.na")}
+              </p>
+            ) : null}
+            {summaryLead?.review_status ? (
+              <p className="text-sm">
+                <span className="font-medium">{t("adminLeads.reviewStatus")}:</span>{" "}
+                {reviewStatusLabel(summaryLead.review_status)}
               </p>
             ) : null}
             <p className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words leading-relaxed">

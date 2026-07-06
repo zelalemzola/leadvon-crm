@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { FunnelFormSubmission } from "@/lib/integrations/funnel";
+import { normalizeReviewStatusCode } from "@/lib/integrations/review-status";
 
 export type MappedFunnelLead = {
   category_id: string;
@@ -10,6 +11,7 @@ export type MappedFunnelLead = {
   last_name: string;
   country: string;
   summary: string;
+  review_status: string | null;
   source_system: "funnel";
   source_external_id: string;
   source_payload: Record<string, unknown>;
@@ -33,6 +35,7 @@ const LAST_NAME_KEYS = ["last_name", "lastname", "nom", "surname", "lastName"];
 const FULL_NAME_KEYS = ["full_name", "fullname", "name", "contact_name"];
 const ZIP_KEYS = ["zip", "postal_code", "postcode", "zip_code"];
 const COUNTRY_KEYS = ["country", "country_name", "nation"];
+const REVIEW_STATUS_KEYS = ["review_status", "debt_review_status", "debt_review"];
 
 const submissionSchema = z.object({
   id: z.coerce.string().trim().min(1),
@@ -147,6 +150,9 @@ function fallbackSummary(answers: Record<string, unknown>) {
     "client_session_id",
     "ab_variant_id",
     "lead_qa",
+    "review_status",
+    "debt_review_status",
+    "debt_review",
   ]);
 
   const parts: string[] = [];
@@ -198,6 +204,7 @@ export function mapFunnelSubmissionToInventoryLead(
     firstValue(geo, ["postalCode", "zip", "postal_code"]) ||
     null;
   const summary = parseLeadQaSummary(answers) || fallbackSummary(answers);
+  const reviewStatusRaw = firstValue(answers, REVIEW_STATUS_KEYS);
 
   return {
     ok: true,
@@ -210,6 +217,7 @@ export function mapFunnelSubmissionToInventoryLead(
       last_name: (name.last || "Unknown").slice(0, 120),
       country: country.slice(0, 120),
       summary,
+      review_status: normalizeReviewStatusCode(reviewStatusRaw),
       source_system: "funnel",
       source_external_id: input.id,
       source_payload: raw as Record<string, unknown>,

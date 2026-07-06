@@ -150,6 +150,7 @@ export type FinanceSnapshotData = {
 
 export type AdminLeadsAvailability = "all" | "available" | "sold";
 export type AdminLeadsSourceFilter = "all" | "manual" | "base44" | "funnel";
+export type AdminLeadsReviewStatusFilter = "all" | string;
 export type AdminLeadsSort = "newest" | "oldest";
 
 export type DeliverPrepaidLeadResult = {
@@ -254,6 +255,9 @@ export type OrganizationFreeDelivery = {
   is_active: boolean;
   activated_at: string | null;
   activated_by: string | null;
+  allowed_category_ids: string[];
+  allowed_source_systems: string[];
+  allowed_review_statuses: string[];
   created_at: string;
   updated_at: string;
 };
@@ -359,6 +363,7 @@ type LeadsQueryParams = {
   pageSize?: number;
   availability?: AdminLeadsAvailability;
   source?: AdminLeadsSourceFilter;
+  reviewStatus?: AdminLeadsReviewStatusFilter;
   /** Partial match on country (case-insensitive). Empty = no filter. */
   country?: string;
   createdFrom?: string | null;
@@ -582,6 +587,7 @@ export const adminApi = createApi({
         pageSize = 25,
         availability = "all",
         source = "all",
+        reviewStatus = "all",
         country = "",
         createdFrom,
         createdTo,
@@ -604,6 +610,8 @@ export const adminApi = createApi({
         if (source === "manual") listQuery = listQuery.eq("source_system", "manual");
         if (source === "base44") listQuery = listQuery.eq("source_system", "base44");
         if (source === "funnel") listQuery = listQuery.eq("source_system", "funnel");
+        if (reviewStatus === "__none__") listQuery = listQuery.is("review_status", null);
+        else if (reviewStatus !== "all") listQuery = listQuery.eq("review_status", reviewStatus);
         if (country.trim()) {
           listQuery = listQuery.ilike("country", `%${country.trim()}%`);
         }
@@ -626,6 +634,8 @@ export const adminApi = createApi({
         if (source === "manual") countQuery = countQuery.eq("source_system", "manual");
         if (source === "base44") countQuery = countQuery.eq("source_system", "base44");
         if (source === "funnel") countQuery = countQuery.eq("source_system", "funnel");
+        if (reviewStatus === "__none__") countQuery = countQuery.is("review_status", null);
+        else if (reviewStatus !== "all") countQuery = countQuery.eq("review_status", reviewStatus);
         if (country.trim()) {
           countQuery = countQuery.ilike("country", `%${country.trim()}%`);
         }
@@ -1016,7 +1026,15 @@ export const adminApi = createApi({
 
     upsertOrganizationFreeDelivery: builder.mutation<
       OrganizationFreeDelivery,
-      { organization_id: string; quota_total: number; is_active: boolean }
+      {
+        organization_id: string;
+        quota_total: number;
+        is_active: boolean;
+        allowed_category_ids?: string[];
+        allowed_source_systems?: string[];
+        allowed_review_statuses?: string[];
+        eligible_from?: string;
+      }
     >({
       queryFn: async ({ organization_id, ...body }) => {
         const res = await jsonRequest<OrganizationFreeDelivery>(
