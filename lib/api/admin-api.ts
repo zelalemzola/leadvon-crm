@@ -1053,6 +1053,36 @@ export const adminApi = createApi({
       ],
     }),
 
+    revokeOrganizationFreeDelivery: builder.mutation<
+      {
+        organization_id: string;
+        revoked_customer_leads: number;
+        returned_source_leads: number;
+        free_delivery_disabled: boolean;
+      },
+      { organization_id: string }
+    >({
+      queryFn: async ({ organization_id }) => {
+        const res = await jsonRequest<{
+          organization_id: string;
+          revoked_customer_leads: number;
+          returned_source_leads: number;
+          free_delivery_disabled: boolean;
+        }>(
+          `/api/admin/customers/${encodeURIComponent(organization_id)}/free-delivery/revoke`,
+          "POST"
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data! };
+      },
+      invalidatesTags: (_result, _error, arg) => [
+        { type: "Customers", id: `free-delivery-${arg.organization_id}` },
+        { type: "Customers", id: `assigned-leads-${arg.organization_id}` },
+        "Customers",
+        "Leads",
+      ],
+    }),
+
     updateCustomer: builder.mutation<
       Pick<Profile, "id" | "is_active">,
       { id: string; is_active: boolean }
@@ -1715,6 +1745,7 @@ export const {
   useGetOrganizationFreeDeliveryQuery,
   useGetOrganizationAssignedLeadsQuery,
   useUpsertOrganizationFreeDeliveryMutation,
+  useRevokeOrganizationFreeDeliveryMutation,
   useUpdateCustomerMutation,
   useGetOrganizationFlowCommitmentsQuery,
   useGetFlowCommitmentsOverviewQuery,

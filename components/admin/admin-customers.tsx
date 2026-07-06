@@ -13,6 +13,7 @@ import {
   useGetOrganizationFreeDeliveryQuery,
   useGetOrganizationAssignedLeadsQuery,
   useUpsertOrganizationFreeDeliveryMutation,
+  useRevokeOrganizationFreeDeliveryMutation,
   useGetOrganizationFlowCommitmentsQuery,
   useUpsertOrganizationFlowCommitmentMutation,
 } from "@/lib/api/admin-api";
@@ -183,6 +184,8 @@ export function AdminCustomers() {
     useUpsertOrganizationPricingOverrideMutation();
   const [upsertFreeDelivery, { isLoading: savingFreeDelivery }] =
     useUpsertOrganizationFreeDeliveryMutation();
+  const [revokeFreeDelivery, { isLoading: revokingFreeDelivery }] =
+    useRevokeOrganizationFreeDeliveryMutation();
   const { data: flowOverview } = useGetFlowCommitmentsOverviewQuery();
   const [upsertFlowCommitment, { isLoading: savingCommitment }] =
     useUpsertOrganizationFlowCommitmentMutation();
@@ -539,6 +542,26 @@ export function AdminCustomers() {
           ? "Free leads delivery saved. Leads will be delivered until the total is reached, then it turns off automatically."
           : "Free leads delivery settings saved."
       );
+      setFreeDeliveryOpen(false);
+    } catch (err: unknown) {
+      toast.error(formatQueryError(err));
+    }
+  }
+
+  async function submitRevokeFreeDelivery() {
+    if (!freeDeliveryOrgId) return;
+    const delivered = freeDeliverySettings?.quota_delivered ?? 0;
+    if (delivered <= 0) return;
+    const confirmed = window.confirm(
+      `Return ${delivered} free-delivery lead(s) to inventory and turn off free delivery for ${freeDeliveryOrgName}? This removes those leads from the customer's account.`
+    );
+    if (!confirmed) return;
+    try {
+      const result = await revokeFreeDelivery({ organization_id: freeDeliveryOrgId }).unwrap();
+      toast.success(
+        `Returned ${result.returned_source_leads} lead(s) to inventory and disabled free delivery.`
+      );
+      setFreeDeliveryActive(false);
       setFreeDeliveryOpen(false);
     } catch (err: unknown) {
       toast.error(formatQueryError(err));
@@ -1346,7 +1369,19 @@ export function AdminCustomers() {
                 aria-label="Toggle free leads delivery"
               />
             </div>
-            <div className="flex justify-end">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {(freeDeliverySettings?.quota_delivered ?? 0) > 0 ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => void submitRevokeFreeDelivery()}
+                  disabled={revokingFreeDelivery || savingFreeDelivery}
+                >
+                  {revokingFreeDelivery ? "Reverting..." : "Revert free delivery leads"}
+                </Button>
+              ) : (
+                <span />
+              )}
               <Button onClick={() => void submitFreeDelivery()} disabled={savingFreeDelivery}>
                 {savingFreeDelivery ? "Saving..." : "Save"}
               </Button>
