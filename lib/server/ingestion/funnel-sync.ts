@@ -3,6 +3,11 @@ import { listFunnelFormSubmissions } from "@/lib/integrations/funnel";
 import { mapFunnelSubmissionToInventoryLead } from "@/lib/integrations/funnel-mapper";
 import { processLeadIngestRouting } from "@/lib/server/routing/process-lead-ingest";
 import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
+import {
+  isOnOrAfterIngestFrom,
+  maxIsoTimestamp,
+  resolveIngestFrom,
+} from "@/lib/server/ingestion/ingest-from";
 
 const PROVIDER = "funnel";
 const DEBT_REVIEW_SLUG = "debt-review";
@@ -56,15 +61,20 @@ export async function runFunnelSyncOnce(): Promise<FunnelSyncResult> {
 
   const { data: cursorRow } = await service
     .from("external_sync_cursors")
-    .select("provider,last_synced_at")
+    .select("provider,last_synced_at,ingest_from")
     .eq("provider", PROVIDER)
     .maybeSingle();
+
+  const ingestFrom = resolveIngestFrom(
+    (cursorRow as { ingest_from?: string | null } | null)?.ingest_from
+  );
+  const createdFrom = maxIsoTimestamp(cursorRow?.last_synced_at, ingestFrom);
 
   let inserted = 0;
   let updated = 0;
   let skippedInvalid = 0;
   const skipReasons = new Map<string, number>();
-  let latestSourceUpdatedAt: string | null = cursorRow?.last_synced_at ?? null;
+  let latestSourceUpdatedAt: string | null = createdFrom;
   let fetched = 0;
   let skip = 0;
   const maxPages = 50;
@@ -77,12 +87,18 @@ export async function runFunnelSyncOnce(): Promise<FunnelSyncResult> {
     const pageRows = await listFunnelFormSubmissions({
       limit: batchSize,
       offset: skip,
-      createdFrom: latestSourceUpdatedAt,
+      createdFrom,
     });
     if (pageRows.length === 0) break;
     fetched += pageRows.length;
 
     for (const raw of pageRows) {
+      if (!isOnOrAfterIngestFrom(raw.created_at, ingestFrom)) {
+        skippedInvalid += 1;
+        addSkipReason("before_ingest_from");
+        continue;
+      }
+
       const mapped = mapFunnelSubmissionToInventoryLead(raw, categoryId);
       if (!mapped.ok) {
         skippedInvalid += 1;

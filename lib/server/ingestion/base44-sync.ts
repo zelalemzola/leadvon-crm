@@ -3,6 +3,10 @@ import { listBase44SaLeads } from "@/lib/integrations/base44";
 import { mapBase44SaLeadToInventoryLead } from "@/lib/integrations/base44-mapper";
 import { processLeadIngestRouting } from "@/lib/server/routing/process-lead-ingest";
 import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
+import {
+  isOnOrAfterIngestFrom,
+  resolveIngestFrom,
+} from "@/lib/server/ingestion/ingest-from";
 
 const PROVIDER = "base44";
 
@@ -59,15 +63,19 @@ export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
 
   const { data: cursorRow } = await service
     .from("external_sync_cursors")
-    .select("provider,last_synced_at")
+    .select("provider,last_synced_at,ingest_from")
     .eq("provider", PROVIDER)
     .maybeSingle();
+
+  const ingestFrom = resolveIngestFrom(
+    (cursorRow as { ingest_from?: string | null } | null)?.ingest_from
+  );
 
   let inserted = 0;
   let updated = 0;
   let skippedInvalid = 0;
   const skipReasons = new Map<string, number>();
-  let latestSourceUpdatedAt: string | null = cursorRow?.last_synced_at ?? null;
+  let latestSourceUpdatedAt: string | null = cursorRow?.last_synced_at ?? ingestFrom ?? null;
   let fetched = 0;
   let skip = 0;
   const maxPages = 50;
@@ -80,13 +88,23 @@ export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
     const pageRows = await listBase44SaLeads({
       limit: batchSize,
       skip,
-      sortBy: "created_date",
+      sortBy: "-created_date",
       query: { last_step: "completed" },
     });
     if (pageRows.length === 0) break;
     fetched += pageRows.length;
 
+    let pageEligibleCount = 0;
+
     for (const raw of pageRows) {
+      const sourceCreatedAt = raw.created_date ?? raw.updated_date ?? null;
+      if (!isOnOrAfterIngestFrom(sourceCreatedAt, ingestFrom)) {
+        skippedInvalid += 1;
+        addSkipReason("before_ingest_from");
+        continue;
+      }
+      pageEligibleCount += 1;
+
       const mapped = mapBase44SaLeadToInventoryLead(raw, debtReviewCategoryId);
       if (!mapped.ok) {
         skippedInvalid += 1;
@@ -167,6 +185,10 @@ export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
 
       const ingestKey = `base44:${String(payload.source_external_id)}`;
       await processLeadIngestRouting(upserted.category_id, ingestKey);
+    }
+
+    if (ingestFrom && pageEligibleCount === 0) {
+      break;
     }
 
     skip += pageRows.length;
