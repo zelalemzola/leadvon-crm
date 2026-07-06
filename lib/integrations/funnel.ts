@@ -9,6 +9,7 @@ export type FunnelFormSubmission = {
   user_agent: string | null;
   referrer: string | null;
   created_at: string;
+  updated_at: string | null;
 };
 
 function getFunnelSupabaseUrl() {
@@ -37,13 +38,14 @@ export async function listFunnelFormSubmissions(args: {
   const client = createFunnelClient();
   let query = client
     .from("funnel_form_submissions")
-    .select("id,funnel_id,page_id,answers,geo,user_agent,referrer,created_at")
+    .select("id,funnel_id,page_id,answers,geo,user_agent,referrer,created_at,updated_at")
+    .order("updated_at", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: true })
     .order("id", { ascending: true })
     .range(args.offset, args.offset + args.limit - 1);
 
   if (args.createdFrom?.trim()) {
-    query = query.gte("created_at", args.createdFrom.trim());
+    query = query.gte("updated_at", args.createdFrom.trim());
   }
 
   const { data, error } = await query;

@@ -37,6 +37,7 @@ const COUNTRY_KEYS = ["country", "country_name", "nation"];
 const submissionSchema = z.object({
   id: z.coerce.string().trim().min(1),
   created_at: z.coerce.string().trim().min(1),
+  updated_at: z.coerce.string().trim().nullish(),
   answers: z.record(z.string(), z.unknown()).nullish(),
   geo: z.record(z.string(), z.unknown()).nullish(),
 });
@@ -213,7 +214,7 @@ export function mapFunnelSubmissionToInventoryLead(
       source_external_id: input.id,
       source_payload: raw as Record<string, unknown>,
       source_created_at: input.created_at ?? null,
-      source_updated_at: input.created_at ?? null,
+      source_updated_at: input.updated_at ?? input.created_at ?? null,
     },
   };
 }
