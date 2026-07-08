@@ -1245,6 +1245,33 @@ export const adminApi = createApi({
       invalidatesTags: ["Leads", "Dashboard"],
     }),
 
+    importCsvLeads: builder.mutation<
+      { imported: number; failed: { index: number; error: string }[] },
+      {
+        rows: Array<{
+          category_id: string;
+          lead_unit_type?: "single" | "family";
+          phone: string;
+          first_name: string;
+          last_name: string;
+          country: string;
+          summary?: string;
+          zip_code?: string | null;
+        }>;
+      }
+    >({
+      queryFn: async (body) => {
+        const res = await jsonRequest<{ imported: number; failed: { index: number; error: string }[] }>(
+          "/api/admin/leads/import-csv",
+          "POST",
+          body
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data };
+      },
+      invalidatesTags: ["Leads", "Dashboard"],
+    }),
+
     updateLead: builder.mutation<
       Lead,
       Partial<Lead> & { id: string }
@@ -1751,6 +1778,7 @@ export const {
   useGetFlowCommitmentsOverviewQuery,
   useUpsertOrganizationFlowCommitmentMutation,
   useCreateLeadMutation,
+  useImportCsvLeadsMutation,
   useUpdateLeadMutation,
   useDeleteLeadMutation,
   useCreateCategoryMutation,

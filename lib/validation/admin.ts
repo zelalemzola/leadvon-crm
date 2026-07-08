@@ -14,6 +14,26 @@ export const leadSchema = z.object({
   sold_at: z.string().datetime().nullable().optional(),
 });
 
+export const leadCsvImportRowSchema = z
+  .object({
+    category_id: z.string().uuid(),
+    lead_unit_type: z.enum(["single", "family"]).optional().default("single"),
+    phone: z.string().trim().min(4).max(32),
+    first_name: z.string().trim().max(120).default(""),
+    last_name: z.string().trim().max(120).default(""),
+    country: z.string().trim().min(1).max(120).default("Unknown"),
+    summary: z.string().max(2000).optional().default(""),
+    zip_code: z.string().trim().max(64).nullable().optional(),
+  })
+  .refine((row) => row.first_name.length > 0 || row.last_name.length > 0, {
+    message: "At least first_name or last_name is required",
+    path: ["first_name"],
+  });
+
+export const leadCsvImportRequestSchema = z.object({
+  rows: z.array(leadCsvImportRowSchema).min(1).max(5000),
+});
+
 export const categorySchema = z.object({
   name: z.string().trim().min(2).max(100),
   slug: z

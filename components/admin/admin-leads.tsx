@@ -18,6 +18,7 @@ import {
   useGetLeadsQuery,
   useGetCustomersQuery,
   useCreateLeadMutation,
+  useImportCsvLeadsMutation,
   useUpdateLeadMutation,
   useDeleteLeadMutation,
   useDeliverPrepaidLeadMutation,
@@ -75,6 +76,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import { useI18n } from "@/components/providers/i18n-provider";
+import {
+  buildLeadCsvTemplateCsv,
+  parseLeadCsvText,
+  type LeadCsvParseResult,
+} from "@/lib/imports/lead-csv";
 
 const emptyForm = {
   category_id: "",
@@ -162,6 +168,8 @@ export function AdminLeads() {
   const [summaryLead, setSummaryLead] = useState<LeadWithCategory | null>(null);
   const [editing, setEditing] = useState<LeadWithCategory | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [csvPreview, setCsvPreview] = useState<LeadCsvParseResult | null>(null);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const importRef = useRef<HTMLInputElement | null>(null);
 
   const { data: categories, isLoading: catLoading } = useGetCategoriesQuery();
@@ -186,6 +194,7 @@ export function AdminLeads() {
   });
 
   const [createLead, { isLoading: creating }] = useCreateLeadMutation();
+  const [importCsvLeads, { isLoading: importingCsv }] = useImportCsvLeadsMutation();
   const [updateLead, { isLoading: updating }] = useUpdateLeadMutation();
   const [deleteLead, { isLoading: deleting }] = useDeleteLeadMutation();
   const [deliverPrepaid, { isLoading: deliveringPrepaid }] =
@@ -473,51 +482,68 @@ export function AdminLeads() {
     URL.revokeObjectURL(url);
   }
 
-  async function importCsv(file: File) {
+  function downloadCsvTemplate() {
+    const blob = new Blob([buildLeadCsvTemplateCsv()], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "leads-import-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleCsvFileSelected(file: File) {
     const text = await file.text();
-    const lines = text.split(/\r?\n/).filter(Boolean);
-    if (lines.length < 2) {
+    if (!text.trim()) {
       toast.error(t("adminLeads.csvEmpty"));
       return;
     }
-    const header = lines[0].split(",").map((h) => h.trim().replaceAll('"', "").toLowerCase());
-    const required = ["first_name", "last_name", "phone", "category"];
-    const unitIdx = header.indexOf("lead_unit_type");
-    const countryIdx = header.indexOf("country");
-    for (const req of required) {
-      if (!header.includes(req)) {
-        toast.error(`${t("adminLeads.missingRequiredColumn")} ${req}`);
-        return;
-      }
+
+    const result = parseLeadCsvText(
+      text,
+      (categories ?? []).map((c) => ({ id: c.id, name: c.name, slug: c.slug }))
+    );
+
+    if (result.fileErrors.length > 0) {
+      toast.error(result.fileErrors[0] ?? t("adminLeads.csvImportFailed"));
+      return;
     }
-    const categoryMap = new Map((categories ?? []).map((c) => [c.name.toLowerCase(), c.id]));
-    let imported = 0;
-    for (const line of lines.slice(1)) {
-      const values = line.split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
-      if (values.length < header.length) continue;
-      const row = Object.fromEntries(header.map((h, i) => [h, values[i] ?? ""])) as Record<
-        string,
-        string
-      >;
-      const categoryId = categoryMap.get(String(row.category).toLowerCase());
-      if (!categoryId) continue;
-      const countryVal =
-        countryIdx >= 0 ? String(values[countryIdx] ?? "").trim() : "";
-      await createLead({
-        category_id: categoryId,
-        lead_unit_type:
-          unitIdx >= 0 && String(values[unitIdx] ?? "").trim().toLowerCase() === "family"
-            ? "family"
-            : "single",
-        phone: String(row.phone ?? ""),
-        first_name: String(row.first_name ?? ""),
-        last_name: String(row.last_name ?? ""),
-        country: countryVal || "Unknown",
-        summary: String(row.summary ?? row.notes ?? ""),
+
+    setCsvPreview(result);
+    setCsvImportOpen(true);
+  }
+
+  async function confirmCsvImport() {
+    if (!csvPreview || csvPreview.validRows.length === 0) return;
+
+    try {
+      const result = await importCsvLeads({
+        rows: csvPreview.validRows.map((row) => ({
+          category_id: row.category_id,
+          lead_unit_type: row.lead_unit_type,
+          phone: row.phone,
+          first_name: row.first_name,
+          last_name: row.last_name,
+          country: row.country,
+          summary: row.summary,
+          zip_code: row.zip_code,
+        })),
       }).unwrap();
-      imported++;
+
+      const failedCount = result.failed.length;
+      if (failedCount > 0) {
+        toast.warning(
+          `${t("adminLeads.imported")} ${result.imported} ${t("adminLeads.leads")}. ${failedCount} ${t("adminLeads.csvRowsFailed")}.`
+        );
+      } else {
+        toast.success(`${t("adminLeads.imported")} ${result.imported} ${t("adminLeads.leads")}`);
+      }
+
+      setCsvImportOpen(false);
+      setCsvPreview(null);
+    } catch {
+      toast.error(t("adminLeads.csvImportFailed"));
     }
-    toast.success(`${t("adminLeads.imported")} ${imported} ${t("adminLeads.leads")}`);
   }
 
   if (isError) {
@@ -548,6 +574,10 @@ export function AdminLeads() {
               <Download className="size-4" />
               {t("adminLeads.exportCsv")}
             </Button>
+            <Button variant="outline" onClick={downloadCsvTemplate}>
+              <Download className="size-4" />
+              {t("adminLeads.downloadCsvTemplate")}
+            </Button>
             <Button variant="outline" onClick={() => importRef.current?.click()}>
               <Upload className="size-4" />
               {t("adminLeads.importCsv")}
@@ -563,7 +593,7 @@ export function AdminLeads() {
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
-                if (f) void importCsv(f);
+                if (f) void handleCsvFileSelected(f);
                 e.currentTarget.value = "";
               }}
             />
@@ -1304,6 +1334,110 @@ export function AdminLeads() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={csvImportOpen}
+        onOpenChange={(open) => {
+          setCsvImportOpen(open);
+          if (!open) setCsvPreview(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{t("adminLeads.csvImportPreview")}</DialogTitle>
+          </DialogHeader>
+          {csvPreview ? (
+            <div className="space-y-4 text-sm">
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div className="rounded-md border p-3">
+                  <p className="text-muted-foreground">{t("adminLeads.csvValidRows")}</p>
+                  <p className="text-lg font-semibold">{csvPreview.validRows.length}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-muted-foreground">{t("adminLeads.csvInvalidRows")}</p>
+                  <p className="text-lg font-semibold">{csvPreview.invalidRows.length}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-muted-foreground">{t("adminLeads.csvMappedColumns")}</p>
+                  <p className="text-lg font-semibold">
+                    {Object.keys(csvPreview.mappedHeaders).length}
+                  </p>
+                </div>
+              </div>
+
+              {Object.keys(csvPreview.mappedHeaders).length > 0 ? (
+                <div className="rounded-md border p-3">
+                  <p className="mb-2 font-medium">{t("adminLeads.csvColumnMapping")}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(csvPreview.mappedHeaders).map(([header, field]) => (
+                      <Badge key={header} variant="outline">
+                        {header} → {field}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {csvPreview.invalidRows.length > 0 ? (
+                <div className="max-h-48 overflow-y-auto rounded-md border p-3">
+                  <p className="mb-2 font-medium text-destructive">
+                    {t("adminLeads.csvRowErrors")}
+                  </p>
+                  <ul className="space-y-2">
+                    {csvPreview.invalidRows.slice(0, 20).map((row) => (
+                      <li key={row.rowNumber}>
+                        <span className="font-medium">
+                          {t("adminLeads.csvRow")} {row.rowNumber}:
+                        </span>{" "}
+                        {row.errors.join("; ")}
+                      </li>
+                    ))}
+                  </ul>
+                  {csvPreview.invalidRows.length > 20 ? (
+                    <p className="mt-2 text-muted-foreground">
+                      +{csvPreview.invalidRows.length - 20} {t("adminLeads.csvMoreErrors")}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {csvPreview.validRows.length > 0 ? (
+                <div className="max-h-48 overflow-y-auto rounded-md border p-3">
+                  <p className="mb-2 font-medium">{t("adminLeads.csvSampleRows")}</p>
+                  <ul className="space-y-2">
+                    {csvPreview.validRows.slice(0, 5).map((row) => (
+                      <li key={row.rowNumber}>
+                        {t("adminLeads.csvRow")} {row.rowNumber}:{" "}
+                        {[row.first_name, row.last_name].filter(Boolean).join(" ") || "—"} ·{" "}
+                        {row.phone}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setCsvImportOpen(false);
+                setCsvPreview(null);
+              }}
+            >
+              {t("adminLeads.cancel")}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void confirmCsvImport()}
+              disabled={importingCsv || !csvPreview || csvPreview.validRows.length === 0}
+            >
+              {importingCsv ? t("adminLeads.csvImporting") : t("adminLeads.csvConfirmImport")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

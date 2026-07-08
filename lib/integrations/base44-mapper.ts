@@ -130,6 +130,14 @@ export function mapBase44SaLeadToInventoryLead(
   }
 
   const input = parsed.data;
+
+  if (!input.telephone) {
+    return { ok: false, reason: "missing_phone" };
+  }
+  if (!input.prenom && !input.nom) {
+    return { ok: false, reason: "missing_name" };
+  }
+
   return {
     ok: true,
     data: {

@@ -1,0 +1,11 @@
+first_name,last_name,phone,category,country,lead_unit_type,summary,zip_code
+Ada,Lovelace,+1 (415) 555-0123,debt-review,United States,single,"Interested in debt review, prefers email contact",10001
+Grace,Hopper,+27 82 123 4567,debt-review,South Africa,family,"Household of 4, high debt load",8001
+John,Smith,0821234599,debt-review,South Africa,single,Requested a callback after 5pm,7100
+,Mokoena,+27 71 555 8899,debt-review,South Africa,single,Last name only lead - still valid,2000
+Thabo,,+27 60 222 1133,debt-review,South Africa,single,First name only lead - still valid,4001
+Maria,Garcia,+34 612 345 678,debt-review,Spain,family,"Speaks Spanish, follow up in the morning",28013
+Chen,Wei,+86 138 0013 8000,debt-review,China,single,Prefers WhatsApp messaging,100000
+Fatima,Al-Sayed,+971 50 123 4567,debt-review,United Arab Emirates,single,High income prospect,00000
+Liam,O'Brien,+353 87 123 4567,debt-review,Ireland,family,"Comma, quotes "" and special chars test",D02
+Yuki,Tanaka,+81 90 1234 5678,debt-review,Japan,single,,160-0022
