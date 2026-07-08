@@ -1,16 +1,12 @@
 -- =============================================================================
--- GO-LIVE RESET (v2) — wipe leads + only import NEW external leads from today
+-- GO-LIVE RESET (v3) — wipe leads + import ONLY from the moment you run this
 -- =============================================================================
--- Run this in Supabase SQL Editor AFTER deploying app code that respects ingest_from.
+-- Run in Supabase SQL Editor AFTER deploying app code that respects ingest_from.
 --
--- What this fixes:
---   Your previous reset set sync cursors to NULL, so Base44/Funnel background jobs
---   re-imported ALL historical dummy leads. This script:
---     1. Wipes inventory + delivered leads again
---     2. Sets ingest_from = start of today (UTC) on both providers
---     3. Sets last_synced_at to the same floor so incremental sync starts clean
---
--- Change v_go_live_day below if you need a different cutover date.
+-- 1. Records the exact run time (UTC) as the ingest floor
+-- 2. Permanently excludes every Base44/Funnel id currently in inventory (dummy data)
+-- 3. Wipes inventory, customer leads, and free-delivery campaigns
+-- 4. Sets sync cursors so background jobs only pick up leads created AFTER this run
 -- =============================================================================
 
 BEGIN;
@@ -20,7 +16,8 @@ ALTER TABLE public.external_sync_cursors
 
 DO $$
 DECLARE
-  v_go_live_day timestamptz := date_trunc('day', (now() AT TIME ZONE 'UTC')) AT TIME ZONE 'UTC';
+  v_go_live_at timestamptz := now();
+  v_excluded integer;
   v_routing integer;
   v_ledger integer;
   v_notifications integer;
@@ -28,6 +25,19 @@ DECLARE
   v_leads integer;
   v_free_delivery integer;
 BEGIN
+  -- Block all external ids we already have from ever syncing back in.
+  INSERT INTO public.external_sync_exclusions (provider, external_id, reason)
+  SELECT
+    l.source_system,
+    l.source_external_id,
+    'go_live_wipe'
+  FROM public.leads l
+  WHERE l.source_system IN ('base44', 'funnel')
+    AND l.source_external_id IS NOT NULL
+  ON CONFLICT (provider, external_id) DO NOTHING;
+
+  GET DIAGNOSTICS v_excluded = ROW_COUNT;
+
   DELETE FROM public.delivery_routing_events;
   GET DIAGNOSTICS v_routing = ROW_COUNT;
 
@@ -55,12 +65,11 @@ BEGIN
     accrued_this_month = 0;
 
   DELETE FROM public.routing_job_runs;
-  DELETE FROM public.external_sync_exclusions;
 
   INSERT INTO public.external_sync_cursors (provider, ingest_from, last_synced_at, last_success_at, last_error)
   VALUES
-    ('base44', v_go_live_day, v_go_live_day, now(), NULL),
-    ('funnel', v_go_live_day, v_go_live_day, now(), NULL)
+    ('base44', v_go_live_at, v_go_live_at, v_go_live_at, NULL),
+    ('funnel', v_go_live_at, v_go_live_at, v_go_live_at, NULL)
   ON CONFLICT (provider) DO UPDATE
   SET
     ingest_from = EXCLUDED.ingest_from,
@@ -68,7 +77,8 @@ BEGIN
     last_success_at = EXCLUDED.last_success_at,
     last_error = NULL;
 
-  RAISE NOTICE 'Go-live floor (UTC): %', v_go_live_day;
+  RAISE NOTICE 'Go-live floor (exact run time UTC): %', v_go_live_at;
+  RAISE NOTICE 'External ids excluded from re-sync: %', v_excluded;
   RAISE NOTICE 'Deleted leads: %, customer_leads: %, free_delivery campaigns: %',
     v_leads, v_customer_leads, v_free_delivery;
 END;
@@ -76,7 +86,7 @@ $$;
 
 COMMIT;
 
-SELECT provider, ingest_from, last_synced_at
+SELECT provider, ingest_from, last_synced_at, last_success_at
 FROM public.external_sync_cursors
 WHERE provider IN ('base44', 'funnel')
 ORDER BY provider;
@@ -84,4 +94,6 @@ ORDER BY provider;
 SELECT 'leads' AS table_name, COUNT(*) AS remaining FROM public.leads
 UNION ALL
 SELECT 'customer_leads', COUNT(*) FROM public.customer_leads
+UNION ALL
+SELECT 'external_sync_exclusions', COUNT(*) FROM public.external_sync_exclusions
 ORDER BY table_name;

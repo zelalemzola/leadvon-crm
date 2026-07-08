@@ -24,7 +24,11 @@ export async function GET() {
         .from("leads")
         .select("*", { head: true, count: "exact" })
         .eq("category_id", categoryId)
-        .is("sold_at", null);
+        .is("sold_at", null)
+        // Test leads are ingested but never delivered to customers, so exclude
+        // them from the purchasable availability count.
+        .not("first_name", "ilike", "%test%")
+        .not("last_name", "ilike", "%test%");
       availability.set(categoryId, c.count ?? 0);
     })
   );

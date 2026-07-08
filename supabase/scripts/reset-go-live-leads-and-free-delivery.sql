@@ -28,6 +28,8 @@ ALTER TABLE public.external_sync_cursors
 
 DO $$
 DECLARE
+  v_go_live_at timestamptz := now();
+  v_excluded integer;
   v_routing integer;
   v_ledger integer;
   v_notifications integer;
@@ -35,8 +37,19 @@ DECLARE
   v_leads integer;
   v_free_delivery integer;
   v_job_runs integer;
-  v_exclusions integer;
 BEGIN
+  INSERT INTO public.external_sync_exclusions (provider, external_id, reason)
+  SELECT
+    l.source_system,
+    l.source_external_id,
+    'go_live_wipe'
+  FROM public.leads l
+  WHERE l.source_system IN ('base44', 'funnel')
+    AND l.source_external_id IS NOT NULL
+  ON CONFLICT (provider, external_id) DO NOTHING;
+
+  GET DIAGNOSTICS v_excluded = ROW_COUNT;
+
   DELETE FROM public.delivery_routing_events;
   GET DIAGNOSTICS v_routing = ROW_COUNT;
 
@@ -66,17 +79,12 @@ BEGIN
   DELETE FROM public.routing_job_runs;
   GET DIAGNOSTICS v_job_runs = ROW_COUNT;
 
-  DELETE FROM public.external_sync_exclusions;
-  GET DIAGNOSTICS v_exclusions = ROW_COUNT;
-
-  -- Do NOT null cursors — that causes full historical re-import.
-  -- After running migration 20260707010000, set ingest_from to start of today (UTC).
   INSERT INTO public.external_sync_cursors (provider, ingest_from, last_synced_at, last_success_at, last_error)
   SELECT
     provider,
-    date_trunc('day', (now() AT TIME ZONE 'UTC')) AT TIME ZONE 'UTC',
-    date_trunc('day', (now() AT TIME ZONE 'UTC')) AT TIME ZONE 'UTC',
-    now(),
+    v_go_live_at,
+    v_go_live_at,
+    v_go_live_at,
     NULL
   FROM (VALUES ('base44'), ('funnel')) AS providers(provider)
   ON CONFLICT (provider) DO UPDATE
@@ -86,7 +94,9 @@ BEGIN
     last_success_at = EXCLUDED.last_success_at,
     last_error = NULL;
 
+  RAISE NOTICE 'Go-live floor (exact run time UTC): %', v_go_live_at;
   RAISE NOTICE 'Go-live reset complete:';
+  RAISE NOTICE '  external ids excluded from re-sync: %', v_excluded;
   RAISE NOTICE '  delivery_routing_events deleted: %', v_routing;
   RAISE NOTICE '  delivery_ledger_lines deleted: %', v_ledger;
   RAISE NOTICE '  customer_notifications deleted: %', v_notifications;
@@ -94,7 +104,6 @@ BEGIN
   RAISE NOTICE '  leads (inventory) deleted: %', v_leads;
   RAISE NOTICE '  organization_free_delivery rows deleted: %', v_free_delivery;
   RAISE NOTICE '  routing_job_runs deleted: %', v_job_runs;
-  RAISE NOTICE '  external_sync_exclusions deleted: %', v_exclusions;
 END;
 $$;
 
