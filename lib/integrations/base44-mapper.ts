@@ -4,14 +4,18 @@ import {
   normalizeReviewStatusCode,
 } from "@/lib/integrations/review-status";
 
-const COMPLETED_LAST_STEP = "completed";
+const REQUIRED_STATUS = "new";
+
+const optionalTrimmedString = z
+  .union([z.string(), z.number(), z.null(), z.undefined()])
+  .transform((v) => (v === null || v === undefined ? "" : String(v).trim()));
 
 const base44SaLeadSchema = z.object({
   id: z.coerce.string().trim().min(1),
-  prenom: z.coerce.string().trim().min(1),
-  nom: z.coerce.string().trim().min(1),
-  telephone: z.coerce.string().trim().min(4),
-  age: z.coerce.string().trim().min(1),
+  prenom: optionalTrimmedString,
+  nom: optionalTrimmedString,
+  telephone: optionalTrimmedString,
+  age: optionalTrimmedString,
   province: z
     .union([z.string(), z.null(), z.undefined()])
     .transform((v) => (typeof v === "string" ? v.trim() : undefined))
@@ -115,9 +119,9 @@ export function mapBase44SaLeadToInventoryLead(
   raw: Base44SaLead,
   categoryId: string
 ): { ok: true; data: MappedBase44Lead } | { ok: false; reason: string } {
-  const lastStep = typeof raw.last_step === "string" ? raw.last_step.trim().toLowerCase() : "";
-  if (lastStep !== COMPLETED_LAST_STEP) {
-    return { ok: false, reason: `last_step_not_completed:${lastStep || "missing"}` };
+  const status = typeof raw.status === "string" ? raw.status.trim().toLowerCase() : "";
+  if (status !== REQUIRED_STATUS) {
+    return { ok: false, reason: `status_not_new:${status || "missing"}` };
   }
 
   const parsed = base44SaLeadSchema.safeParse(raw);
@@ -131,10 +135,10 @@ export function mapBase44SaLeadToInventoryLead(
     data: {
       category_id: categoryId,
       lead_unit_type: "single",
-      phone: input.telephone.trim(),
+      phone: input.telephone,
       zip_code: input.province?.trim() ? input.province.trim() : null,
-      first_name: input.prenom.trim(),
-      last_name: input.nom.trim(),
+      first_name: input.prenom,
+      last_name: input.nom,
       country: "South Africa",
       summary: buildSaLeadSummary(input),
       review_status: normalizeReviewStatusCode(input.review_status),

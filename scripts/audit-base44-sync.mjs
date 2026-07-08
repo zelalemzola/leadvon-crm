@@ -95,7 +95,7 @@ async function main() {
     listUrl.searchParams.set("limit", "5");
     listUrl.searchParams.set("skip", "0");
     listUrl.searchParams.set("sort_by", "-created_date");
-    listUrl.searchParams.set("q", JSON.stringify({ last_step: "completed" }));
+    listUrl.searchParams.set("q", JSON.stringify({ status: "new" }));
     try {
       const res = await fetch(listUrl, {
         headers: { api_key: base44Key, Accept: "application/json" },

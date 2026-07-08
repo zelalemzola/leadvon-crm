@@ -89,7 +89,7 @@ export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
       limit: batchSize,
       skip,
       sortBy: "-created_date",
-      query: { last_step: "completed" },
+      query: { status: "new" },
     });
     if (pageRows.length === 0) break;
     fetched += pageRows.length;
