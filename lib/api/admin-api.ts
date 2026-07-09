@@ -1257,6 +1257,7 @@ export const adminApi = createApi({
           country: string;
           summary?: string;
           zip_code?: string | null;
+          review_status?: string | null;
         }>;
       }
     >({

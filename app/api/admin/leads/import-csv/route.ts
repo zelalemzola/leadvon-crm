@@ -31,6 +31,7 @@ export async function POST(request: Request) {
         country: row.country,
         summary: row.summary ?? "",
         zip_code: row.zip_code ?? null,
+        review_status: row.review_status ?? null,
         source_system: "manual",
       })
       .select("id, category_id")

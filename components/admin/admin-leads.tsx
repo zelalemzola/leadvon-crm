@@ -527,6 +527,7 @@ export function AdminLeads() {
           country: row.country,
           summary: row.summary,
           zip_code: row.zip_code,
+          review_status: row.review_status,
         })),
       }).unwrap();
 
@@ -1412,6 +1413,7 @@ export function AdminLeads() {
                         {t("adminLeads.csvRow")} {row.rowNumber}:{" "}
                         {[row.first_name, row.last_name].filter(Boolean).join(" ") || "—"} ·{" "}
                         {row.phone}
+                        {row.review_status ? ` · ${reviewStatusLabel(row.review_status)}` : ""}
                       </li>
                     ))}
                   </ul>

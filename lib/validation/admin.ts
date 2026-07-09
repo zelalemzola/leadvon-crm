@@ -24,6 +24,7 @@ export const leadCsvImportRowSchema = z
     country: z.string().trim().min(1).max(120).default("Unknown"),
     summary: z.string().max(2000).optional().default(""),
     zip_code: z.string().trim().max(64).nullable().optional(),
+    review_status: z.string().trim().max(64).nullable().optional(),
   })
   .refine((row) => row.first_name.length > 0 || row.last_name.length > 0, {
     message: "At least first_name or last_name is required",

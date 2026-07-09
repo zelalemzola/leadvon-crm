@@ -23,6 +23,22 @@ export function normalizeReviewStatusCode(value: string | null | undefined): str
   return value.trim().toLowerCase();
 }
 
+export function resolveReviewStatusInput(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+
+  const lowered = trimmed.toLowerCase();
+  const slug = lowered.replace(/[\s-]+/g, "_");
+
+  if (slug in REVIEW_STATUS_LABELS) return slug;
+
+  for (const [code, label] of Object.entries(REVIEW_STATUS_LABELS)) {
+    if (label.toLowerCase() === lowered) return code;
+  }
+
+  return slug.slice(0, 64);
+}
+
 function humanizeCode(value: string) {
   return value
     .split("_")

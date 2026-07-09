@@ -118,6 +118,38 @@ describe("lead csv import", () => {
   it("builds a downloadable template", () => {
     const template = buildLeadCsvTemplateCsv();
     expect(template).toContain("first_name,last_name,phone,category");
+    expect(template).toContain("review_status");
     expect(template.split("\n")).toHaveLength(2);
+  });
+
+  it("parses review_status from a dedicated column", () => {
+    const csv = [
+      "first_name,phone,category,review_status",
+      "Ada,4155550123,Debt Review,yes_review",
+    ].join("\n");
+
+    const result = parseLeadCsvText(csv, categories);
+    expect(result.validRows[0]?.review_status).toBe("yes_review");
+  });
+
+  it("accepts human-readable review status labels", () => {
+    const csv = [
+      "first_name,phone,category,review_status",
+      "Ada,4155550123,Debt Review,Yes Review",
+    ].join("\n");
+
+    const result = parseLeadCsvText(csv, categories);
+    expect(result.validRows[0]?.review_status).toBe("yes_review");
+  });
+
+  it("extracts review_status from summary when column is missing", () => {
+    const csv = [
+      "first_name,phone,category,summary",
+      "Ada,4155550123,Debt Review,age: 34 - review_status: yes_review",
+    ].join("\n");
+
+    const result = parseLeadCsvText(csv, categories);
+    expect(result.validRows[0]?.review_status).toBe("yes_review");
+    expect(result.validRows[0]?.summary).toBe("age: 34");
   });
 });

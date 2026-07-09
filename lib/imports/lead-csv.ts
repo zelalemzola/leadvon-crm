@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import { z } from "zod";
+import { resolveReviewStatusInput } from "../integrations/review-status";
 
 export type LeadCsvCategory = {
   id: string;
@@ -17,6 +18,7 @@ export type ParsedLeadCsvRow = {
   country: string;
   summary: string;
   zip_code: string | null;
+  review_status: string | null;
 };
 
 export type LeadCsvRowError = {
@@ -80,6 +82,12 @@ const COUNTRY_ALIASES = new Set(["country", "country_name", "nation"]);
 const SUMMARY_ALIASES = new Set(["summary", "notes", "description", "comment"]);
 const ZIP_ALIASES = new Set(["zip", "zip_code", "postal_code", "postcode", "province"]);
 const UNIT_ALIASES = new Set(["lead_unit_type", "unit_type", "unit", "lead_type"]);
+const REVIEW_STATUS_ALIASES = new Set([
+  "review_status",
+  "reviewstatus",
+  "review",
+  "status_review",
+]);
 
 export const LEAD_CSV_TEMPLATE_HEADERS = [
   "first_name",
@@ -88,6 +96,7 @@ export const LEAD_CSV_TEMPLATE_HEADERS = [
   "category",
   "country",
   "lead_unit_type",
+  "review_status",
   "summary",
   "zip_code",
 ] as const;
@@ -110,6 +119,7 @@ function canonicalField(header: string): string | null {
   if (SUMMARY_ALIASES.has(header)) return "summary";
   if (ZIP_ALIASES.has(header)) return "zip_code";
   if (UNIT_ALIASES.has(header)) return "lead_unit_type";
+  if (REVIEW_STATUS_ALIASES.has(header)) return "review_status";
   return null;
 }
 
@@ -167,11 +177,29 @@ const leadCsvRowSchema = z
     country: z.string().trim().min(1).max(120).default("Unknown"),
     summary: z.string().max(2000).default(""),
     zip_code: z.string().trim().max(64).nullable().optional(),
+    review_status: z.string().trim().max(64).nullable().optional(),
   })
   .refine((row) => row.first_name.length > 0 || row.last_name.length > 0, {
     message: "At least first_name or last_name is required",
     path: ["first_name"],
   });
+
+function extractReviewStatusFromSummary(summary: string) {
+  const match = summary.match(/(?:^|\s*-\s*)review_status:\s*([^-\n]+)/i);
+  if (!match) {
+    return { review_status: null as string | null, summary };
+  }
+
+  const review_status = resolveReviewStatusInput(match[1]);
+  const cleaned = summary
+    .replace(/(?:^|\s*-\s*)review_status:\s*[^-\n]+/i, "")
+    .replace(/\s*-\s*-\s*/g, " - ")
+    .replace(/^\s*-\s*/, "")
+    .replace(/\s*-\s*$/, "")
+    .trim();
+
+  return { review_status, summary: cleaned.slice(0, 2000) };
+}
 
 export function buildLeadCsvTemplateCsv() {
   const example = [
@@ -181,6 +209,7 @@ export function buildLeadCsvTemplateCsv() {
     "Debt Review",
     "United States",
     "single",
+    "yes_review",
     "Interested in debt review",
     "10001",
   ];
@@ -305,9 +334,16 @@ export function parseLeadCsvText(
     const unitRaw = read("lead_unit_type").toLowerCase();
     const lead_unit_type: "single" | "family" = unitRaw === "family" ? "family" : "single";
     const country = read("country") || "Unknown";
-    const summary = read("summary").slice(0, 2000);
+    let summary = read("summary").slice(0, 2000);
     const zipRaw = read("zip_code");
     const zip_code = zipRaw ? zipRaw : null;
+
+    let review_status = resolveReviewStatusInput(read("review_status"));
+    if (!review_status) {
+      const extracted = extractReviewStatusFromSummary(summary);
+      review_status = extracted.review_status;
+      summary = extracted.summary;
+    }
 
     if (!phone) rowErrors.push("Phone is required");
     else if (phone.length < 4) rowErrors.push("Phone must be at least 4 characters");
@@ -329,6 +365,7 @@ export function parseLeadCsvText(
       country,
       summary,
       zip_code,
+      review_status,
     });
 
     if (!validated.success) {
@@ -343,6 +380,7 @@ export function parseLeadCsvText(
       rowNumber,
       ...validated.data,
       zip_code: validated.data.zip_code ?? null,
+      review_status: validated.data.review_status ?? null,
     });
   });
 
