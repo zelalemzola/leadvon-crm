@@ -102,6 +102,13 @@ export const organizationFreeDeliverySchema = z.object({
     .optional(),
 });
 
+export const organizationGoogleSheetExportSchema = z.object({
+  is_active: z.boolean(),
+  /** Raw spreadsheet id or full Google Sheets URL. */
+  spreadsheet_id: z.string().trim().max(500),
+  sheet_name: z.string().trim().min(1).max(120).default("Leads"),
+});
+
 export const updateStaffSchema = z.object({
   role: z.enum(["staff", "customer_admin", "customer_agent"]).optional(),
   is_active: z.boolean().optional(),

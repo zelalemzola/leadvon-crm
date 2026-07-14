@@ -114,9 +114,9 @@ function parseLeadQaSummary(answers: Record<string, unknown>) {
     const answer = typeof r.answer === "string" ? normalizeSpace(r.answer) : "";
     if (!question || !answer) continue;
     parts.push(`${question}: ${answer}`);
-    if (parts.length >= 8) break;
+    if (parts.length >= 16) break;
   }
-  return parts.join(" - ").slice(0, 2000);
+  return parts.join(" - ").slice(0, 4000);
 }
 
 function fallbackSummary(answers: Record<string, unknown>) {
@@ -160,9 +160,9 @@ function fallbackSummary(answers: Record<string, unknown>) {
           : JSON.stringify(value);
     if (!v) continue;
     parts.push(`${key}: ${v}`);
-    if (parts.length >= 8) break;
+    if (parts.length >= 16) break;
   }
-  return parts.join(" - ").slice(0, 2000);
+  return parts.join(" - ").slice(0, 4000);
 }
 
 export function mapFunnelSubmissionToInventoryLead(

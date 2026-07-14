@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendNewLeadsDigestEmail } from "@/lib/email/resend";
+import { processPendingGoogleSheetLeadExports } from "@/lib/server/integrations/google-sheet-lead-sync";
 import { isWebPushConfigured, sendPushForNotification } from "@/lib/server/notifications/web-push";
 
 type NotificationProfile = {
@@ -99,6 +100,8 @@ export async function processPendingLeadEmails(batchLimit = 500) {
   }
 
   await processPendingPushNotifications(batchLimit);
+  // Org-configured Google Sheet appends (same delivery flush path as email/push).
+  await processPendingGoogleSheetLeadExports().catch(() => null);
 
   return {
     processed,

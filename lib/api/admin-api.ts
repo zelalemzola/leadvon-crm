@@ -262,6 +262,25 @@ export type OrganizationFreeDelivery = {
   updated_at: string;
 };
 
+export type OrganizationGoogleSheetExportSettings = {
+  organization_id: string;
+  is_active: boolean;
+  spreadsheet_id: string;
+  sheet_name: string;
+  last_synced_at: string | null;
+  last_error: string | null;
+  activated_at: string | null;
+  activated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OrganizationGoogleSheetExportResponse = {
+  settings: OrganizationGoogleSheetExportSettings | null;
+  google_sheets_configured: boolean;
+  editor_email: string | null;
+};
+
 export type OrganizationAssignedLead = {
   id: string;
   source_lead_id: string;
@@ -1010,6 +1029,20 @@ export const adminApi = createApi({
       ],
     }),
 
+    getOrganizationGoogleSheetExport: builder.query<OrganizationGoogleSheetExportResponse, string>({
+      queryFn: async (organizationId) => {
+        const res = await jsonRequest<OrganizationGoogleSheetExportResponse>(
+          `/api/admin/customers/${encodeURIComponent(organizationId)}/google-sheet`,
+          "GET"
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data as OrganizationGoogleSheetExportResponse };
+      },
+      providesTags: (_result, _error, organizationId) => [
+        { type: "Customers", id: `google-sheet-${organizationId}` },
+      ],
+    }),
+
     getOrganizationAssignedLeads: builder.query<OrganizationAssignedLeadsResponse, string>({
       queryFn: async (organizationId) => {
         const res = await jsonRequest<OrganizationAssignedLeadsResponse>(
@@ -1050,6 +1083,30 @@ export const adminApi = createApi({
         { type: "Customers", id: `assigned-leads-${arg.organization_id}` },
         "Customers",
         "Leads",
+      ],
+    }),
+
+    upsertOrganizationGoogleSheetExport: builder.mutation<
+      OrganizationGoogleSheetExportResponse,
+      {
+        organization_id: string;
+        is_active: boolean;
+        spreadsheet_id: string;
+        sheet_name?: string;
+      }
+    >({
+      queryFn: async ({ organization_id, ...body }) => {
+        const res = await jsonRequest<OrganizationGoogleSheetExportResponse>(
+          `/api/admin/customers/${encodeURIComponent(organization_id)}/google-sheet`,
+          "PUT",
+          body
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data as OrganizationGoogleSheetExportResponse };
+      },
+      invalidatesTags: (_result, _error, arg) => [
+        { type: "Customers", id: `google-sheet-${arg.organization_id}` },
+        "Customers",
       ],
     }),
 
@@ -1774,6 +1831,8 @@ export const {
   useGetOrganizationAssignedLeadsQuery,
   useUpsertOrganizationFreeDeliveryMutation,
   useRevokeOrganizationFreeDeliveryMutation,
+  useGetOrganizationGoogleSheetExportQuery,
+  useUpsertOrganizationGoogleSheetExportMutation,
   useUpdateCustomerMutation,
   useGetOrganizationFlowCommitmentsQuery,
   useGetFlowCommitmentsOverviewQuery,

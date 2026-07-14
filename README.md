@@ -82,6 +82,26 @@ Trigger endpoint:
 
 - `POST /api/cron/funnel-sync` with `x-cron-secret: $CRON_SECRET`
 
+## Google Sheets lead export (per customer)
+
+When enabled for an organization (Admin → Customers → Google Sheets export), every lead
+delivered into that customer’s CRM account is also **appended** to their Google Sheet.
+
+Apply migrations:
+
+- `20260714120000_google_sheet_lead_exports.sql` (idempotency ledger)
+- `20260714130000_organization_google_sheet_exports.sql` (per-org settings)
+
+Required env vars (one shared Google service account for all customers):
+
+- `GOOGLE_SHEETS_CLIENT_EMAIL` — service account email (each client must share their sheet with this address as **Editor**)
+- `GOOGLE_SHEETS_PRIVATE_KEY` — service account private key (`\n` for newlines)
+- Or: `GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON` — full service account JSON
+
+Flush path: same places as lead emails (`processPendingLeadEmails`) plus `POST /api/cron/notifications`.
+
+Row layout (worksheet columns A–G): Creation Date/Time | Consumer Name | Consumer Surname | Email | Mobile | Ad Source | Qualifying. Append-only — never delete sheet rows.
+
 ## Browser push notifications (Web Push)
 
 Client users can opt in on **Client → Notifications** to receive browser alerts when new leads arrive or status changes.

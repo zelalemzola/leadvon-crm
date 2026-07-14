@@ -14,6 +14,8 @@ import {
   useGetOrganizationAssignedLeadsQuery,
   useUpsertOrganizationFreeDeliveryMutation,
   useRevokeOrganizationFreeDeliveryMutation,
+  useGetOrganizationGoogleSheetExportQuery,
+  useUpsertOrganizationGoogleSheetExportMutation,
   useGetOrganizationFlowCommitmentsQuery,
   useUpsertOrganizationFlowCommitmentMutation,
 } from "@/lib/api/admin-api";
@@ -64,7 +66,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, Building2, Clock3, Download, Gauge, Gift, MoreHorizontal, Plus, Users, DollarSign } from "lucide-react";
+import { AlertTriangle, Building2, Clock3, Download, FileSpreadsheet, Gauge, Gift, MoreHorizontal, Plus, Users, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatQueryError } from "@/lib/utils";
 import { useI18n } from "@/components/providers/i18n-provider";
@@ -186,6 +188,8 @@ export function AdminCustomers() {
     useUpsertOrganizationFreeDeliveryMutation();
   const [revokeFreeDelivery, { isLoading: revokingFreeDelivery }] =
     useRevokeOrganizationFreeDeliveryMutation();
+  const [upsertGoogleSheetExport, { isLoading: savingGoogleSheet }] =
+    useUpsertOrganizationGoogleSheetExportMutation();
   const { data: flowOverview } = useGetFlowCommitmentsOverviewQuery();
   const [upsertFlowCommitment, { isLoading: savingCommitment }] =
     useUpsertOrganizationFlowCommitmentMutation();
@@ -222,6 +226,12 @@ export function AdminCustomers() {
   const [freeDeliverySources, setFreeDeliverySources] = useState<string[]>([]);
   const [freeDeliveryReviewStatuses, setFreeDeliveryReviewStatuses] = useState<string[]>([]);
   const [freeDeliveryEligibleFrom, setFreeDeliveryEligibleFrom] = useState("");
+  const [googleSheetOpen, setGoogleSheetOpen] = useState(false);
+  const [googleSheetOrgId, setGoogleSheetOrgId] = useState<string | null>(null);
+  const [googleSheetOrgName, setGoogleSheetOrgName] = useState("");
+  const [googleSheetActive, setGoogleSheetActive] = useState(false);
+  const [googleSheetSpreadsheetId, setGoogleSheetSpreadsheetId] = useState("");
+  const [googleSheetTabName, setGoogleSheetTabName] = useState("Leads");
   const [assignedLeadsOpen, setAssignedLeadsOpen] = useState(false);
   const [assignedLeadsOrgId, setAssignedLeadsOrgId] = useState<string | null>(null);
   const [assignedLeadsOrgName, setAssignedLeadsOrgName] = useState("");
@@ -240,6 +250,10 @@ export function AdminCustomers() {
   const { data: freeDeliverySettings } = useGetOrganizationFreeDeliveryQuery(
     freeDeliveryOrgId ?? "",
     { skip: !freeDeliveryOpen || !freeDeliveryOrgId }
+  );
+  const { data: googleSheetExport } = useGetOrganizationGoogleSheetExportQuery(
+    googleSheetOrgId ?? "",
+    { skip: !googleSheetOpen || !googleSheetOrgId }
   );
   const {
     data: assignedLeadsData,
@@ -282,6 +296,20 @@ export function AdminCustomers() {
       setFreeDeliveryEligibleFrom("");
     }
   }, [freeDeliveryOpen, freeDeliverySettings]);
+
+  useEffect(() => {
+    if (!googleSheetOpen) return;
+    const settings = googleSheetExport?.settings;
+    if (settings) {
+      setGoogleSheetActive(settings.is_active);
+      setGoogleSheetSpreadsheetId(settings.spreadsheet_id || "");
+      setGoogleSheetTabName(settings.sheet_name || "Leads");
+    } else {
+      setGoogleSheetActive(false);
+      setGoogleSheetSpreadsheetId("");
+      setGoogleSheetTabName("Leads");
+    }
+  }, [googleSheetOpen, googleSheetExport]);
 
   useEffect(() => {
     if (!paceOpen) return;
@@ -518,6 +546,12 @@ export function AdminCustomers() {
     setFreeDeliveryOpen(true);
   }
 
+  function openGoogleSheetDialog(row: CustomerDirectoryRow) {
+    setGoogleSheetOrgId(row.organization_id);
+    setGoogleSheetOrgName(row.organizations?.name ?? "Customer");
+    setGoogleSheetOpen(true);
+  }
+
   async function submitFreeDelivery() {
     if (!freeDeliveryOrgId) return;
     const total = Number(freeDeliveryTotal);
@@ -543,6 +577,30 @@ export function AdminCustomers() {
           : "Free leads delivery settings saved."
       );
       setFreeDeliveryOpen(false);
+    } catch (err: unknown) {
+      toast.error(formatQueryError(err));
+    }
+  }
+
+  async function submitGoogleSheetExport() {
+    if (!googleSheetOrgId) return;
+    if (googleSheetActive && !googleSheetSpreadsheetId.trim()) {
+      toast.error("Paste the Google Sheet link or spreadsheet ID before enabling export.");
+      return;
+    }
+    try {
+      await upsertGoogleSheetExport({
+        organization_id: googleSheetOrgId,
+        is_active: googleSheetActive,
+        spreadsheet_id: googleSheetSpreadsheetId.trim(),
+        sheet_name: googleSheetTabName.trim() || "Leads",
+      }).unwrap();
+      toast.success(
+        googleSheetActive
+          ? "Google Sheets export enabled. Delivered leads will also append to their sheet."
+          : "Google Sheets export settings saved."
+      );
+      setGoogleSheetOpen(false);
     } catch (err: unknown) {
       toast.error(formatQueryError(err));
     }
@@ -986,6 +1044,10 @@ export function AdminCustomers() {
                               <Gift className="mr-2 size-4" />
                               Free leads delivery
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openGoogleSheetDialog(row)}>
+                              <FileSpreadsheet className="mr-2 size-4" />
+                              Google Sheets export
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -1384,6 +1446,101 @@ export function AdminCustomers() {
               )}
               <Button onClick={() => void submitFreeDelivery()} disabled={savingFreeDelivery}>
                 {savingFreeDelivery ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={googleSheetOpen} onOpenChange={setGoogleSheetOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Google Sheets export</DialogTitle>
+            <DialogDescription>
+              When enabled, leads delivered to {googleSheetOrgName} are also appended to their Google
+              Sheet (CRM delivery is unchanged). Ask them to share the sheet with the editor email
+              below as Editor. Do not delete sheet rows — that breaks their integration.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            {!googleSheetExport?.google_sheets_configured ? (
+              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                Google Sheets credentials are not configured on the server yet. Set{" "}
+                <code className="text-xs">GOOGLE_SHEETS_CLIENT_EMAIL</code> and{" "}
+                <code className="text-xs">GOOGLE_SHEETS_PRIVATE_KEY</code> (or{" "}
+                <code className="text-xs">GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON</code>) before enabling.
+              </p>
+            ) : null}
+            {googleSheetExport?.editor_email ? (
+              <div className="space-y-1">
+                <Label>Share sheet with this Editor email</Label>
+                <div className="flex gap-2">
+                  <Input readOnly value={googleSheetExport.editor_email} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(googleSheetExport.editor_email ?? "");
+                      toast.success("Editor email copied.");
+                    }}
+                  >
+                    Copy
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+            <div className="space-y-1">
+              <Label htmlFor="google-sheet-url">Spreadsheet link or ID</Label>
+              <Input
+                id="google-sheet-url"
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+                value={googleSheetSpreadsheetId}
+                onChange={(e) => setGoogleSheetSpreadsheetId(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="google-sheet-tab">Worksheet name</Label>
+              <Input
+                id="google-sheet-tab"
+                value={googleSheetTabName}
+                onChange={(e) => setGoogleSheetTabName(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Defaults to &quot;Leads&quot;. Columns A–G stay fixed (date, name, surname, email, mobile,
+                ad source, qualifying).
+              </p>
+            </div>
+            {googleSheetExport?.settings?.last_error ? (
+              <p className="text-sm text-destructive">
+                Last sync error: {googleSheetExport.settings.last_error}
+              </p>
+            ) : null}
+            {googleSheetExport?.settings?.last_synced_at ? (
+              <p className="text-xs text-muted-foreground">
+                Last successful sync:{" "}
+                {new Date(googleSheetExport.settings.last_synced_at).toLocaleString()}
+              </p>
+            ) : null}
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="google-sheet-active" className="text-sm font-medium">
+                  Export delivered leads
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {googleSheetActive
+                    ? "On — each new delivered lead is appended to the sheet."
+                    : "Off — leads stay in CRM only."}
+                </p>
+              </div>
+              <Switch
+                id="google-sheet-active"
+                checked={googleSheetActive}
+                onCheckedChange={setGoogleSheetActive}
+                aria-label="Toggle Google Sheets export"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => void submitGoogleSheetExport()} disabled={savingGoogleSheet}>
+                {savingGoogleSheet ? "Saving..." : "Save"}
               </Button>
             </div>
           </div>
