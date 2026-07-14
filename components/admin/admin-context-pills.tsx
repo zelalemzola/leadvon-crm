@@ -12,7 +12,11 @@ export function AdminContextPills({ pills }: { pills: ContextPill[] }) {
   return (
     <div className="flex flex-wrap gap-2">
       {pills.map((p) => (
-        <Badge key={`${p.label}:${p.value}`} variant="outline" className="text-xs">
+        <Badge
+          key={`${p.label}:${p.value}`}
+          variant="outline"
+          className="rounded-md border-border text-xs font-normal"
+        >
           {p.label}: {p.value}
         </Badge>
       ))}

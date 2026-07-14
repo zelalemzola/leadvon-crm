@@ -18,6 +18,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatQueryError } from "@/lib/utils";
 import { useI18n } from "@/components/providers/i18n-provider";
+import {
+  useAdminPagination,
+  AdminTablePagination,
+} from "@/components/admin/admin-table-pagination";
 
 export function AdminDistributionConsole() {
   const { t, localizePath } = useI18n();
@@ -50,6 +54,20 @@ export function AdminDistributionConsole() {
   };
   const events = data?.events ?? [];
   const runs = data?.runs ?? [];
+  const {
+    page: eventsPage,
+    setPage: setEventsPage,
+    pageCount: eventsPageCount,
+    total: eventsTotal,
+    pageItems: eventsPageItems,
+  } = useAdminPagination(events);
+  const {
+    page: runsPage,
+    setPage: setRunsPage,
+    pageCount: runsPageCount,
+    total: runsTotal,
+    pageItems: runsPageItems,
+  } = useAdminPagination(runs);
 
   const pacePct = summary.accrued_this_month
     ? Math.min(100, Math.round((summary.delivered_this_month / summary.accrued_this_month) * 100))
@@ -109,7 +127,7 @@ export function AdminDistributionConsole() {
         />
       </header>
 
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("adminDistribution.scope")}</CardTitle>
           <CardDescription>{t("adminDistribution.scopeDesc")}</CardDescription>
@@ -146,7 +164,7 @@ export function AdminDistributionConsole() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-md" />)
         ) : (
           <>
             <Kpi title={t("adminDistribution.activeFlows")} value={String(summary.active_flows)} />
@@ -157,7 +175,7 @@ export function AdminDistributionConsole() {
         )}
       </div>
 
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("adminDistribution.recentRoutingEvents")}</CardTitle>
         </CardHeader>
@@ -182,7 +200,7 @@ export function AdminDistributionConsole() {
                   </TableCell>
                 </TableRow>
               ) : (
-                events.map((e) => (
+                eventsPageItems.map((e) => (
                   <TableRow key={e.id}>
                     <TableCell className="text-muted-foreground">{new Date(e.created_at).toLocaleString()}</TableCell>
                     <TableCell>{e.organizations?.name ?? e.organization_id.slice(0, 8)}</TableCell>
@@ -191,8 +209,8 @@ export function AdminDistributionConsole() {
                       <Badge
                         className={
                           e.routing_reason === "floor_min_share"
-                            ? "bg-sky-500/15 text-sky-300"
-                            : "bg-violet-500/15 text-violet-300"
+                            ? "bg-secondary text-secondary-foreground"
+                            : "bg-muted/60 text-muted-foreground"
                         }
                       >
                         {e.routing_reason}
@@ -209,9 +227,15 @@ export function AdminDistributionConsole() {
             </TableBody>
           </Table>
         </CardContent>
+        <AdminTablePagination
+          page={eventsPage}
+          pageCount={eventsPageCount}
+          total={eventsTotal}
+          onPageChange={setEventsPage}
+        />
       </Card>
 
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("adminDistribution.recentProcessingRuns")}</CardTitle>
         </CardHeader>
@@ -235,7 +259,7 @@ export function AdminDistributionConsole() {
                   </TableCell>
                 </TableRow>
               ) : (
-                runs.map((r) => (
+                runsPageItems.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="text-muted-foreground">{new Date(r.created_at).toLocaleString()}</TableCell>
                     <TableCell>{r.trigger_source}</TableCell>
@@ -265,6 +289,12 @@ export function AdminDistributionConsole() {
             </TableBody>
           </Table>
         </CardContent>
+        <AdminTablePagination
+          page={runsPage}
+          pageCount={runsPageCount}
+          total={runsTotal}
+          onPageChange={setRunsPage}
+        />
       </Card>
     </div>
   );
@@ -272,7 +302,7 @@ export function AdminDistributionConsole() {
 
 function Kpi({ title, value }: { title: string; value: string }) {
   return (
-    <Card className="border-border/80 bg-card/50">
+    <Card className="border-border bg-card">
       <CardContent className="pt-6">
         <p className="text-xs text-muted-foreground">{title}</p>
         <p className="text-2xl font-semibold tabular-nums">{value}</p>

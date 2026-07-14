@@ -36,6 +36,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import { useI18n } from "@/components/providers/i18n-provider";
+import {
+  useAdminPagination,
+  AdminTablePagination,
+} from "@/components/admin/admin-table-pagination";
 
 export function AdminStaff() {
   const { t } = useI18n();
@@ -58,6 +62,13 @@ export function AdminStaff() {
         s.id.toLowerCase().includes(term)
     );
   }, [search, staff]);
+  const {
+    page: staffPage,
+    setPage: setStaffPage,
+    pageCount: staffPageCount,
+    total: staffTotal,
+    pageItems: staffPageItems,
+  } = useAdminPagination(filteredStaff);
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -132,13 +143,13 @@ export function AdminStaff() {
 
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="border-border/80 bg-card/50">
+        <Card className="border-border bg-card">
           <CardContent className="pt-6">
             <p className="text-xs text-muted-foreground">{t("adminStaff.totalStaff")}</p>
             <p className="text-2xl font-semibold">{staff?.length ?? 0}</p>
           </CardContent>
         </Card>
-        <Card className="border-border/80 bg-card/50">
+        <Card className="border-border bg-card">
           <CardContent className="pt-6">
             <p className="text-xs text-muted-foreground">{t("adminStaff.accountsWithName")}</p>
             <p className="text-2xl font-semibold">
@@ -146,7 +157,7 @@ export function AdminStaff() {
             </p>
           </CardContent>
         </Card>
-        <Card className="border-border/80 bg-card/50">
+        <Card className="border-border bg-card">
           <CardContent className="pt-6">
             <p className="text-xs text-muted-foreground">{t("adminStaff.missingNames")}</p>
             <p className="text-2xl font-semibold">
@@ -156,7 +167,7 @@ export function AdminStaff() {
         </Card>
       </div>
 
-      <Card className="max-w-xl border-border/80 bg-card/50">
+      <Card className="max-w-xl border-border bg-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <UserPlus className="size-4" aria-hidden />
@@ -206,7 +217,7 @@ export function AdminStaff() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("adminStaff.staffAccounts")}</CardTitle>
           <CardDescription>{t("adminStaff.staffAccountsDesc")}</CardDescription>
@@ -249,7 +260,7 @@ export function AdminStaff() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredStaff.map((s) => (
+                  staffPageItems.map((s) => (
                     <TableRow key={s.id}>
                       <TableCell className="font-mono text-xs text-muted-foreground">
                         {s.id.slice(0, 8)}
@@ -259,7 +270,7 @@ export function AdminStaff() {
                       </TableCell>
                       <TableCell>{s.full_name ?? t("admin.dashboard.na")}</TableCell>
                       <TableCell>
-                        <Badge className="bg-violet-500/15 text-violet-300 hover:bg-violet-500/25">
+                        <Badge className="border-border bg-muted/50 text-foreground hover:bg-muted">
                           {t("adminStaff.staff")}
                         </Badge>
                       </TableCell>
@@ -341,6 +352,12 @@ export function AdminStaff() {
             </Table>
           )}
         </CardContent>
+        <AdminTablePagination
+          page={staffPage}
+          pageCount={staffPageCount}
+          total={staffTotal}
+          onPageChange={setStaffPage}
+        />
       </Card>
     </div>
   );

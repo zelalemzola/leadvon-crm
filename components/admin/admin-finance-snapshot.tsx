@@ -16,19 +16,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatQueryError } from "@/lib/utils";
 import { useI18n } from "@/components/providers/i18n-provider";
+import {
+  useAdminPagination,
+  AdminTablePagination,
+} from "@/components/admin/admin-table-pagination";
 
 export function AdminFinanceSnapshot() {
   const { localizePath, t } = useI18n();
   const [months, setMonths] = useState(6);
   const { data, isLoading, isError, error } = useGetFinanceSnapshotQuery({ months });
-
-  if (isError) {
-    return (
-      <div className="p-8">
-        <p className="text-destructive">{t("adminFinance.failedToLoad")} {formatQueryError(error)}</p>
-      </div>
-    );
-  }
 
   const k = data?.kpis ?? {
     mrr_current_month_cents: 0,
@@ -38,6 +34,21 @@ export function AdminFinanceSnapshot() {
     recognized_delivery_30d_cents: 0,
   };
   const monthly = data?.monthly ?? [];
+  const {
+    page: monthlyPage,
+    setPage: setMonthlyPage,
+    pageCount: monthlyPageCount,
+    total: monthlyTotal,
+    pageItems: monthlyPageItems,
+  } = useAdminPagination(monthly);
+
+  if (isError) {
+    return (
+      <div className="p-8">
+        <p className="text-destructive">{t("adminFinance.failedToLoad")} {formatQueryError(error)}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 lg:p-8">
@@ -60,7 +71,7 @@ export function AdminFinanceSnapshot() {
         <AdminContextPills pills={[{ label: t("adminFinance.window"), value: `${months} ${t("adminFinance.months")}` }]} />
       </header>
 
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("adminFinance.window")}</CardTitle>
           <CardDescription>{t("adminFinance.windowDesc")}</CardDescription>
@@ -81,7 +92,7 @@ export function AdminFinanceSnapshot() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {isLoading ? (
-          Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+          Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-md" />)
         ) : (
           <>
             <Kpi title={t("adminFinance.mrrCurrentMonth")} value={money(k.mrr_current_month_cents)} />
@@ -93,7 +104,7 @@ export function AdminFinanceSnapshot() {
         )}
       </div>
 
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("adminFinance.monthlyTrend")}</CardTitle>
           <CardDescription>
@@ -125,7 +136,7 @@ export function AdminFinanceSnapshot() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  monthly.map((m) => {
+                  monthlyPageItems.map((m) => {
                     const spread = m.cash_collected_cents - m.recognized_delivery_cents;
                     return (
                       <TableRow key={m.month}>
@@ -148,6 +159,12 @@ export function AdminFinanceSnapshot() {
             </Table>
           )}
         </CardContent>
+        <AdminTablePagination
+          page={monthlyPage}
+          pageCount={monthlyPageCount}
+          total={monthlyTotal}
+          onPageChange={setMonthlyPage}
+        />
       </Card>
     </div>
   );
@@ -155,7 +172,7 @@ export function AdminFinanceSnapshot() {
 
 function Kpi({ title, value }: { title: string; value: string }) {
   return (
-    <Card className="border-border/80 bg-card/50">
+    <Card className="border-border bg-card">
       <CardContent className="pt-6">
         <p className="text-xs text-muted-foreground">{title}</p>
         <p className="text-2xl font-semibold tabular-nums">{value}</p>

@@ -18,6 +18,10 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatQueryError } from "@/lib/utils";
 import { useI18n } from "@/components/providers/i18n-provider";
+import {
+  useAdminPagination,
+  AdminTablePagination,
+} from "@/components/admin/admin-table-pagination";
 
 export function AdminClientOverview() {
   const { localizePath, t } = useI18n();
@@ -30,6 +34,13 @@ export function AdminClientOverview() {
   );
 
   const rows = data ?? [];
+  const {
+    page: healthPage,
+    setPage: setHealthPage,
+    pageCount: healthPageCount,
+    total: healthTotal,
+    pageItems: healthPageItems,
+  } = useAdminPagination(rows);
   const orgChoices = useMemo(
     () =>
       rows
@@ -99,7 +110,7 @@ export function AdminClientOverview() {
         />
       </header>
 
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("adminOverview.filters")}</CardTitle>
           <CardDescription>{t("adminOverview.filtersDesc")}</CardDescription>
@@ -123,7 +134,7 @@ export function AdminClientOverview() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-md" />)
         ) : (
           <>
             <Kpi title={t("adminOverview.organizations")} value={String(totals.orgs)} />
@@ -134,7 +145,7 @@ export function AdminClientOverview() {
         )}
       </div>
 
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("adminOverview.clientHealthTable")}</CardTitle>
         </CardHeader>
@@ -168,7 +179,7 @@ export function AdminClientOverview() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  rows.map((r) => (
+                  healthPageItems.map((r) => (
                     <TableRow key={r.organization_id}>
                       <TableCell className="font-medium">{r.organization_name}</TableCell>
                       <TableCell className="text-muted-foreground">
@@ -222,6 +233,12 @@ export function AdminClientOverview() {
             </Table>
           )}
         </CardContent>
+        <AdminTablePagination
+          page={healthPage}
+          pageCount={healthPageCount}
+          total={healthTotal}
+          onPageChange={setHealthPage}
+        />
       </Card>
     </div>
   );
@@ -229,7 +246,7 @@ export function AdminClientOverview() {
 
 function Kpi({ title, value }: { title: string; value: string }) {
   return (
-    <Card className="border-border/80 bg-card/50">
+    <Card className="border-border bg-card">
       <CardContent className="pt-6">
         <p className="text-xs text-muted-foreground">{title}</p>
         <p className="text-2xl font-semibold tabular-nums">{value}</p>

@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Inter } from "next/font/google";
 import { cookies } from "next/headers";
 import { AppProviders } from "@/components/providers/app-providers";
 import { defaultLocale, isLocale, localeCookieKey } from "@/lib/i18n/messages";
 import "./globals.css";
+
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,7 +37,7 @@ export default async function RootLayout({
   return (
     <html
       lang={htmlLang}
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">

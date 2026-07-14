@@ -70,6 +70,10 @@ import { AlertTriangle, Building2, Clock3, Download, FileSpreadsheet, Gauge, Gif
 import { toast } from "sonner";
 import { cn, formatQueryError } from "@/lib/utils";
 import { useI18n } from "@/components/providers/i18n-provider";
+import {
+  useAdminPagination,
+  AdminTablePagination,
+} from "@/components/admin/admin-table-pagination";
 
 type StatusFilter = "all" | "active" | "inactive";
 type SortKey = "joined" | "org" | "contact" | "members" | "leads";
@@ -85,12 +89,12 @@ function grantSourceLabel(source: string, t: (key: string) => string) {
 
 function grantSourceBadgeClass(source: string) {
   if (source === "free_delivery") {
-    return "bg-violet-500/15 text-violet-300 hover:bg-violet-500/25";
+    return "border-border bg-muted/50 text-foreground hover:bg-muted";
   }
   if (source === "signup_free" || source === "free_test") {
     return "bg-amber-500/15 text-amber-300 hover:bg-amber-500/25";
   }
-  return "bg-sky-500/15 text-sky-300 hover:bg-sky-500/25";
+  return "border-border bg-secondary text-secondary-foreground hover:bg-secondary/80";
 }
 
 function CustomerSortHead({
@@ -354,6 +358,38 @@ export function AdminCustomers() {
 
     return sortCustomers(list, sortKey, sortDir);
   }, [customers, statusFilter, search, sortKey, sortDir]);
+
+  const pendingList = pendingUsers ?? [];
+  const {
+    page: pendingPage,
+    setPage: setPendingPage,
+    pageCount: pendingPageCount,
+    total: pendingTotal,
+    pageItems: pendingPageItems,
+  } = useAdminPagination(pendingList);
+  const {
+    page: directoryPage,
+    setPage: setDirectoryPage,
+    pageCount: directoryPageCount,
+    total: directoryTotal,
+    pageItems: directoryPageItems,
+  } = useAdminPagination(filteredSorted);
+  const orgFlowsList = orgFlows ?? [];
+  const {
+    page: flowsPage,
+    setPage: setFlowsPage,
+    pageCount: flowsPageCount,
+    total: flowsTotal,
+    pageItems: flowsPageItems,
+  } = useAdminPagination(orgFlowsList);
+  const assignedLeadsList = assignedLeadsData?.leads ?? [];
+  const {
+    page: assignedPage,
+    setPage: setAssignedPage,
+    pageCount: assignedPageCount,
+    total: assignedTotal,
+    pageItems: assignedPageItems,
+  } = useAdminPagination(assignedLeadsList);
 
   function setSort(next: SortKey) {
     if (sortKey === next) {
@@ -691,7 +727,7 @@ export function AdminCustomers() {
         </div>
       </header>
 
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("adminCustomers.deliveryHealth")}</CardTitle>
           <CardDescription>
@@ -700,28 +736,28 @@ export function AdminCustomers() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-4">
+            <div className="border border-border bg-card p-4">
               <p className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                <Building2 className="size-4 text-emerald-300" />
+                <Building2 className="size-4 text-muted-foreground" />
                 {t("adminCustomers.activeLeadFlows")}
               </p>
               <p className="mt-2 text-2xl font-semibold tabular-nums">{flowOverview?.activeFlows ?? 0}</p>
             </div>
-            <div className="rounded-lg border border-sky-500/25 bg-sky-500/5 p-4">
+            <div className="border border-border bg-card p-4">
               <p className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                <Clock3 className="size-4 text-sky-300" />
+                <Clock3 className="size-4 text-muted-foreground" />
                 {t("adminCustomers.queuedForDelivery")}
               </p>
               <p className="mt-2 text-2xl font-semibold tabular-nums">{flowOverview?.queuedLeads ?? 0}</p>
             </div>
             <div
               className={cn(
-                "rounded-lg border p-4",
+                "border border-border p-4",
                 deliveryPacePct >= 90
-                  ? "border-emerald-500/25 bg-emerald-500/5"
+                  ? "bg-emerald-500/5"
                   : deliveryPacePct >= 70
-                    ? "border-amber-500/25 bg-amber-500/5"
-                    : "border-rose-500/25 bg-rose-500/5"
+                    ? "bg-amber-500/5"
+                    : "bg-rose-500/5"
               )}
             >
               <p className="inline-flex items-center gap-2 text-xs text-muted-foreground">
@@ -744,12 +780,12 @@ export function AdminCustomers() {
             </div>
             <div
               className={cn(
-                "rounded-lg border p-4",
+                "border border-border p-4",
                 (flowOverview?.behindFlows ?? 0) === 0
-                  ? "border-emerald-500/25 bg-emerald-500/5"
+                  ? "bg-emerald-500/5"
                   : (flowOverview?.behindFlows ?? 0) <= 3
-                    ? "border-amber-500/25 bg-amber-500/5"
-                    : "border-rose-500/25 bg-rose-500/5"
+                    ? "bg-amber-500/5"
+                    : "bg-rose-500/5"
               )}
             >
               <p className="inline-flex items-center gap-2 text-xs text-muted-foreground">
@@ -774,7 +810,7 @@ export function AdminCustomers() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">Pending customer accounts</CardTitle>
           <CardDescription>
@@ -807,7 +843,7 @@ export function AdminCustomers() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(pendingUsers ?? []).map((u) => (
+                {pendingPageItems.map((u) => (
                   <TableRow key={u.id}>
                     <TableCell className="font-medium">{u.full_name ?? "N/A"}</TableCell>
                     <TableCell className="text-muted-foreground">{u.email ?? "N/A"}</TableCell>
@@ -841,9 +877,15 @@ export function AdminCustomers() {
             </Table>
           )}
         </CardContent>
+        <AdminTablePagination
+          page={pendingPage}
+          pageCount={pendingPageCount}
+          total={pendingTotal}
+          onPageChange={setPendingPage}
+        />
       </Card>
 
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -957,7 +999,7 @@ export function AdminCustomers() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredSorted.map((row) => (
+                  directoryPageItems.map((row) => (
                     <TableRow key={row.organization_id}>
                       <TableCell className="font-mono text-xs text-muted-foreground">
                         {row.organization_id.slice(0, 8)}
@@ -973,7 +1015,7 @@ export function AdminCustomers() {
                         {row.phone ?? t("admin.dashboard.na")}
                       </TableCell>
                       <TableCell>
-                        <Badge className="bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
+                        <Badge className="border-border bg-secondary text-secondary-foreground hover:bg-secondary/80">
                           <Users className="mr-1 size-3" />
                           {row.membersCount} ({row.activeMembersCount} {t("adminCustomers.active")})
                         </Badge>
@@ -987,7 +1029,7 @@ export function AdminCustomers() {
                         >
                           <div className="text-muted-foreground">{row.leadsPurchasedCount}</div>
                           {row.leadsFreeDeliveryCount > 0 ? (
-                            <div className="text-xs text-violet-300">
+                            <div className="text-xs text-muted-foreground">
                               +{row.leadsFreeDeliveryCount} {t("adminCustomers.freeDeliveryLeads")}
                             </div>
                           ) : null}
@@ -1058,6 +1100,12 @@ export function AdminCustomers() {
             </Table>
           )}
         </CardContent>
+        <AdminTablePagination
+          page={directoryPage}
+          pageCount={directoryPageCount}
+          total={directoryTotal}
+          onPageChange={setDirectoryPage}
+        />
       </Card>
       <Dialog open={paceOpen} onOpenChange={setPaceOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
@@ -1080,6 +1128,7 @@ export function AdminCustomers() {
               {t("adminCustomers.noLeadFlowsYet")}
             </p>
           ) : (
+            <>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1093,7 +1142,7 @@ export function AdminCustomers() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(orgFlows ?? []).map((flow) => {
+                {flowsPageItems.map((flow) => {
                   const d = flowDrafts[flow.id];
                   const packageName = Array.isArray(flow.lead_packages)
                     ? flow.lead_packages[0]?.name
@@ -1214,6 +1263,13 @@ export function AdminCustomers() {
                 })}
               </TableBody>
             </Table>
+            <AdminTablePagination
+              page={flowsPage}
+              pageCount={flowsPageCount}
+              total={flowsTotal}
+              onPageChange={setFlowsPage}
+            />
+            </>
           )}
         </DialogContent>
       </Dialog>
@@ -1413,7 +1469,7 @@ export function AdminCustomers() {
             </div>
           </div>
           <div className="shrink-0 space-y-3 border-t pt-4">
-            <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-4 border border-border p-3">
               <div className="space-y-0.5">
                 <Label htmlFor="free-delivery-active" className="text-sm font-medium">
                   Free leads delivery
@@ -1521,7 +1577,7 @@ export function AdminCustomers() {
                 {new Date(googleSheetExport.settings.last_synced_at).toLocaleString()}
               </p>
             ) : null}
-            <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-4 border border-border p-3">
               <div className="space-y-0.5">
                 <Label htmlFor="google-sheet-active" className="text-sm font-medium">
                   Export delivered leads
@@ -1569,10 +1625,10 @@ export function AdminCustomers() {
             <div className="space-y-3 overflow-y-auto pr-1">
               {assignedLeadsData?.summary ? (
                 <div className="flex flex-wrap gap-2 text-sm">
-                  <Badge className="bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
+                  <Badge className="border-border bg-secondary text-secondary-foreground hover:bg-secondary/80">
                     {t("adminCustomers.assignedLeadsPaid")}: {assignedLeadsData.summary.paid}
                   </Badge>
-                  <Badge className="bg-violet-500/15 text-violet-300 hover:bg-violet-500/25">
+                  <Badge className="border-border bg-muted/50 text-foreground hover:bg-muted">
                     {t("adminCustomers.assignedLeadsFreeDelivery")}:{" "}
                     {assignedLeadsData.summary.free_delivery}
                   </Badge>
@@ -1589,6 +1645,7 @@ export function AdminCustomers() {
                   {t("adminCustomers.assignedLeadsEmpty")}
                 </p>
               ) : (
+                <>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1600,7 +1657,7 @@ export function AdminCustomers() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {assignedLeadsData?.leads.map((lead) => (
+                    {assignedPageItems.map((lead) => (
                       <TableRow key={lead.id}>
                         <TableCell className="font-medium">
                           {lead.first_name} {lead.last_name}
@@ -1621,6 +1678,13 @@ export function AdminCustomers() {
                     ))}
                   </TableBody>
                 </Table>
+                <AdminTablePagination
+                  page={assignedPage}
+                  pageCount={assignedPageCount}
+                  total={assignedTotal}
+                  onPageChange={setAssignedPage}
+                />
+                </>
               )}
             </div>
           )}

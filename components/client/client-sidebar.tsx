@@ -18,8 +18,6 @@ import {
   MessageSquare,
   FileText,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { clearPushPromptSession } from "@/lib/push/client";
 import { useGetClientMeQuery, useGetNotificationsQuery, clientApi } from "@/lib/api/client-api";
@@ -27,6 +25,20 @@ import { useI18n } from "@/components/providers/i18n-provider";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { useNextStep } from "nextstepjs";
 import { useAppDispatch } from "@/lib/hooks";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+  SidebarSeparator,
+} from "@/components/ui/sidebar";
 
 const baseNav = [
   { href: "/client", key: "client.nav.dashboard", icon: LayoutDashboard },
@@ -56,13 +68,14 @@ export function ClientSidebar() {
   const { t, locale, localizePath } = useI18n();
   const { startNextStep } = useNextStep();
   const normalizedPath = pathname.replace(/^\/(en|fr)(?=\/|$)/, "") || "/";
-  const navCore = me?.role === "customer_agent"
-    ? [
-        ...baseNav.slice(0, 2),
-        { href: "/client/assigned", key: "client.nav.assigned", icon: Users },
-        ...baseNav.slice(2),
-      ]
-    : baseNav;
+  const navCore =
+    me?.role === "customer_agent"
+      ? [
+          ...baseNav.slice(0, 2),
+          { href: "/client/assigned", key: "client.nav.assigned", icon: Users },
+          ...baseNav.slice(2),
+        ]
+      : baseNav;
   const nav =
     me?.role === "customer_admin"
       ? [
@@ -90,81 +103,102 @@ export function ClientSidebar() {
   }
 
   return (
-    <aside
+    <Sidebar
       id="tour-client-sidebar"
-      className="flex h-full w-60 shrink-0 flex-col border-r border-border/60 bg-card/40"
+      collapsible="icon"
+      variant="sidebar"
+      className="border-r border-sidebar-border"
     >
-      <div className="flex items-center gap-2 border-b border-border/60 px-4 py-5">
-        <div className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
-          <Zap className="size-5" />
+      <SidebarHeader className="border-b border-sidebar-border">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" tooltip="LeadVon" asChild>
+              <Link href={`/${locale}/client`}>
+                <div className="flex size-8 items-center justify-center rounded-md border border-sidebar-border bg-sidebar-accent text-sidebar-primary">
+                  <Zap className="size-4" aria-hidden />
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">LeadVon</span>
+                  <span className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {t("client.shell.subtitle")}
+                  </span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {nav.map(({ href, key, icon: Icon }) => {
+                const active =
+                  href === "/client"
+                    ? normalizedPath === href
+                    : normalizedPath.startsWith(href);
+                return (
+                  <SidebarMenuItem key={href}>
+                    <SidebarMenuButton asChild isActive={active} tooltip={t(key)}>
+                      <Link id={getNavTourId(href)} href={`/${locale}${href}`}>
+                        <Icon aria-hidden />
+                        <span>{t(key)}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {href === "/client/notifications" && unreadCount > 0 ? (
+                      <SidebarMenuBadge>
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </SidebarMenuBadge>
+                    ) : null}
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter className="border-t border-sidebar-border">
+        <div className="group-data-[collapsible=icon]:hidden">
+          <LanguageSwitcher />
         </div>
-        <div>
-          <p className="text-sm font-semibold">LeadVon</p>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            {t("client.shell.subtitle")}
-          </p>
-        </div>
-      </div>
-      <nav className="flex flex-1 flex-col gap-1 p-3">
-        {nav.map(({ href, key, icon: Icon }) => {
-          const active = href === "/client" ? normalizedPath === href : normalizedPath.startsWith(href);
-          return (
-            <Link
-              key={href}
-              id={getNavTourId(href)}
-              href={`/${locale}${href}`}
-              className={cn(
-                "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-              )}
-            >
-              <Icon className="size-4 opacity-80" />
-              <span className="flex-1">{t(key)}</span>
-              {href === "/client/notifications" && unreadCount > 0 ? (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
-                  {unreadCount > 99 ? "99+" : unreadCount}
+        <SidebarMenu className="group-data-[collapsible=icon]:hidden">
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip={me?.full_name?.trim() || t("common.signedInUser")} disabled>
+              <User aria-hidden />
+              <span className="flex min-w-0 flex-col items-start">
+                <span className="truncate text-xs font-medium">
+                  {me?.full_name?.trim() || t("common.signedInUser")}
                 </span>
-              ) : null}
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="border-t border-border/60 p-3">
-        <LanguageSwitcher />
-        <Button
-          variant="ghost"
-          className="mb-1 h-auto w-full justify-start gap-2 px-2 py-2 text-left text-muted-foreground hover:bg-muted/40"
-          disabled
-        >
-          <User className="size-4 shrink-0" />
-          <span className="min-w-0">
-            <span className="block truncate text-xs font-medium text-foreground">
-              {me?.full_name?.trim() || t("common.signedInUser")}
-            </span>
-            <span className="block truncate text-[11px]">
-              {me?.email || (me?.role ? me.role.replace("customer_", "") : t("common.account"))}
-            </span>
-          </span>
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 text-muted-foreground"
-          onClick={replayTour}
-        >
-          <Compass className="size-4" />
-          Replay tour
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 text-muted-foreground"
-          onClick={() => void signOut()}
-        >
-          <LogOut className="size-4" />
-          {t("common.signOut")}
-        </Button>
-      </div>
-    </aside>
+                <span className="truncate text-[11px] text-muted-foreground">
+                  {me?.email ||
+                    (me?.role ? me.role.replace("customer_", "") : t("common.account"))}
+                </span>
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+        <SidebarSeparator className="group-data-[collapsible=icon]:hidden" />
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="Replay tour" onClick={replayTour}>
+              <Compass aria-hidden />
+              <span>Replay tour</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip={t("common.signOut")}
+              onClick={() => void signOut()}
+            >
+              <LogOut aria-hidden />
+              <span>{t("common.signOut")}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
   );
 }

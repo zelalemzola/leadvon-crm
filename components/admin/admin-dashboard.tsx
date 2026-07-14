@@ -37,8 +37,6 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
   Bar,
@@ -48,6 +46,16 @@ import {
 import { TrendingUp, Users, Package, Layers } from "lucide-react";
 import { formatQueryError } from "@/lib/utils";
 import { useI18n } from "@/components/providers/i18n-provider";
+import {
+  useAdminPagination,
+  AdminTablePagination,
+} from "@/components/admin/admin-table-pagination";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 
 const BAR_COLORS = [
   "var(--chart-1)",
@@ -56,6 +64,20 @@ const BAR_COLORS = [
   "var(--chart-4)",
   "var(--chart-5)",
 ];
+
+const leadsFlowConfig = {
+  count: {
+    label: "Leads",
+    color: "var(--chart-1)",
+  },
+} satisfies ChartConfig;
+
+const categoryBarConfig = {
+  count: {
+    label: "Leads",
+    color: "var(--chart-2)",
+  },
+} satisfies ChartConfig;
 
 export function AdminDashboard() {
   const { t } = useI18n();
@@ -100,6 +122,23 @@ export function AdminDashboard() {
     return Math.max(1, withLeads);
   }, [stats]);
 
+  const categoryRows = stats?.leadsByCategory ?? [];
+  const staffRows = stats?.staffActivity ?? [];
+  const {
+    page: categoryPage,
+    setPage: setCategoryPage,
+    pageCount: categoryPageCount,
+    total: categoryTotal,
+    pageItems: categoryPageItems,
+  } = useAdminPagination(categoryRows);
+  const {
+    page: activityPage,
+    setPage: setActivityPage,
+    pageCount: activityPageCount,
+    total: activityTotal,
+    pageItems: activityPageItems,
+  } = useAdminPagination(staffRows);
+
   if (isError) {
     return (
       <div className="space-y-2 p-8">
@@ -126,7 +165,7 @@ export function AdminDashboard() {
             {t("admin.dashboard.subtitle")}
           </p>
         </div>
-        <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border/70 bg-card/40 p-3">
+        <div className="flex flex-wrap items-end gap-2 border border-border bg-card p-3">
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">{t("admin.dashboard.dateFrom")}</Label>
             <Input
@@ -217,13 +256,11 @@ export function AdminDashboard() {
       {isLoading || !stats ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-xl" />
+            <Skeleton key={i} className="h-28 rounded-md" />
           ))}
         </div>
       ) : (
         <>
-          
-
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <MetricCard
               title={t("admin.dashboard.totalLeads")}
@@ -254,7 +291,7 @@ export function AdminDashboard() {
             />
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
-            <Card className="border-border/80 bg-card/50 lg:col-span-2">
+            <Card className="border-border bg-card lg:col-span-2">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">{t("admin.dashboard.performanceSnapshot")}</CardTitle>
                 <CardDescription>
@@ -279,7 +316,7 @@ export function AdminDashboard() {
                 />
               </CardContent>
             </Card>
-            <Card className="border-border/80 bg-card/50">
+            <Card className="border-border bg-card">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">{t("admin.dashboard.inventoryHealth")}</CardTitle>
                 <CardDescription>{t("admin.dashboard.inventoryHealthDesc")}</CardDescription>
@@ -296,7 +333,7 @@ export function AdminDashboard() {
             </Card>
           </div>
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card className="border-border/80 bg-card/50">
+            <Card className="border-border bg-card">
               <CardHeader>
                 <CardTitle className="text-base">{t("admin.dashboard.leadsFlow")}</CardTitle>
                 <CardDescription>
@@ -309,60 +346,57 @@ export function AdminDashboard() {
                     {t("admin.dashboard.noLeadsInPeriod")}
                   </p>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={stats.leadsByDay}>
+                  <ChartContainer config={leadsFlowConfig} className="h-full w-full aspect-auto">
+                    <AreaChart data={stats.leadsByDay} margin={{ left: 4, right: 8, top: 8 }}>
                       <defs>
                         <linearGradient id="fillLead" x1="0" y1="0" x2="0" y2="1">
                           <stop
                             offset="0%"
-                            stopColor="var(--primary)"
-                            stopOpacity={0.35}
+                            stopColor="var(--color-count)"
+                            stopOpacity={0.28}
                           />
                           <stop
                             offset="100%"
-                            stopColor="var(--primary)"
+                            stopColor="var(--color-count)"
                             stopOpacity={0}
                           />
                         </linearGradient>
                       </defs>
                       <CartesianGrid
-                        strokeDasharray="3 3"
+                        strokeDasharray="4 4"
+                        vertical={false}
                         className="stroke-border/60"
                       />
                       <XAxis
                         dataKey="day"
-                        tick={{ fontSize: 11 }}
                         tickLine={false}
-                        stroke="var(--muted-foreground)"
+                        axisLine={false}
+                        tickMargin={8}
+                        tick={{ fontSize: 11 }}
                       />
                       <YAxis
                         allowDecimals={false}
-                        tick={{ fontSize: 11 }}
                         tickLine={false}
-                        stroke="var(--muted-foreground)"
+                        axisLine={false}
+                        tickMargin={8}
+                        tick={{ fontSize: 11 }}
+                        width={36}
                       />
-                      <Tooltip
-                        contentStyle={{
-                          background: "var(--popover)",
-                          border: "1px solid var(--border)",
-                          borderRadius: "8px",
-                          fontSize: "12px",
-                        }}
-                      />
+                      <ChartTooltip content={<ChartTooltipContent />} />
                       <Area
                         type="monotone"
                         dataKey="count"
-                        stroke="var(--primary)"
+                        stroke="var(--color-count)"
                         fill="url(#fillLead)"
-                        strokeWidth={2}
+                        strokeWidth={1.75}
                       />
                     </AreaChart>
-                  </ResponsiveContainer>
+                  </ChartContainer>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="border-border/80 bg-card/50">
+            <Card className="border-border bg-card">
               <CardHeader>
                 <CardTitle className="text-base">{t("admin.dashboard.byCategory")}</CardTitle>
                 <CardDescription>
@@ -376,57 +410,72 @@ export function AdminDashboard() {
                     {t("admin.dashboard.createCategoriesHint")}
                   </p>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ChartContainer config={categoryBarConfig} className="h-full w-full aspect-auto">
                     <BarChart
                       data={stats.leadsByCategory.map((r) => ({
                         name: r.category_name,
                         count: Number(r.lead_count),
                       }))}
                       layout="vertical"
-                      margin={{ left: 8, right: 16 }}
+                      margin={{ left: 8, right: 16, top: 8 }}
                     >
+                      <defs>
+                        <pattern
+                          id="barHatch"
+                          patternUnits="userSpaceOnUse"
+                          width="6"
+                          height="6"
+                          patternTransform="rotate(45)"
+                        >
+                          <line
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="6"
+                            stroke="var(--foreground)"
+                            strokeWidth="1.25"
+                            strokeOpacity="0.35"
+                          />
+                        </pattern>
+                      </defs>
                       <CartesianGrid
-                        strokeDasharray="3 3"
-                        className="stroke-border/60"
+                        strokeDasharray="4 4"
                         horizontal={false}
+                        className="stroke-border/60"
                       />
                       <XAxis
                         type="number"
                         allowDecimals={false}
+                        tickLine={false}
+                        axisLine={false}
                         tick={{ fontSize: 11 }}
-                        stroke="var(--muted-foreground)"
                       />
                       <YAxis
                         type="category"
                         dataKey="name"
                         width={100}
+                        tickLine={false}
+                        axisLine={false}
                         tick={{ fontSize: 11 }}
-                        stroke="var(--muted-foreground)"
                       />
-                      <Tooltip
-                        contentStyle={{
-                          background: "var(--popover)",
-                          border: "1px solid var(--border)",
-                          borderRadius: "8px",
-                          fontSize: "12px",
-                        }}
-                      />
-                      <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="count" radius={[0, 2, 2, 0]}>
                         {stats.leadsByCategory.map((_, i) => (
                           <Cell
                             key={i}
-                            fill={BAR_COLORS[i % BAR_COLORS.length]}
+                            fill={i === 0 ? "url(#barHatch)" : BAR_COLORS[i % BAR_COLORS.length]}
+                            fillOpacity={i === 0 ? 1 : 0.85}
                           />
                         ))}
                       </Bar>
                     </BarChart>
-                  </ResponsiveContainer>
+                  </ChartContainer>
                 )}
               </CardContent>
             </Card>
           </div>
 
-          <Card className="border-border/80 bg-card/50">
+          <Card className="border-border bg-card">
             <CardHeader>
               <CardTitle className="text-base">{t("admin.dashboard.categoryPerformanceTable")}</CardTitle>
               <CardDescription>
@@ -452,7 +501,7 @@ export function AdminDashboard() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    stats.leadsByCategory.map((row) => {
+                    categoryPageItems.map((row) => {
                       const total = Number(row.lead_count);
                       const available = Number(row.unsold_count);
                       const sold = Math.max(total - available, 0);
@@ -482,9 +531,15 @@ export function AdminDashboard() {
                 </TableBody>
               </Table>
             </CardContent>
+            <AdminTablePagination
+              page={categoryPage}
+              pageCount={categoryPageCount}
+              total={categoryTotal}
+              onPageChange={setCategoryPage}
+            />
           </Card>
 
-            <Card className="border-border/80 bg-card/50">
+            <Card className="border-border bg-card">
             <CardHeader>
               <CardTitle className="text-base">{t("admin.dashboard.staffActivity")}</CardTitle>
               <CardDescription>
@@ -508,7 +563,7 @@ export function AdminDashboard() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    stats.staffActivity.map((row) => (
+                    activityPageItems.map((row) => (
                       <TableRow key={row.actor_id}>
                         <TableCell className="font-medium">
                           {row.full_name || t("admin.dashboard.unnamedStaff")}
@@ -525,6 +580,12 @@ export function AdminDashboard() {
                 </TableBody>
               </Table>
             </CardContent>
+            <AdminTablePagination
+              page={activityPage}
+              pageCount={activityPageCount}
+              total={activityTotal}
+              onPageChange={setActivityPage}
+            />
           </Card>
         </>
       )}
@@ -548,23 +609,23 @@ function SnapshotPill({
 }) {
   const toneClass =
     tone === "rose"
-      ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
+      ? "bg-rose-500/5 text-rose-300"
       : tone === "emerald"
-        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-        : "border-violet-500/40 bg-violet-500/10 text-violet-300";
+        ? "bg-emerald-500/5 text-emerald-300"
+        : "bg-muted/40 text-foreground";
   return (
-    <div className={`rounded-lg border p-3 ${toneClass}`}>
-      <p className="text-xs uppercase tracking-wide opacity-80">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
+    <div className={`border border-border p-3 ${toneClass}`}>
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
     </div>
   );
 }
 
 function HealthRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+    <div className="flex items-center justify-between border border-border bg-card/40 px-3 py-2">
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
+      <span className="font-medium tabular-nums">{value}</span>
     </div>
   );
 }
@@ -574,7 +635,6 @@ function MetricCard({
   value,
   subtitle,
   icon: Icon,
-  highlight,
 }: {
   title: string;
   value: number;
@@ -583,13 +643,7 @@ function MetricCard({
   highlight?: boolean;
 }) {
   return (
-    <Card
-      className={
-        highlight
-          ? "border-primary/30 bg-gradient-to-br from-primary/20 via-card to-card"
-          : "border-border/80 bg-card/50"
-      }
-    >
+    <Card className="border-border bg-card">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
         <CardTitle className="text-xs font-medium text-muted-foreground">
           {title}

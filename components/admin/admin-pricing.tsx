@@ -73,6 +73,10 @@ import {
   PrepaidPricebookPanel,
 } from "@/components/admin/admin-prepaid-panels";
 import { useI18n } from "@/components/providers/i18n-provider";
+import {
+  useAdminPagination,
+  AdminTablePagination,
+} from "@/components/admin/admin-table-pagination";
 
 export function AdminPricing() {
   const { t } = useI18n();
@@ -113,6 +117,14 @@ function TieredPricingPanel() {
   const { data: tiers, isLoading: tiersLoading } = useGetCategoryPricingTiersQuery(
     selectedCategoryId ? { categoryId: selectedCategoryId } : undefined
   );
+  const tiersList = tiers ?? [];
+  const {
+    page: tiersPage,
+    setPage: setTiersPage,
+    pageCount: tiersPageCount,
+    total: tiersTotal,
+    pageItems: tiersPageItems,
+  } = useAdminPagination(tiersList);
   const { data: rates } = useGetCategoryPricingTierRatesQuery();
   const [createTier, { isLoading: creatingTier }] = useCreateCategoryPricingTierMutation();
   const [updateTier, { isLoading: updatingTier }] = useUpdateCategoryPricingTierMutation();
@@ -356,14 +368,14 @@ function TieredPricingPanel() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {!selectedCategoryId || (tiers ?? []).length === 0 ? (
+                {!selectedCategoryId || tiersList.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-muted-foreground">
                       {t("adminPricing.noTieredPricingYet")}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  (tiers ?? []).map((tier) => {
+                  tiersPageItems.map((tier) => {
                     const tierRates = (rates ?? []).filter((rate) => rate.tier_id === tier.id);
                     const single = tierRates.find((rate) => rate.unit_type === "single")?.price_cents;
                     const family = tierRates.find((rate) => rate.unit_type === "family")?.price_cents;
@@ -409,6 +421,12 @@ function TieredPricingPanel() {
             </Table>
           )}
         </CardContent>
+        <AdminTablePagination
+          page={tiersPage}
+          pageCount={tiersPageCount}
+          total={tiersTotal}
+          onPageChange={setTiersPage}
+        />
       </Card>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
@@ -515,7 +533,7 @@ function CategoriesPanel() {
 
   return (
     <>
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle>Debt Review</CardTitle>
           <CardDescription>
@@ -589,6 +607,14 @@ function PackagesPanel() {
   const { t } = useI18n();
   const { data: categories } = useGetCategoriesQuery();
   const { data: packages, isLoading } = useGetPackagesQuery();
+  const packagesList = packages ?? [];
+  const {
+    page: packagesPage,
+    setPage: setPackagesPage,
+    pageCount: packagesPageCount,
+    total: packagesTotal,
+    pageItems: packagesPageItems,
+  } = useAdminPagination(packagesList);
   const [createPackage, { isLoading: creating }] = useCreatePackageMutation();
   const [updatePackage, { isLoading: updating }] = useUpdatePackageMutation();
   const [deletePackage, { isLoading: deleting }] = useDeletePackageMutation();
@@ -710,7 +736,7 @@ function PackagesPanel() {
           </CardHeader>
         </Card>
       ) : (
-        <Card className="border-border/80 bg-card/50">
+        <Card className="border-border bg-card">
           <CardContent className="p-0">
             {isLoading ? (
               <div className="space-y-2 p-6">
@@ -734,14 +760,14 @@ function PackagesPanel() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(packages ?? []).length === 0 ? (
+                  {packagesList.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={9} className="h-24 text-center">
                         {t("adminPricing.noPackagesYet")}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    (packages ?? []).map((p) => (
+                    packagesPageItems.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell className="font-medium">{p.name}</TableCell>
                         <TableCell>{p.categories?.name ?? t("admin.dashboard.na")}</TableCell>
@@ -806,6 +832,12 @@ function PackagesPanel() {
               </Table>
             )}
           </CardContent>
+          <AdminTablePagination
+            page={packagesPage}
+            pageCount={packagesPageCount}
+            total={packagesTotal}
+            onPageChange={setPackagesPage}
+          />
         </Card>
       )}
 
@@ -937,6 +969,14 @@ function OffersPanel() {
   const { t } = useI18n();
   const { data: packages } = useGetPackagesQuery();
   const { data: offers, isLoading } = useGetOffersQuery();
+  const offersList = offers ?? [];
+  const {
+    page: offersPage,
+    setPage: setOffersPage,
+    pageCount: offersPageCount,
+    total: offersTotal,
+    pageItems: offersPageItems,
+  } = useAdminPagination(offersList);
   const [createOffer, { isLoading: creating }] = useCreateOfferMutation();
   const [updateOffer, { isLoading: updating }] = useUpdateOfferMutation();
   const [deleteOffer, { isLoading: deleting }] = useDeleteOfferMutation();
@@ -1023,7 +1063,7 @@ function OffersPanel() {
           {t("adminPricing.newOffer")}
         </Button>
       </div>
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="space-y-2 p-6">
@@ -1044,14 +1084,14 @@ function OffersPanel() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(offers ?? []).length === 0 ? (
+                {offersList.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">
                       {t("adminPricing.noOffersYet")}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  (offers ?? []).map((o) => (
+                  offersPageItems.map((o) => (
                     <TableRow key={o.id}>
                       <TableCell className="font-medium">{o.title}</TableCell>
                       <TableCell>{o.lead_packages?.name ?? t("admin.dashboard.na")}</TableCell>
@@ -1101,6 +1141,12 @@ function OffersPanel() {
             </Table>
           )}
         </CardContent>
+        <AdminTablePagination
+          page={offersPage}
+          pageCount={offersPageCount}
+          total={offersTotal}
+          onPageChange={setOffersPage}
+        />
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>

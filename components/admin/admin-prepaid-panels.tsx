@@ -29,6 +29,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { formatQueryError } from "@/lib/utils";
 import { useI18n } from "@/components/providers/i18n-provider";
+import {
+  useAdminPagination,
+  AdminTablePagination,
+} from "@/components/admin/admin-table-pagination";
 
 function usd(cents: number) {
   return new Intl.NumberFormat("en-US", {
@@ -40,6 +44,14 @@ function usd(cents: number) {
 export function PrepaidPricebookPanel() {
   const { t } = useI18n();
   const { data: rows, isLoading, isError, error } = useGetLeadPricebookQuery();
+  const pricebookRows = rows ?? [];
+  const {
+    page: pricebookPage,
+    setPage: setPricebookPage,
+    pageCount: pricebookPageCount,
+    total: pricebookTotal,
+    pageItems: pricebookPageItems,
+  } = useAdminPagination(pricebookRows);
   const [updateRow, { isLoading: saving }] = useUpdateLeadPricebookMutation();
   const [overrides, setOverrides] = useState<
     Record<string, { priceUsd?: string; label?: string }>
@@ -87,7 +99,7 @@ export function PrepaidPricebookPanel() {
   }
 
   return (
-    <Card className="border-border/80 bg-card/50">
+    <Card className="border-border bg-card">
       <CardHeader>
         <CardTitle className="text-base">{t("adminPrepaid.leadUnitPrices")}</CardTitle>
         <CardDescription>
@@ -112,7 +124,7 @@ export function PrepaidPricebookPanel() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(rows ?? []).map((row) => {
+              {pricebookPageItems.map((row) => {
                 const d = draft(row);
                 return (
                   <TableRow key={row.id}>
@@ -167,6 +179,12 @@ export function PrepaidPricebookPanel() {
           </Table>
         )}
       </CardContent>
+      <AdminTablePagination
+        page={pricebookPage}
+        pageCount={pricebookPageCount}
+        total={pricebookTotal}
+        onPageChange={setPricebookPage}
+      />
     </Card>
   );
 }
@@ -174,6 +192,14 @@ export function PrepaidPricebookPanel() {
 export function PrepaidEntitlementsPanel() {
   const { t } = useI18n();
   const { data: rows, isLoading, isError, error } = useGetDeliveryEntitlementsQuery();
+  const entitlementRows = rows ?? [];
+  const {
+    page: entitlementsPage,
+    setPage: setEntitlementsPage,
+    pageCount: entitlementsPageCount,
+    total: entitlementsTotal,
+    pageItems: entitlementsPageItems,
+  } = useAdminPagination(entitlementRows);
 
   if (isError) {
     return (
@@ -182,7 +208,7 @@ export function PrepaidEntitlementsPanel() {
   }
 
   return (
-    <Card className="border-border/80 bg-card/50">
+    <Card className="border-border bg-card">
       <CardHeader>
         <CardTitle className="text-base">{t("adminPrepaid.prepaidPeriods")}</CardTitle>
         <CardDescription>
@@ -201,7 +227,7 @@ export function PrepaidEntitlementsPanel() {
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
           </div>
-        ) : (rows ?? []).length === 0 ? (
+        ) : entitlementRows.length === 0 ? (
           <p className="p-6 text-sm text-muted-foreground">
             {t("adminPrepaid.noEntitlements")}
           </p>
@@ -218,7 +244,7 @@ export function PrepaidEntitlementsPanel() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(rows ?? []).map((r) => (
+              {entitlementsPageItems.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">
                     {r.organizations?.name ?? r.organization_id.slice(0, 8)}
@@ -243,6 +269,12 @@ export function PrepaidEntitlementsPanel() {
           </Table>
         )}
       </CardContent>
+      <AdminTablePagination
+        page={entitlementsPage}
+        pageCount={entitlementsPageCount}
+        total={entitlementsTotal}
+        onPageChange={setEntitlementsPage}
+      />
     </Card>
   );
 }

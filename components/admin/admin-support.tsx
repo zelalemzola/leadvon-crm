@@ -21,10 +21,22 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Trash2 } from "lucide-react";
 import { useI18n } from "@/components/providers/i18n-provider";
+import {
+  useAdminPagination,
+  AdminTablePagination,
+} from "@/components/admin/admin-table-pagination";
 
 export function AdminSupport() {
   const { t } = useI18n();
   const { data: rows, isLoading } = useGetSupportContactsQuery();
+  const contacts = rows ?? [];
+  const {
+    page: contactsPage,
+    setPage: setContactsPage,
+    pageCount: contactsPageCount,
+    total: contactsTotal,
+    pageItems: contactsPageItems,
+  } = useAdminPagination(contacts);
   const [createRow, { isLoading: creating }] = useCreateSupportContactMutation();
   const [updateRow] = useUpdateSupportContactMutation();
   const [deleteRow] = useDeleteSupportContactMutation();
@@ -70,7 +82,7 @@ export function AdminSupport() {
         </p>
       </header>
 
-      <Card className="max-w-2xl border-border/70 bg-card/50">
+      <Card className="max-w-2xl border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("admin.support.addContact")}</CardTitle>
           <CardDescription>{t("admin.support.addContactHint")}</CardDescription>
@@ -110,7 +122,7 @@ export function AdminSupport() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/70 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("admin.support.contacts")}</CardTitle>
         </CardHeader>
@@ -133,14 +145,14 @@ export function AdminSupport() {
                     {t("admin.support.loading")}
                   </TableCell>
                 </TableRow>
-              ) : (rows ?? []).length === 0 ? (
+              ) : contacts.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-16 text-center">
                     {t("admin.support.empty")}
                   </TableCell>
                 </TableRow>
               ) : (
-                (rows ?? []).map((r) => (
+                contactsPageItems.map((r) => (
                   <SupportRow
                     key={r.id}
                     row={r}
@@ -174,6 +186,12 @@ export function AdminSupport() {
             </TableBody>
           </Table>
         </CardContent>
+        <AdminTablePagination
+          page={contactsPage}
+          pageCount={contactsPageCount}
+          total={contactsTotal}
+          onPageChange={setContactsPage}
+        />
       </Card>
     </div>
   );

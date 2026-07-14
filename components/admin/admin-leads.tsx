@@ -77,6 +77,10 @@ import {
 import Link from "next/link";
 import { useI18n } from "@/components/providers/i18n-provider";
 import {
+  AdminTablePagination,
+  ADMIN_PAGE_SIZE,
+} from "@/components/admin/admin-table-pagination";
+import {
   buildLeadCsvTemplateCsv,
   parseLeadCsvText,
   type LeadCsvParseResult,
@@ -109,7 +113,7 @@ function LeadSourceBadge({
     const externalId = lead.source_external_id?.trim();
     return (
       <Badge
-        className="bg-sky-500/15 text-sky-300 hover:bg-sky-500/25"
+        className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
         title={externalId ? `${t("adminLeads.sourceExternalId")}: ${externalId}` : undefined}
       >
         {t("adminLeads.sourceBase44")}
@@ -120,7 +124,7 @@ function LeadSourceBadge({
     const externalId = lead.source_external_id?.trim();
     return (
       <Badge
-        className="bg-violet-500/15 text-violet-300 hover:bg-violet-500/25"
+        className="border-border bg-muted/50 text-foreground hover:bg-muted"
         title={externalId ? `${t("adminLeads.sourceFunnelId")}: ${externalId}` : undefined}
       >
         {t("adminLeads.sourceFunnel")}
@@ -183,7 +187,7 @@ export function AdminLeads() {
     categoryId: categoryFilter === "all" ? undefined : categoryFilter,
     search,
     page,
-    pageSize: 20,
+    pageSize: 15,
     availability: availabilityFilter,
     source: sourceFilter,
     reviewStatus: reviewStatusFilter,
@@ -772,10 +776,10 @@ export function AdminLeads() {
           </CardHeader>
         </Card>
       ) : (
-        <Card className="border-border/80 bg-card/50">
-          <CardHeader className="border-b border-border/70 py-4">
+        <Card className="border-border bg-card">
+          <CardHeader className="border-b border-border py-4">
             <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <Badge variant="outline" className="border-primary/40 text-primary">
+              <Badge variant="outline" className="border-border text-foreground">
                 {t("adminLeads.total")}: {totalLeads}
               </Badge>
               <Badge className="bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
@@ -935,30 +939,13 @@ export function AdminLeads() {
               </Table>
             )}
           </CardContent>
-          <div className="flex items-center justify-between border-t border-border/70 px-4 py-3 text-sm">
-            <p className="text-muted-foreground">
-              {t("adminLeads.showing")} {rows.length} {t("adminLeads.of")} {totalLeads} {t("adminLeads.leads")}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                {t("adminLeads.prev")}
-              </Button>
-              <span className="text-muted-foreground">{t("adminLeads.page")} {page}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page * 20 >= totalLeads}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                {t("adminLeads.next")}
-              </Button>
-            </div>
-          </div>
+          <AdminTablePagination
+            page={page}
+            pageCount={Math.max(1, Math.ceil(totalLeads / ADMIN_PAGE_SIZE) || 1)}
+            total={totalLeads}
+            pageSize={ADMIN_PAGE_SIZE}
+            onPageChange={setPage}
+          />
         </Card>
       )}
 
@@ -979,7 +966,7 @@ export function AdminLeads() {
                 {t("adminLeads.deliverLeadSignupFreeDesc")}
               </p>
               {signupFreeLead ? (
-                <p className="rounded-md border border-border/80 bg-muted/40 px-3 py-2 text-xs">
+                <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
                   {signupFreeLead.first_name} {signupFreeLead.last_name} ·{" "}
                   {signupFreeLead.categories?.name ?? t("admin.dashboard.na")} · {t("adminLeads.unit")}:{" "}
                   {signupFreeLead.lead_unit_type ?? "single"}
@@ -1047,7 +1034,7 @@ export function AdminLeads() {
                 {t("adminLeads.deliverLeadPrepaidDesc")}
               </p>
               {prepaidLead ? (
-                <p className="rounded-md border border-border/80 bg-muted/40 px-3 py-2 text-xs">
+                <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
                   {prepaidLead.first_name} {prepaidLead.last_name} ·{" "}
                   {prepaidLead.categories?.name ?? t("admin.dashboard.na")} · {t("adminLeads.unit")}:{" "}
                   {prepaidLead.lead_unit_type ?? "single"}
@@ -1115,7 +1102,7 @@ export function AdminLeads() {
                 {t("adminLeads.deliverLeadFreeDesc")}
               </p>
               {freeLead ? (
-                <p className="rounded-md border border-border/80 bg-muted/40 px-3 py-2 text-xs">
+                <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
                   {freeLead.first_name} {freeLead.last_name} ·{" "}
                   {freeLead.categories?.name ?? t("admin.dashboard.na")} · {t("adminLeads.unit")}:{" "}
                   {freeLead.lead_unit_type ?? "single"}

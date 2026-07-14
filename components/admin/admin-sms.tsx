@@ -12,10 +12,30 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useI18n } from "@/components/providers/i18n-provider";
+import {
+  useAdminPagination,
+  AdminTablePagination,
+} from "@/components/admin/admin-table-pagination";
 
 export function AdminSms() {
   const { t } = useI18n();
   const { data, isLoading, isError, error } = useGetAdminSmsOverviewQuery();
+  const balances = data?.balances ?? [];
+  const recentMessages = data?.recent_messages ?? [];
+  const {
+    page: balancesPage,
+    setPage: setBalancesPage,
+    pageCount: balancesPageCount,
+    total: balancesTotal,
+    pageItems: balancesPageItems,
+  } = useAdminPagination(balances);
+  const {
+    page: messagesPage,
+    setPage: setMessagesPage,
+    pageCount: messagesPageCount,
+    total: messagesTotal,
+    pageItems: messagesPageItems,
+  } = useAdminPagination(recentMessages);
 
   if (isLoading) {
     return <p className="p-6 text-sm text-muted-foreground">{t("adminSms.loading")}</p>;
@@ -39,37 +59,37 @@ export function AdminSms() {
       </header>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <Card className="border-border bg-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">{t("adminSms.orgsWithBalance")}</CardTitle>
+            <CardTitle className="text-xs font-medium text-muted-foreground">{t("adminSms.orgsWithBalance")}</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{totals?.organizations ?? 0}</CardContent>
+          <CardContent className="text-3xl font-semibold tabular-nums">{totals?.organizations ?? 0}</CardContent>
         </Card>
-        <Card>
+        <Card className="border-border bg-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">{t("adminSms.totalBalance")}</CardTitle>
+            <CardTitle className="text-xs font-medium text-muted-foreground">{t("adminSms.totalBalance")}</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">
+          <CardContent className="text-3xl font-semibold tabular-nums">
             ${((totals?.total_balance_cents ?? 0) / 100).toFixed(2)}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border bg-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">{t("adminSms.recentMessages")}</CardTitle>
+            <CardTitle className="text-xs font-medium text-muted-foreground">{t("adminSms.recentMessages")}</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{totals?.messages_sent ?? 0}</CardContent>
+          <CardContent className="text-3xl font-semibold tabular-nums">{totals?.messages_sent ?? 0}</CardContent>
         </Card>
-        <Card>
+        <Card className="border-border bg-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">{t("adminSms.recentSpend")}</CardTitle>
+            <CardTitle className="text-xs font-medium text-muted-foreground">{t("adminSms.recentSpend")}</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">
+          <CardContent className="text-3xl font-semibold tabular-nums">
             ${((totals?.total_sms_spend_cents ?? 0) / 100).toFixed(2)}
           </CardContent>
         </Card>
       </div>
 
-      <Card>
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("adminSms.balancesTitle")}</CardTitle>
           <CardDescription>{t("adminSms.balancesHint")}</CardDescription>
@@ -84,14 +104,14 @@ export function AdminSms() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(data?.balances ?? []).length === 0 ? (
+              {balances.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={3} className="h-16 text-center text-muted-foreground">
                     {t("adminSms.noBalances")}
                   </TableCell>
                 </TableRow>
               ) : (
-                (data?.balances ?? []).map((row) => {
+                balancesPageItems.map((row) => {
                   const org = row.organizations;
                   const balance = Number(row.balance_cents || 0);
                   return (
@@ -106,9 +126,15 @@ export function AdminSms() {
             </TableBody>
           </Table>
         </CardContent>
+        <AdminTablePagination
+          page={balancesPage}
+          pageCount={balancesPageCount}
+          total={balancesTotal}
+          onPageChange={setBalancesPage}
+        />
       </Card>
 
-      <Card>
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("adminSms.messagesTitle")}</CardTitle>
         </CardHeader>
@@ -125,14 +151,14 @@ export function AdminSms() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(data?.recent_messages ?? []).length === 0 ? (
+              {recentMessages.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-16 text-center text-muted-foreground">
                     {t("adminSms.noMessages")}
                   </TableCell>
                 </TableRow>
               ) : (
-                (data?.recent_messages ?? []).map((msg) => {
+                messagesPageItems.map((msg) => {
                   const org = msg.organizations;
                   const lead = msg.customer_leads;
                   const leadName = lead
@@ -157,6 +183,12 @@ export function AdminSms() {
             </TableBody>
           </Table>
         </CardContent>
+        <AdminTablePagination
+          page={messagesPage}
+          pageCount={messagesPageCount}
+          total={messagesTotal}
+          onPageChange={setMessagesPage}
+        />
       </Card>
     </div>
   );

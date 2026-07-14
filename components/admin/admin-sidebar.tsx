@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
@@ -17,12 +17,22 @@ import {
   Landmark,
   MessageSquare,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import { useI18n } from "@/components/providers/i18n-provider";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+  SidebarSeparator,
+} from "@/components/ui/sidebar";
 
 const nav = [
   { href: "/admin", key: "admin.nav.dashboard", icon: LayoutDashboard },
@@ -52,52 +62,74 @@ export function AdminSidebar() {
   }
 
   return (
-    <aside className="flex h-full w-56 shrink-0 flex-col border-r border-border bg-card/40">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-5">
-        <div className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
-          <Zap className="size-5" aria-hidden />
+    <Sidebar collapsible="icon" variant="sidebar" className="border-r border-sidebar-border">
+      <SidebarHeader className="border-b border-sidebar-border">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" tooltip="LeadVon" asChild>
+              <Link href={`/${locale}/admin`}>
+                <div className="flex size-8 items-center justify-center rounded-md border border-sidebar-border bg-sidebar-accent">
+                  <Zap className="size-4" aria-hidden />
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">LeadVon</span>
+                  <span className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {t("admin.shell.subtitle")}
+                  </span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {nav.map(({ href, key, icon: Icon }) => {
+                const active =
+                  href === "/admin"
+                    ? normalizedPath === "/admin"
+                    : normalizedPath.startsWith(href);
+                return (
+                  <SidebarMenuItem key={href}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={active}
+                      tooltip={t(key)}
+                    >
+                      <Link href={`/${locale}${href}`}>
+                        <Icon aria-hidden />
+                        <span>{t(key)}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter className="border-t border-sidebar-border">
+        <div className="group-data-[collapsible=icon]:hidden">
+          <LanguageSwitcher />
         </div>
-        <div>
-          <p className="text-sm font-semibold tracking-tight">LeadVon</p>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            {t("admin.shell.subtitle")}
-          </p>
-        </div>
-      </div>
-      <nav className="flex flex-1 flex-col gap-0.5 p-3">
-        {nav.map(({ href, key, icon: Icon }) => {
-          const active =
-            href === "/admin"
-              ? normalizedPath === "/admin"
-              : normalizedPath.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={`/${locale}${href}`}
-              className={cn(
-                "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-              )}
+        <SidebarSeparator className="group-data-[collapsible=icon]:hidden" />
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip={t("common.signOut")}
+              onClick={() => void signOut()}
             >
-              <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
-              {t(key)}
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="border-t border-border p-3">
-        <LanguageSwitcher />
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 text-muted-foreground"
-          onClick={() => void signOut()}
-        >
-          <LogOut className="size-4" aria-hidden />
-          {t("common.signOut")}
-        </Button>
-      </div>
-    </aside>
+              <LogOut aria-hidden />
+              <span>{t("common.signOut")}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
   );
 }

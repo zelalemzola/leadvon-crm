@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -108,14 +108,91 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
+  --sidebar: oklch(0.145 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary: oklch(0.62 0.22 290);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* Admin: high-contrast OLED dark + saturated violet (scoped; marketing/auth untouched) */
+.admin-surface {
+  --background: oklch(0.04 0.008 290);
+  --foreground: oklch(0.99 0 0);
+  --card: oklch(0.09 0.012 290);
+  --card-foreground: oklch(0.99 0 0);
+  --popover: oklch(0.08 0.014 290);
+  --popover-foreground: oklch(0.99 0 0);
+  --primary: oklch(0.7 0.27 295);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.14 0.02 290);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.13 0.015 290);
+  --muted-foreground: oklch(0.68 0.02 290);
+  --accent: oklch(0.16 0.035 295);
+  --accent-foreground: oklch(0.99 0 0);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.7 0.27 295);
+  --chart-1: oklch(0.78 0.16 295);
+  --chart-2: oklch(0.72 0.08 290);
+  --chart-3: oklch(0.58 0.04 290);
+  --chart-4: oklch(0.45 0.03 290);
+  --chart-5: oklch(0.32 0.02 290);
+  --sidebar: oklch(0.03 0.01 290);
+  --sidebar-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.7 0.27 295);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.12 0.03 295);
+  --sidebar-accent-foreground: oklch(0.99 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.7 0.27 295);
+  --radius: 0.35rem;
+  color: var(--foreground);
+  background-color: var(--background);
+  background-image:
+    radial-gradient(1200px 600px at 10% -10%, oklch(0.28 0.12 295 / 14%), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, oklch(0.22 0.08 280 / 10%), transparent 50%);
+  background-attachment: fixed;
+  font-family: var(--font-inter), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.admin-surface [data-slot="card"] {
+  background-image: none !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-color: transparent !important;
+  outline: none !important;
+}
+
+.admin-surface [data-slot="card"]::before,
+.admin-surface [data-slot="card"]::after {
+  content: none !important;
+  display: none !important;
+}
+
+.admin-surface [data-slot="button"],
+.admin-surface [data-slot="input"],
+.admin-surface [data-slot="select-trigger"],
+.admin-surface [data-slot="badge"] {
+  border-radius: calc(var(--radius) * 0.85) !important;
+}
+
+.admin-surface [data-slot="table-head"] {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.admin-surface a.text-primary,
+.admin-surface .text-primary {
+  color: var(--primary);
 }
 
 @layer base {

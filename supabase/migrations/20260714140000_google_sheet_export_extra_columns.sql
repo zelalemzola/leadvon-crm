@@ -1,4 +1,7 @@
 -- Extend pending Google Sheet export rows with optional right-side columns.
+-- Must DROP first: Postgres cannot change RETURNS TABLE via CREATE OR REPLACE.
+
+DROP FUNCTION IF EXISTS public.list_pending_google_sheet_lead_exports (uuid, integer);
 
 CREATE OR REPLACE FUNCTION public.list_pending_google_sheet_lead_exports (
   p_organization_id uuid,

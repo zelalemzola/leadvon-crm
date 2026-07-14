@@ -18,6 +18,10 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatQueryError } from "@/lib/utils";
 import { useI18n } from "@/components/providers/i18n-provider";
+import {
+  useAdminPagination,
+  AdminTablePagination,
+} from "@/components/admin/admin-table-pagination";
 
 export function AdminMarginAnomalies() {
   const { localizePath, t } = useI18n();
@@ -39,6 +43,13 @@ export function AdminMarginAnomalies() {
   });
 
   const rows = data?.rows ?? [];
+  const {
+    page: anomaliesPage,
+    setPage: setAnomaliesPage,
+    pageCount: anomaliesPageCount,
+    total: anomaliesTotal,
+    pageItems: anomaliesPageItems,
+  } = useAdminPagination(rows);
   const summary = useMemo(() => {
     return rows.reduce(
       (acc, r) => {
@@ -107,7 +118,7 @@ export function AdminMarginAnomalies() {
         />
       </header>
 
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("adminMargins.scope")}</CardTitle>
           <CardDescription>{t("adminMargins.scopeDesc")}</CardDescription>
@@ -154,7 +165,7 @@ export function AdminMarginAnomalies() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-md" />)
         ) : (
           <>
             <Kpi title={t("adminMargins.totalBuckets")} value={String(summary.total)} />
@@ -165,7 +176,7 @@ export function AdminMarginAnomalies() {
         )}
       </div>
 
-      <Card className="border-border/80 bg-card/50">
+      <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base">{t("adminMargins.anomalyTable")}</CardTitle>
           <CardDescription>
@@ -201,7 +212,7 @@ export function AdminMarginAnomalies() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  rows.map((r) => (
+                  anomaliesPageItems.map((r) => (
                     <TableRow key={`${r.organization_id}-${r.category_id}-${r.unit_type}`}>
                       <TableCell className="font-medium">{r.organization_name}</TableCell>
                       <TableCell>{r.category_name}</TableCell>
@@ -234,6 +245,12 @@ export function AdminMarginAnomalies() {
             </Table>
           )}
         </CardContent>
+        <AdminTablePagination
+          page={anomaliesPage}
+          pageCount={anomaliesPageCount}
+          total={anomaliesTotal}
+          onPageChange={setAnomaliesPage}
+        />
       </Card>
     </div>
   );
@@ -242,12 +259,12 @@ export function AdminMarginAnomalies() {
 function Kpi({ title, value, tone = "neutral" }: { title: string; value: string; tone?: "neutral" | "critical" | "warn" | "ok" }) {
   const toneClass =
     tone === "critical"
-      ? "border-rose-500/25 bg-rose-500/5"
+      ? "border-rose-500/30 bg-rose-500/5"
       : tone === "warn"
-        ? "border-amber-500/25 bg-amber-500/5"
+        ? "border-amber-500/30 bg-amber-500/5"
         : tone === "ok"
-          ? "border-emerald-500/25 bg-emerald-500/5"
-          : "border-border/80 bg-card/50";
+          ? "border-emerald-500/30 bg-emerald-500/5"
+          : "border-border bg-card";
   return (
     <Card className={toneClass}>
       <CardContent className="pt-6">
