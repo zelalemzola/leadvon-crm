@@ -114,7 +114,9 @@ export async function appendSpreadsheetRows(args: {
   const url = new URL(
     `https://sheets.googleapis.com/v4/spreadsheets/${args.spreadsheetId}/values/${encodedRange}:append`
   );
-  url.searchParams.set("valueInputOption", "USER_ENTERED");
+  // RAW keeps values as literal text so Sheets does not convert
+  // dates into serial numbers or strip leading zeros from SA mobiles.
+  url.searchParams.set("valueInputOption", "RAW");
   url.searchParams.set("insertDataOption", "INSERT_ROWS");
   url.searchParams.set("includeValuesInResponse", "false");
 

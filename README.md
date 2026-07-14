@@ -100,7 +100,12 @@ Required env vars (one shared Google service account for all customers):
 
 Flush path: same places as lead emails (`processPendingLeadEmails`) plus `POST /api/cron/notifications`.
 
-Row layout (worksheet columns A–G): Creation Date/Time | Consumer Name | Consumer Surname | Email | Mobile | Ad Source | Qualifying. Append-only — never delete sheet rows.
+Row layout:
+
+- A–G (required order): Creation Date/Time | Consumer Name | Consumer Surname | Email | Mobile | Ad Source | Qualifying
+- H–K (optional extras to the right): Zip/Province | Summary | Unit | Country
+
+Append-only — never delete sheet rows.
 
 ## Browser push notifications (Web Push)
 

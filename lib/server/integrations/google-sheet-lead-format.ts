@@ -53,10 +53,18 @@ export function formatGoogleSheetLeadDateTime(iso: string) {
   return `${day}/${month}/${year} ${hour}:${minute}${dayPeriod}`;
 }
 
+export function formatGoogleSheetLeadUnit(unit: string | null | undefined) {
+  const value = (unit ?? "").trim().toLowerCase();
+  if (value === "single") return "Single";
+  if (value === "family") return "Family";
+  return (unit ?? "").trim();
+}
+
 /**
- * Standard LeadVon → Google Sheets row layout (A–G):
- * Creation Date/Time | Consumer Name | Consumer Surname | Email | Mobile | Ad Source | Qualifying
- * Email and Ad Source are left blank unless callers pass them later.
+ * LeadVon → Google Sheets row layout:
+ * A–G (client-required order): Creation Date/Time | Consumer Name | Consumer Surname |
+ * Email | Mobile | Ad Source | Qualifying
+ * H–K (allowed extras to the right): Zip/Province | Summary | Unit | Country
  */
 export function buildGoogleSheetLeadRow(lead: {
   first_name?: string | null;
@@ -66,6 +74,10 @@ export function buildGoogleSheetLeadRow(lead: {
   email?: string | null;
   ad_source?: string | null;
   qualifying?: string | null;
+  zip_code?: string | null;
+  summary?: string | null;
+  lead_unit_type?: string | null;
+  country?: string | null;
 }): string[] {
   const email = (lead.email ?? "").trim().toLowerCase();
   const adSource = (lead.ad_source ?? "").trim();
@@ -77,6 +89,10 @@ export function buildGoogleSheetLeadRow(lead: {
     toSaLocalMobile(lead.phone),
     adSource,
     (lead.qualifying ?? "Qualified").trim() || "Qualified",
+    (lead.zip_code ?? "").trim(),
+    (lead.summary ?? "").trim(),
+    formatGoogleSheetLeadUnit(lead.lead_unit_type),
+    (lead.country ?? "").trim(),
   ];
 }
 

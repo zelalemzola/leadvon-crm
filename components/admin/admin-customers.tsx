@@ -1505,8 +1505,9 @@ export function AdminCustomers() {
                 onChange={(e) => setGoogleSheetTabName(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Defaults to &quot;Leads&quot;. Columns A–G stay fixed (date, name, surname, email, mobile,
-                ad source, qualifying).
+                Defaults to &quot;Leads&quot;. Columns A–G stay fixed (date, name, surname, email,
+                mobile, ad source, qualifying). Extra columns H–K are appended to the right:
+                Zip/Province, Summary, Unit, Country — add those headers in row 1 if you want labels.
               </p>
             </div>
             {googleSheetExport?.settings?.last_error ? (

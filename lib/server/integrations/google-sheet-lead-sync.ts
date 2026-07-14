@@ -19,6 +19,10 @@ type CustomerLeadRow = {
   last_name: string | null;
   phone: string | null;
   created_at: string;
+  zip_code?: string | null;
+  summary?: string | null;
+  lead_unit_type?: string | null;
+  country?: string | null;
 };
 
 async function markOrgSheetStatus(
@@ -74,7 +78,7 @@ async function exportPendingForOrg(
       await appendSpreadsheetRows({
         spreadsheetId: config.spreadsheet_id,
         sheetName,
-        range: "A:G",
+        range: "A:K",
         values: [buildGoogleSheetLeadRow(lead)],
       });
 
