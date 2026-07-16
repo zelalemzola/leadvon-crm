@@ -90,7 +90,21 @@ function extractName(answers: Record<string, unknown>) {
   return { first, last };
 }
 
-function parseLeadQaSummary(answers: Record<string, unknown>) {
+const MAPPED_INVENTORY_ANSWER_KEYS = new Set([
+  ...PHONE_KEYS,
+  ...FIRST_NAME_KEYS,
+  ...LAST_NAME_KEYS,
+  ...FULL_NAME_KEYS,
+  ...ZIP_KEYS,
+  ...COUNTRY_KEYS,
+  "_source",
+  "_submit_page_id",
+  "client_session_id",
+  "ab_variant_id",
+  "lead_qa",
+]);
+
+function parseLeadQaParts(answers: Record<string, unknown>): string[] {
   const raw = answers.lead_qa;
   const json =
     typeof raw === "string"
@@ -102,7 +116,7 @@ function parseLeadQaSummary(answers: Record<string, unknown>) {
           }
         })()
       : raw;
-  if (!Array.isArray(json)) return "";
+  if (!Array.isArray(json)) return [];
 
   const parts: string[] = [];
   for (const row of json) {
@@ -114,44 +128,17 @@ function parseLeadQaSummary(answers: Record<string, unknown>) {
     const answer = typeof r.answer === "string" ? normalizeSpace(r.answer) : "";
     if (!question || !answer) continue;
     parts.push(`${question}: ${answer}`);
-    if (parts.length >= 16) break;
+    if (parts.length >= 24) break;
   }
-  return parts.join(" - ").slice(0, 4000);
+  return parts;
 }
 
-function fallbackSummary(answers: Record<string, unknown>) {
-  const ignore = new Set([
-    "first_name",
-    "firstname",
-    "prenom",
-    "firstName",
-    "last_name",
-    "lastname",
-    "nom",
-    "surname",
-    "lastName",
-    "full_name",
-    "fullname",
-    "name",
-    "contact_name",
-    "phone",
-    "phone_number",
-    "telephone",
-    "mobile",
-    "mobile_number",
-    "whatsapp",
-    "whatsapp_number",
-    "tel",
-    "_source",
-    "_submit_page_id",
-    "client_session_id",
-    "ab_variant_id",
-    "lead_qa",
-  ]);
-
+/** Extra keys (email, utm_*, custom fields) that are not inventory columns. */
+function extraAnswerParts(answers: Record<string, unknown>): string[] {
   const parts: string[] = [];
   for (const [key, value] of Object.entries(answers)) {
-    if (ignore.has(key)) continue;
+    if (MAPPED_INVENTORY_ANSWER_KEYS.has(key)) continue;
+    if (/^[qQ]\d+$/.test(key) || /^[0-9a-f-]{20,}$/i.test(key)) continue;
     const v =
       typeof value === "string"
         ? normalizeSpace(value)
@@ -160,9 +147,23 @@ function fallbackSummary(answers: Record<string, unknown>) {
           : JSON.stringify(value);
     if (!v) continue;
     parts.push(`${key}: ${v}`);
-    if (parts.length >= 16) break;
+    if (parts.length >= 24) break;
   }
-  return parts.join(" - ").slice(0, 4000);
+  return parts;
+}
+
+/** Merge Q&A + unmapped attrs (email, UTM, …) into summary so nothing useful is dropped. */
+export function buildFunnelLeadSummary(answers: Record<string, unknown>): string {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const line of [...parseLeadQaParts(answers), ...extraAnswerParts(answers)]) {
+    const key = line.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(line);
+    if (out.length >= 24) break;
+  }
+  return out.join(" - ").slice(0, 4000);
 }
 
 export function mapFunnelSubmissionToInventoryLead(
@@ -184,10 +185,10 @@ export function mapFunnelSubmissionToInventoryLead(
     return { ok: false, reason: "missing_or_invalid_phone" };
   }
 
+  // Phone-only partial captures are intentional: dialable leads should still inventory.
   const name = extractName(answers);
-  if (!name.first) {
-    return { ok: false, reason: "missing_first_name" };
-  }
+  const firstName = (name.first || "Unknown").slice(0, 120);
+  const lastName = (name.last || "Unknown").slice(0, 120);
 
   const country =
     firstValue(answers, COUNTRY_KEYS) ||
@@ -197,7 +198,7 @@ export function mapFunnelSubmissionToInventoryLead(
     firstValue(answers, ZIP_KEYS) ||
     firstValue(geo, ["postalCode", "zip", "postal_code"]) ||
     null;
-  const summary = parseLeadQaSummary(answers) || fallbackSummary(answers);
+  const summary = buildFunnelLeadSummary(answers);
 
   return {
     ok: true,
@@ -206,8 +207,8 @@ export function mapFunnelSubmissionToInventoryLead(
       lead_unit_type: "single",
       phone,
       zip_code: zipCode,
-      first_name: name.first.slice(0, 120),
-      last_name: (name.last || "Unknown").slice(0, 120),
+      first_name: firstName,
+      last_name: lastName,
       country: country.slice(0, 120),
       summary,
       source_system: "funnel",

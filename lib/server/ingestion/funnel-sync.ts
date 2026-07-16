@@ -103,6 +103,14 @@ export async function runFunnelSyncOnce(): Promise<FunnelSyncResult> {
       if (!mapped.ok) {
         skippedInvalid += 1;
         addSkipReason(`validation:${mapped.reason}`);
+        // Advance past phone-less (incomplete) rows so sync cannot stall. When the
+        // visitor later adds a phone, funnel updated_at moves forward and we re-pull.
+        if (mapped.reason === "missing_or_invalid_phone") {
+          const seenAt = raw.updated_at || raw.created_at;
+          if (seenAt && (!latestSourceUpdatedAt || seenAt > latestSourceUpdatedAt)) {
+            latestSourceUpdatedAt = seenAt;
+          }
+        }
         continue;
       }
       const payload = mapped.data;
