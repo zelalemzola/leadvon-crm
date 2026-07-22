@@ -4,10 +4,24 @@ import {
   normalizeReviewStatusCode,
 } from "@/lib/integrations/review-status";
 
-// TEMP (admin request): status/phone/name gates disabled so missed SaLeads can sync.
-// Restore by setting this to false (re-enable status=new + phone + name checks).
-const ENFORCE_BASE44_LEAD_GATES = false;
+// TEMP (admin request): relax status/phone/name gates ONLY for SaLeads whose
+// source created_date is on/after today (UTC). Older leads keep normal gates.
+// Full restore later: set TEMP_RELAX_BASE44_GATES_FOR_TODAY_ONLY = false.
+const TEMP_RELAX_BASE44_GATES_FOR_TODAY_ONLY = true;
 const REQUIRED_STATUS = "new";
+
+function startOfUtcDayIso(date = new Date()) {
+  const d = new Date(date);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+function isOnOrAfterUtcToday(sourceTimestamp: string | null | undefined) {
+  if (!sourceTimestamp?.trim()) return false;
+  const ms = Date.parse(sourceTimestamp);
+  if (!Number.isFinite(ms)) return false;
+  return ms >= Date.parse(startOfUtcDayIso());
+}
 
 const optionalTrimmedString = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
@@ -131,7 +145,11 @@ export function mapBase44SaLeadToInventoryLead(
   categoryId: string
 ): { ok: true; data: MappedBase44Lead } | { ok: false; reason: string } {
   const status = typeof raw.status === "string" ? raw.status.trim().toLowerCase() : "";
-  if (ENFORCE_BASE44_LEAD_GATES && status !== REQUIRED_STATUS) {
+  const sourceTs = raw.created_date ?? raw.updated_date ?? null;
+  const relaxGates =
+    TEMP_RELAX_BASE44_GATES_FOR_TODAY_ONLY && isOnOrAfterUtcToday(sourceTs);
+
+  if (!relaxGates && status !== REQUIRED_STATUS) {
     return { ok: false, reason: `status_not_new:${status || "missing"}` };
   }
 
@@ -142,10 +160,10 @@ export function mapBase44SaLeadToInventoryLead(
 
   const input = parsed.data;
 
-  if (ENFORCE_BASE44_LEAD_GATES && !input.telephone) {
+  if (!relaxGates && !input.telephone) {
     return { ok: false, reason: "missing_phone" };
   }
-  if (ENFORCE_BASE44_LEAD_GATES && !input.prenom && !input.nom) {
+  if (!relaxGates && !input.prenom && !input.nom) {
     return { ok: false, reason: "missing_name" };
   }
 
