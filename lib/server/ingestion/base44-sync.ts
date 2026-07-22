@@ -85,11 +85,12 @@ export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
   };
 
   for (let page = 0; page < maxPages; page += 1) {
+    // TEMP (admin request): do not filter status=new at the API so missed SaLeads sync.
+    // Restore by passing query: { status: "new" } and setting ENFORCE_BASE44_LEAD_GATES=true.
     const pageRows = await listBase44SaLeads({
       limit: batchSize,
       skip,
       sortBy: "-created_date",
-      query: { status: "new" },
     });
     if (pageRows.length === 0) break;
     fetched += pageRows.length;

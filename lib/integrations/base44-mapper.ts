@@ -4,6 +4,9 @@ import {
   normalizeReviewStatusCode,
 } from "@/lib/integrations/review-status";
 
+// TEMP (admin request): status/phone/name gates disabled so missed SaLeads can sync.
+// Restore by setting this to false (re-enable status=new + phone + name checks).
+const ENFORCE_BASE44_LEAD_GATES = false;
 const REQUIRED_STATUS = "new";
 
 const optionalTrimmedString = z
@@ -25,7 +28,15 @@ const base44SaLeadSchema = z.object({
   debt: z.string().nullish(),
   review_status: z.string().nullish(),
   last_step: z.string().nullish(),
-  status: z.enum(["new", "contacted", "converted"]).nullish(),
+  // Allow blank/unknown status while gates are relaxed (empty status used to fail enum parse).
+  status: z
+    .union([z.string(), z.null(), z.undefined()])
+    .transform((v) => {
+      if (v == null) return null;
+      const trimmed = String(v).trim().toLowerCase();
+      return trimmed || null;
+    })
+    .optional(),
   created_date: z.coerce.string().trim().min(1).nullish(),
   updated_date: z.coerce.string().trim().min(1).nullish(),
 });
@@ -120,7 +131,7 @@ export function mapBase44SaLeadToInventoryLead(
   categoryId: string
 ): { ok: true; data: MappedBase44Lead } | { ok: false; reason: string } {
   const status = typeof raw.status === "string" ? raw.status.trim().toLowerCase() : "";
-  if (status !== REQUIRED_STATUS) {
+  if (ENFORCE_BASE44_LEAD_GATES && status !== REQUIRED_STATUS) {
     return { ok: false, reason: `status_not_new:${status || "missing"}` };
   }
 
@@ -131,10 +142,10 @@ export function mapBase44SaLeadToInventoryLead(
 
   const input = parsed.data;
 
-  if (!input.telephone) {
+  if (ENFORCE_BASE44_LEAD_GATES && !input.telephone) {
     return { ok: false, reason: "missing_phone" };
   }
-  if (!input.prenom && !input.nom) {
+  if (ENFORCE_BASE44_LEAD_GATES && !input.prenom && !input.nom) {
     return { ok: false, reason: "missing_name" };
   }
 
