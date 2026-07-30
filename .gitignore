@@ -24,6 +24,10 @@
 .DS_Store
 *.pem
 
+# Lead/customer exports must never be committed (PII). Keep the import sample only.
+*.csv
+!leads-import-sample.csv
+
 # debug
 npm-debug.log*
 yarn-debug.log*
