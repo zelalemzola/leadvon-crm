@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { AppProviders } from "@/components/providers/app-providers";
 import { defaultLocale, isLocale, localeCookieKey } from "@/lib/i18n/messages";
 import "./globals.css";
-
+//app layout
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
