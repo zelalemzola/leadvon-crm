@@ -1,8 +1,5 @@
 import { z } from "zod";
-import type { Base44SaLead } from "@/lib/integrations/base44";
-import {
-  normalizeReviewStatusCode,
-} from "@/lib/integrations/review-status";
+import type { Base44WmLead } from "@/lib/integrations/wmleads";
 
 const REQUIRED_STATUS = "new";
 
@@ -10,27 +7,31 @@ const optionalTrimmedString = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
   .transform((v) => (v === null || v === undefined ? "" : String(v).trim()));
 
-const base44SaLeadSchema = z.object({
+const base44WmLeadSchema = z.object({
   id: z.coerce.string().trim().min(1),
   prenom: optionalTrimmedString,
   nom: optionalTrimmedString,
+  email: optionalTrimmedString,
   telephone: optionalTrimmedString,
-  age: optionalTrimmedString,
-  province: z
+  q1: optionalTrimmedString,
+  q2: optionalTrimmedString,
+  q3: optionalTrimmedString,
+  q4: optionalTrimmedString,
+  q5: optionalTrimmedString,
+  source: optionalTrimmedString,
+  status: z
     .union([z.string(), z.null(), z.undefined()])
-    .transform((v) => (typeof v === "string" ? v.trim() : undefined))
+    .transform((v) => {
+      if (v == null) return null;
+      const trimmed = String(v).trim().toLowerCase();
+      return trimmed || null;
+    })
     .optional(),
-  work: z.string().nullish(),
-  income: z.string().nullish(),
-  debt: z.string().nullish(),
-  review_status: z.string().nullish(),
-  last_step: z.string().nullish(),
-  status: z.enum(["new", "contacted", "converted"]).nullish(),
   created_date: z.coerce.string().trim().min(1).nullish(),
   updated_date: z.coerce.string().trim().min(1).nullish(),
 });
 
-export type MappedBase44Lead = {
+export type MappedWmLead = {
   category_id: string;
   lead_unit_type: "single" | "family";
   phone: string;
@@ -40,38 +41,11 @@ export type MappedBase44Lead = {
   country: string;
   summary: string;
   review_status: string | null;
-  source_system: "base44";
+  source_system: "wmleads";
   source_external_id: string;
   source_payload: Record<string, unknown>;
   source_created_at: string | null;
   source_updated_at: string | null;
-};
-
-const WORK_LABELS: Record<string, string> = {
-  full_time: "Full time",
-  part_time: "Part time",
-  pension: "Pension",
-  unemployed: "Unemployed",
-  self_employed: "Self employed",
-  student: "Student",
-  retired: "Retired",
-};
-
-const INCOME_LABELS: Record<string, string> = {
-  under_5000: "Under R5,000",
-  "5000_10000": "R5,000 – R10,000",
-  "10000_30000": "R10,000 – R30,000",
-  "30000_50000": "R30,000 – R50,000",
-  over_50000: "Over R50,000",
-};
-
-const DEBT_LABELS: Record<string, string> = {
-  under_50000: "Under R50,000",
-  "50000_100000": "R50,000 – R100,000",
-  "100000_200000": "R100,000 – R200,000",
-  "200000_500000": "R200,000 – R500,000",
-  over_500000: "Over R500,000",
-  none: "No debt",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -80,18 +54,20 @@ const STATUS_LABELS: Record<string, string> = {
   converted: "Converted",
 };
 
+const SOURCE_LABELS: Record<string, string> = {
+  wm: "WM",
+  "wm-ob": "WM OB",
+};
+
 function humanizeCode(value: string) {
   return value
-    .split("_")
+    .split(/[_-]/)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
 
-function labelValue(
-  value: string | null | undefined,
-  labels: Record<string, string>
-) {
+function labelValue(value: string | null | undefined, labels: Record<string, string>) {
   if (!value?.trim()) return null;
   const key = value.trim().toLowerCase();
   return labels[key] ?? humanizeCode(key);
@@ -102,29 +78,35 @@ function summaryPart(label: string, value: string | null | undefined) {
   return `${label}: ${value.trim()}`;
 }
 
-function buildSaLeadSummary(input: z.infer<typeof base44SaLeadSchema>) {
+function buildWmLeadSummary(input: z.infer<typeof base44WmLeadSchema>) {
   const parts = [
-    summaryPart("age", input.age),
-    summaryPart("province", input.province),
-    summaryPart("work", labelValue(input.work, WORK_LABELS)),
-    summaryPart("income", labelValue(input.income, INCOME_LABELS)),
-    summaryPart("debt", labelValue(input.debt, DEBT_LABELS)),
+    summaryPart("Interest in wealth management", input.q1),
+    summaryPart("Main wealth concern", input.q2),
+    summaryPart("Current wealth manager", input.q3),
+    summaryPart("Portfolio size bracket", input.q4),
+    summaryPart("Primary goal", input.q5),
+    summaryPart("page source", labelValue(input.source, SOURCE_LABELS)),
     summaryPart("status", labelValue(input.status, STATUS_LABELS)),
   ].filter((part): part is string => Boolean(part));
 
   return parts.join(" - ").slice(0, 2000);
 }
 
-export function mapBase44SaLeadToInventoryLead(
-  raw: Base44SaLead,
+function getDefaultCountry() {
+  const country = process.env.WMLEADS_DEFAULT_COUNTRY?.trim();
+  return country && country.length > 0 ? country : "Unknown";
+}
+
+export function mapBase44WmLeadToInventoryLead(
+  raw: Base44WmLead,
   categoryId: string
-): { ok: true; data: MappedBase44Lead } | { ok: false; reason: string } {
+): { ok: true; data: MappedWmLead } | { ok: false; reason: string } {
   const status = typeof raw.status === "string" ? raw.status.trim().toLowerCase() : "";
   if (status !== REQUIRED_STATUS) {
     return { ok: false, reason: `status_not_new:${status || "missing"}` };
   }
 
-  const parsed = base44SaLeadSchema.safeParse(raw);
+  const parsed = base44WmLeadSchema.safeParse(raw);
   if (!parsed.success) {
     return { ok: false, reason: parsed.error.issues.map((i) => i.message).join("; ") };
   }
@@ -144,13 +126,13 @@ export function mapBase44SaLeadToInventoryLead(
       category_id: categoryId,
       lead_unit_type: "single",
       phone: input.telephone,
-      zip_code: input.province?.trim() ? input.province.trim() : null,
+      zip_code: null,
       first_name: input.prenom,
       last_name: input.nom,
-      country: "South Africa",
-      summary: buildSaLeadSummary(input),
-      review_status: normalizeReviewStatusCode(input.review_status),
-      source_system: "base44",
+      country: getDefaultCountry(),
+      summary: buildWmLeadSummary(input),
+      review_status: null,
+      source_system: "wmleads",
       source_external_id: input.id,
       source_payload: raw as Record<string, unknown>,
       source_created_at: input.created_date ?? null,

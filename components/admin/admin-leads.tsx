@@ -25,6 +25,7 @@ import {
   useDeliverSignupFreeLeadMutation,
   useDeliverFreeLeadMutation,
   useSyncFunnelLeadsMutation,
+  useSyncWmLeadsMutation,
   type AdminLeadsAvailability,
   type AdminLeadsSourceFilter,
   type AdminLeadsReviewStatusFilter,
@@ -131,6 +132,17 @@ function LeadSourceBadge({
       </Badge>
     );
   }
+  if (source === "wmleads") {
+    const externalId = lead.source_external_id?.trim();
+    return (
+      <Badge
+        className="bg-teal-500/15 text-teal-300 hover:bg-teal-500/25"
+        title={externalId ? `${t("adminLeads.sourceWmLeadsId")}: ${externalId}` : undefined}
+      >
+        {t("adminLeads.sourceWmLeads")}
+      </Badge>
+    );
+  }
   if (source === "manual") {
     return (
       <Badge variant="outline" className="text-muted-foreground">
@@ -209,6 +221,8 @@ export function AdminLeads() {
     useDeliverFreeLeadMutation();
   const [syncFunnelLeads, { isLoading: syncingFunnel }] =
     useSyncFunnelLeadsMutation();
+  const [syncWmLeads, { isLoading: syncingWmLeads }] =
+    useSyncWmLeadsMutation();
 
   const loading = leadsLoading || catLoading;
   const rows = leads?.rows ?? [];
@@ -442,6 +456,21 @@ export function AdminLeads() {
     }
   }
 
+  async function handleSyncWmLeads() {
+    try {
+      const res = await syncWmLeads().unwrap();
+      toast.success(
+        `${t("adminLeads.syncWmLeadsDone")} ${res.fetched} ${t("adminLeads.fetched")}, ${res.inserted} ${t("adminLeads.inserted")}, ${res.updated} ${t("adminLeads.updated")}, ${res.skipped_invalid} ${t("adminLeads.skipped")}`
+      );
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "data" in err
+          ? String((err as { data?: { message?: string } }).data)
+          : t("adminLeads.syncWmLeadsFailed");
+      toast.error(msg);
+    }
+  }
+
   function exportCsv() {
     const headers = [
       "id",
@@ -591,6 +620,10 @@ export function AdminLeads() {
               <RefreshCcw className="size-4" />
               {syncingFunnel ? t("adminLeads.syncingFunnel") : t("adminLeads.syncFunnel")}
             </Button>
+            <Button variant="outline" onClick={() => void handleSyncWmLeads()} disabled={syncingWmLeads}>
+              <RefreshCcw className="size-4" />
+              {syncingWmLeads ? t("adminLeads.syncingWmLeads") : t("adminLeads.syncWmLeads")}
+            </Button>
             <input
               ref={importRef}
               type="file"
@@ -679,6 +712,7 @@ export function AdminLeads() {
                 <SelectItem value="manual">{t("adminLeads.sourceManual")}</SelectItem>
                 <SelectItem value="base44">{t("adminLeads.sourceBase44")}</SelectItem>
                 <SelectItem value="funnel">{t("adminLeads.sourceFunnel")}</SelectItem>
+                <SelectItem value="wmleads">{t("adminLeads.sourceWmLeads")}</SelectItem>
               </SelectContent>
             </Select>
           </div>

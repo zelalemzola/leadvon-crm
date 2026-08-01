@@ -68,8 +68,9 @@ To allow each customer to send from their own sender, apply `20260702150000_org_
 
 CRM can ingest external leads from:
 
-- `base44` (existing sync)
+- `base44` (existing SaLead sync)
 - `funnel` (`leadvon-funnel` prelander submissions)
+- `wmleads` (Base44 `WmLead` entity — separate app host)
 
 Required env vars for funnel sync:
 
@@ -78,9 +79,19 @@ Required env vars for funnel sync:
 - Optional: `FUNNEL_INGEST_BATCH_SIZE` (default 100)
 - Optional: `FUNNEL_DEFAULT_CATEGORY_ID` (fallback when debt-review category is missing)
 
-Trigger endpoint:
+Required env vars for wmleads sync:
+
+- `WMLEADS_BASE_URL` (e.g. `https://beratervermittlung.base44.app/api`)
+- `WMLEADS_API_KEY` (falls back to `BASE44_API_KEY` if unset)
+- Optional: `WMLEADS_INGEST_BATCH_SIZE` (default 100)
+- Optional: `WMLEADS_DEFAULT_CATEGORY_ID` (fallback when wealth-management category is missing)
+- Optional: `WMLEADS_DEFAULT_COUNTRY` (default `Unknown`)
+
+Trigger endpoints:
 
 - `POST /api/cron/funnel-sync` with `x-cron-secret: $CRON_SECRET`
+- `POST /api/cron/wmleads-sync` with `x-cron-secret: $CRON_SECRET`
+- Staff: `POST /api/admin/leads/sync-wmleads`
 
 ## Google Sheets lead export (per customer)
 

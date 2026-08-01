@@ -16,6 +16,7 @@ export const FREE_DELIVERY_SOURCE_OPTIONS = [
   { value: "manual", label: "Manual" },
   { value: "base44", label: "Base44" },
   { value: "funnel", label: "Funnel" },
+  { value: "wmleads", label: "WmLeads" },
 ] as const;
 
 export function normalizeReviewStatusCode(value: string | null | undefined): string | null {

@@ -1,6 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/service";
-import { listBase44SaLeads } from "@/lib/integrations/base44";
-import { mapBase44SaLeadToInventoryLead } from "@/lib/integrations/base44-mapper";
+import { listBase44WmLeads } from "@/lib/integrations/wmleads";
+import { mapBase44WmLeadToInventoryLead } from "@/lib/integrations/wmleads-mapper";
 import { processLeadIngestRouting } from "@/lib/server/routing/process-lead-ingest";
 import { processPendingLeadEmails } from "@/lib/server/notifications/dispatch";
 import {
@@ -8,22 +8,21 @@ import {
   resolveIngestFrom,
 } from "@/lib/server/ingestion/ingest-from";
 
-const PROVIDER = "base44";
+const PROVIDER = "wmleads";
+const WEALTH_MANAGEMENT_SLUG = "wealth-management";
 
 function getBatchSize() {
-  const raw = Number(process.env.BASE44_INGEST_BATCH_SIZE ?? 100);
+  const raw = Number(process.env.WMLEADS_INGEST_BATCH_SIZE ?? 100);
   if (!Number.isFinite(raw) || raw <= 0) return 100;
   return Math.min(Math.floor(raw), 500);
 }
 
 function getDefaultCategoryId() {
-  const id = process.env.BASE44_DEFAULT_CATEGORY_ID?.trim();
+  const id = process.env.WMLEADS_DEFAULT_CATEGORY_ID?.trim();
   return id && id.length > 0 ? id : null;
 }
 
-const DEBT_REVIEW_SLUG = "debt-review";
-
-export type Base44SyncResult = {
+export type WmLeadsSyncResult = {
   fetched: number;
   inserted: number;
   updated: number;
@@ -41,24 +40,22 @@ type SyncedLeadRow = {
   source_updated_at: string | null;
 };
 
-export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
+export async function runWmLeadsSyncOnce(): Promise<WmLeadsSyncResult> {
   const service = createServiceClient();
   const batchSize = getBatchSize();
   const defaultCategoryId = getDefaultCategoryId();
   const { data: categoryRows, error: categoryError } = await service
     .from("categories")
     .select("id,name,slug")
-    .eq("slug", DEBT_REVIEW_SLUG)
+    .eq("slug", WEALTH_MANAGEMENT_SLUG)
     .limit(1);
   if (categoryError) {
     throw new Error(`Failed to load categories: ${categoryError.message}`);
   }
-  const debtReviewCategory = categoryRows?.[0];
-  const debtReviewCategoryId = debtReviewCategory
-    ? String(debtReviewCategory.id)
-    : defaultCategoryId;
-  if (!debtReviewCategoryId) {
-    throw new Error("Debt Review category is not configured");
+  const wealthCategory = categoryRows?.[0];
+  const categoryId = wealthCategory ? String(wealthCategory.id) : defaultCategoryId;
+  if (!categoryId) {
+    throw new Error("Wealth Management category is not configured");
   }
 
   const { data: cursorRow } = await service
@@ -85,7 +82,7 @@ export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
   };
 
   for (let page = 0; page < maxPages; page += 1) {
-    const pageRows = await listBase44SaLeads({
+    const pageRows = await listBase44WmLeads({
       limit: batchSize,
       skip,
       sortBy: "-created_date",
@@ -105,7 +102,7 @@ export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
       }
       pageEligibleCount += 1;
 
-      const mapped = mapBase44SaLeadToInventoryLead(raw, debtReviewCategoryId);
+      const mapped = mapBase44WmLeadToInventoryLead(raw, categoryId);
       if (!mapped.ok) {
         skippedInvalid += 1;
         addSkipReason(`validation:${mapped.reason}`);
@@ -183,7 +180,7 @@ export async function runBase44SyncOnce(): Promise<Base44SyncResult> {
         latestSourceUpdatedAt = sourceUpdatedAt;
       }
 
-      const ingestKey = `base44:${String(payload.source_external_id)}`;
+      const ingestKey = `wmleads:${String(payload.source_external_id)}`;
       await processLeadIngestRouting(upserted.category_id, ingestKey);
     }
 

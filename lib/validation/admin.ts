@@ -92,7 +92,7 @@ export const organizationFreeDeliverySchema = z.object({
   is_active: z.boolean(),
   allowed_category_ids: z.array(z.string().uuid()).optional().default([]),
   allowed_source_systems: z
-    .array(z.enum(["manual", "base44", "funnel"]))
+    .array(z.enum(["manual", "base44", "funnel", "wmleads"]))
     .optional()
     .default([]),
   allowed_review_statuses: z.array(z.string().trim().min(1).max(64)).optional().default([]),

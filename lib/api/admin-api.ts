@@ -149,7 +149,7 @@ export type FinanceSnapshotData = {
 };
 
 export type AdminLeadsAvailability = "all" | "available" | "sold";
-export type AdminLeadsSourceFilter = "all" | "manual" | "base44" | "funnel";
+export type AdminLeadsSourceFilter = "all" | "manual" | "base44" | "funnel" | "wmleads";
 export type AdminLeadsReviewStatusFilter = "all" | string;
 export type AdminLeadsSort = "newest" | "oldest";
 
@@ -171,6 +171,16 @@ export type DeliverFreeLeadResult = {
 };
 
 export type FunnelSyncResult = {
+  fetched: number;
+  inserted: number;
+  updated: number;
+  skipped_invalid: number;
+  skip_reasons: Record<string, number>;
+  next_skip: number;
+  cursor_updated_at: string | null;
+};
+
+export type WmLeadsSyncResult = {
   fetched: number;
   inserted: number;
   updated: number;
@@ -629,6 +639,7 @@ export const adminApi = createApi({
         if (source === "manual") listQuery = listQuery.eq("source_system", "manual");
         if (source === "base44") listQuery = listQuery.eq("source_system", "base44");
         if (source === "funnel") listQuery = listQuery.eq("source_system", "funnel");
+        if (source === "wmleads") listQuery = listQuery.eq("source_system", "wmleads");
         if (reviewStatus === "__none__") listQuery = listQuery.is("review_status", null);
         else if (reviewStatus !== "all") listQuery = listQuery.eq("review_status", reviewStatus);
         if (country.trim()) {
@@ -653,6 +664,7 @@ export const adminApi = createApi({
         if (source === "manual") countQuery = countQuery.eq("source_system", "manual");
         if (source === "base44") countQuery = countQuery.eq("source_system", "base44");
         if (source === "funnel") countQuery = countQuery.eq("source_system", "funnel");
+        if (source === "wmleads") countQuery = countQuery.eq("source_system", "wmleads");
         if (reviewStatus === "__none__") countQuery = countQuery.is("review_status", null);
         else if (reviewStatus !== "all") countQuery = countQuery.eq("review_status", reviewStatus);
         if (country.trim()) {
@@ -1786,6 +1798,17 @@ export const adminApi = createApi({
       },
       invalidatesTags: ["Leads", "Dashboard"],
     }),
+    syncWmLeads: builder.mutation<WmLeadsSyncResult, void>({
+      queryFn: async () => {
+        const res = await jsonRequest<WmLeadsSyncResult>(
+          "/api/admin/leads/sync-wmleads",
+          "POST"
+        );
+        if (res.error) return { error: res.error };
+        return { data: res.data as WmLeadsSyncResult };
+      },
+      invalidatesTags: ["Leads", "Dashboard"],
+    }),
 
     getAdminSmsOverview: builder.query<AdminSmsOverview, void>({
       queryFn: async () => {
@@ -1868,6 +1891,7 @@ export const {
   useDeliverSignupFreeLeadMutation,
   useDeliverFreeLeadMutation,
   useSyncFunnelLeadsMutation,
+  useSyncWmLeadsMutation,
   useGetCategoryPricingTiersQuery,
   useGetCategoryPricingTierRatesQuery,
   useCreateCategoryPricingTierMutation,
