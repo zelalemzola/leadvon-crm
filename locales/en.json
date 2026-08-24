@@ -238,6 +238,7 @@
     "smsTemplate": "Use saved template",
     "smsTemplatePlaceholder": "Choose a template",
     "smsTemplateCustom": "Custom message",
+    "smsNoTemplatesHint": "Create templates on the SMS page to reuse messages here.",
     "insertPlaceholder": "Insert placeholder"
   },
   "clientAssigned": {

@@ -238,6 +238,7 @@
     "smsTemplate": "Utiliser un modele",
     "smsTemplatePlaceholder": "Choisir un modele",
     "smsTemplateCustom": "Message personnalise",
+    "smsNoTemplatesHint": "Creez des modeles sur la page SMS pour les reutiliser ici.",
     "insertPlaceholder": "Inserer un placeholder"
   },
   "clientAssigned": {

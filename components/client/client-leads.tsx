@@ -636,34 +636,37 @@ export function ClientLeads() {
                   <MessageSquare className="size-4" />
                   {t("clientLeads.sendSms")}
                 </Label>
-                {(smsTemplates ?? []).length > 0 ? (
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">
-                      {t("clientLeads.smsTemplate")}
-                    </Label>
-                    <Select
-                      value={modalSmsTemplateId}
-                      onValueChange={(id) => {
-                        setModalSmsTemplateId(id);
-                        if (id === "custom") return;
-                        const selected = (smsTemplates ?? []).find((tpl) => tpl.id === id);
-                        if (selected) setModalSmsMessage(selected.body);
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t("clientLeads.smsTemplatePlaceholder")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="custom">{t("clientLeads.smsTemplateCustom")}</SelectItem>
-                        {(smsTemplates ?? []).map((tpl) => (
-                          <SelectItem key={tpl.id} value={tpl.id}>
-                            {tpl.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : null}
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">
+                    {t("clientLeads.smsTemplate")}
+                  </Label>
+                  <Select
+                    value={modalSmsTemplateId}
+                    onValueChange={(id) => {
+                      setModalSmsTemplateId(id);
+                      if (id === "custom") return;
+                      const selected = (smsTemplates ?? []).find((tpl) => tpl.id === id);
+                      if (selected) setModalSmsMessage(selected.body);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("clientLeads.smsTemplatePlaceholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="custom">{t("clientLeads.smsTemplateCustom")}</SelectItem>
+                      {(smsTemplates ?? []).map((tpl) => (
+                        <SelectItem key={tpl.id} value={tpl.id}>
+                          {tpl.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(smsTemplates ?? []).length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      {t("clientLeads.smsNoTemplatesHint")}
+                    </p>
+                  ) : null}
+                </div>
                 <SmsTemplateEditor
                   value={modalSmsMessage}
                   onChange={(next) => {
