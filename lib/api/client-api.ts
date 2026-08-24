@@ -17,6 +17,7 @@ import type {
   SmsAutomation,
   SmsBalance,
   SmsMessage,
+  SmsTemplate,
   SmsTransaction,
 } from "@/types/database";
 
@@ -292,6 +293,7 @@ export const clientApi = createApi({
     "ClientNotifications",
     "AgentPerformance",
     "Sms",
+    "SmsTemplates",
     "CallScripts",
   ],
   endpoints: (builder) => ({
@@ -1054,6 +1056,71 @@ export const clientApi = createApi({
       invalidatesTags: ["Sms", "ClientAudit"],
     }),
 
+    bulkSendSms: builder.mutation<
+      {
+        sent: number;
+        failed: number;
+        results: { lead_id: string; ok: boolean; error?: string; message_id?: string }[];
+      },
+      { lead_ids: string[]; message?: string; template_id?: string }
+    >({
+      queryFn: async (body) => {
+        const res = await requestJson<{
+          sent: number;
+          failed: number;
+          results: { lead_id: string; ok: boolean; error?: string; message_id?: string }[];
+        }>("/api/client/sms/bulk", "POST", body);
+        if (res.error) return { error: res.error };
+        return { data: res.data! };
+      },
+      invalidatesTags: ["Sms", "ClientAudit"],
+    }),
+
+    getSmsTemplates: builder.query<SmsTemplate[], void>({
+      queryFn: async () => {
+        const res = await fetch("/api/client/sms/templates");
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: SmsTemplate[];
+          error?: string;
+        };
+        if (!res.ok) {
+          return { error: { status: res.status, data: json.error ?? "Request failed" } };
+        }
+        return { data: json.data ?? [] };
+      },
+      providesTags: ["SmsTemplates"],
+    }),
+
+    createSmsTemplate: builder.mutation<SmsTemplate, { name: string; body: string }>({
+      queryFn: async (body) => {
+        const res = await requestJson<SmsTemplate>("/api/client/sms/templates", "POST", body);
+        if (res.error) return { error: res.error };
+        return { data: res.data! };
+      },
+      invalidatesTags: ["SmsTemplates", "ClientAudit"],
+    }),
+
+    updateSmsTemplate: builder.mutation<SmsTemplate, { id: string; name?: string; body?: string }>({
+      queryFn: async ({ id, ...body }) => {
+        const res = await requestJson<SmsTemplate>(`/api/client/sms/templates/${id}`, "PATCH", body);
+        if (res.error) return { error: res.error };
+        return { data: res.data! };
+      },
+      invalidatesTags: ["SmsTemplates", "ClientAudit"],
+    }),
+
+    deleteSmsTemplate: builder.mutation<{ ok: true }, { id: string }>({
+      queryFn: async ({ id }) => {
+        const res = await fetch(`/api/client/sms/templates/${id}`, { method: "DELETE" });
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          return { error: { status: res.status, data: json.error ?? "Request failed" } };
+        }
+        return { data: { ok: true } };
+      },
+      invalidatesTags: ["SmsTemplates", "ClientAudit"],
+    }),
+
     getOrgSmsSenderSettings: builder.query<OrgSmsSenderSettings | null, void>({
       queryFn: async () => {
         const res = await fetch("/api/client/organization/sms-sender");
@@ -1176,6 +1243,11 @@ export const {
   useUpdateSmsAutomationMutation,
   useDeleteSmsAutomationMutation,
   useSendLeadSmsMutation,
+  useBulkSendSmsMutation,
+  useGetSmsTemplatesQuery,
+  useCreateSmsTemplateMutation,
+  useUpdateSmsTemplateMutation,
+  useDeleteSmsTemplateMutation,
   useGetOrgSmsSenderSettingsQuery,
   useUpdateOrgSmsSenderSettingsMutation,
   useGetCallScriptsQuery,

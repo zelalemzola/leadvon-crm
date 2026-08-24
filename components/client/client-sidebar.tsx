@@ -17,6 +17,7 @@ import {
   BarChart3,
   MessageSquare,
   FileText,
+  Megaphone,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { clearPushPromptSession } from "@/lib/push/client";
@@ -45,6 +46,7 @@ const baseNav = [
   { href: "/client/leads", key: "client.nav.leads", icon: Users },
   { href: "/client/call-scripts", key: "client.nav.callScripts", icon: FileText },
   { href: "/client/sms", key: "client.nav.sms", icon: MessageSquare },
+  { href: "/client/bulk-sms", key: "client.nav.bulkSms", icon: Megaphone },
   { href: "/client/notifications", key: "client.nav.notifications", icon: Bell },
   { href: "/client/billing", key: "client.nav.billing", icon: CreditCard },
   { href: "/client/activity", key: "client.nav.activity", icon: ScrollText },

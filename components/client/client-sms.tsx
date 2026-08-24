@@ -6,19 +6,22 @@ import { toast } from "sonner";
 import { MessageSquare, Plus, Trash2, Zap } from "lucide-react";
 import {
   useCreateSmsAutomationMutation,
+  useCreateSmsTemplateMutation,
   useCreateSmsTopupSessionMutation,
   useDeleteSmsAutomationMutation,
+  useDeleteSmsTemplateMutation,
   useGetClientMeQuery,
   useGetSmsAutomationsQuery,
   useGetSmsOverviewQuery,
+  useGetSmsTemplatesQuery,
   useUpdateSmsAutomationMutation,
 } from "@/lib/api/client-api";
 import { SMS_COST_CENTS } from "@/lib/sms/constants";
+import { SmsTemplateEditor } from "@/components/client/sms-template-editor";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -60,15 +63,20 @@ export function ClientSms() {
   const { data: me } = useGetClientMeQuery();
   const { data: overview, refetch: refetchOverview } = useGetSmsOverviewQuery();
   const { data: automations, refetch: refetchAutomations } = useGetSmsAutomationsQuery();
+  const { data: templates } = useGetSmsTemplatesQuery();
   const [createAutomation, { isLoading: creatingAutomation }] = useCreateSmsAutomationMutation();
   const [updateAutomation, { isLoading: updatingAutomation }] = useUpdateSmsAutomationMutation();
   const [deleteAutomation] = useDeleteSmsAutomationMutation();
+  const [createTemplate, { isLoading: creatingTemplate }] = useCreateSmsTemplateMutation();
+  const [deleteTemplate] = useDeleteSmsTemplateMutation();
   const [createTopup, { isLoading: creatingTopup }] = useCreateSmsTopupSessionMutation();
 
   const [topupAmount, setTopupAmount] = useState("30");
   const [automationName, setAutomationName] = useState("");
   const [triggerStatus, setTriggerStatus] = useState<string>("no_answer");
   const [messageTemplate, setMessageTemplate] = useState(DEFAULT_NO_ANSWER_TEMPLATE);
+  const [templateName, setTemplateName] = useState("");
+  const [templateBody, setTemplateBody] = useState(DEFAULT_NO_ANSWER_TEMPLATE);
 
   const isAdmin = me?.role === "customer_admin" && me?.is_active;
   const balanceCents = overview?.balance?.balance_cents ?? 0;
@@ -167,6 +175,38 @@ export function ClientSms() {
       toast.success(t("clientSms.automationDeleted"));
     } catch {
       toast.error(t("clientSms.automationDeleteFailed"));
+    }
+  }
+
+  async function submitTemplate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isAdmin) {
+      toast.error(t("clientSms.adminOnly"));
+      return;
+    }
+    try {
+      await createTemplate({
+        name: templateName.trim(),
+        body: templateBody.trim(),
+      }).unwrap();
+      toast.success(t("clientSms.templateCreated"));
+      setTemplateName("");
+      setTemplateBody(DEFAULT_NO_ANSWER_TEMPLATE);
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "data" in err
+          ? String((err as { data?: unknown }).data)
+          : t("clientSms.templateCreateFailed");
+      toast.error(msg);
+    }
+  }
+
+  async function removeTemplate(id: string) {
+    try {
+      await deleteTemplate({ id }).unwrap();
+      toast.success(t("clientSms.templateDeleted"));
+    } catch {
+      toast.error(t("clientSms.templateDeleteFailed"));
     }
   }
 
@@ -274,11 +314,12 @@ export function ClientSms() {
               </div>
               <div className="space-y-1">
                 <Label>{t("clientSms.messageTemplate")}</Label>
-                <Textarea
+                <SmsTemplateEditor
                   value={messageTemplate}
-                  onChange={(e) => setMessageTemplate(e.target.value)}
+                  onChange={setMessageTemplate}
                   rows={5}
                   required
+                  insertLabel={t("clientSms.insertPlaceholder")}
                 />
                 <p className="text-xs text-muted-foreground">{t("clientSms.templateVars")}</p>
               </div>
@@ -322,6 +363,67 @@ export function ClientSms() {
                     <p className="line-clamp-3 text-sm text-muted-foreground">
                       {automation.message_template}
                     </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {isAdmin ? (
+        <Card className="border-border/70 bg-card/50">
+          <CardHeader>
+            <CardTitle className="text-base">{t("clientSms.templatesTitle")}</CardTitle>
+            <CardDescription>{t("clientSms.templatesHint")}</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-6 lg:grid-cols-2">
+            <form onSubmit={(e) => void submitTemplate(e)} className="space-y-3">
+              <div className="space-y-1">
+                <Label>{t("clientSms.templateName")}</Label>
+                <Input
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder={t("clientSms.templateNamePlaceholder")}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{t("clientSms.templateBody")}</Label>
+                <SmsTemplateEditor
+                  value={templateBody}
+                  onChange={setTemplateBody}
+                  rows={5}
+                  required
+                  insertLabel={t("clientSms.insertPlaceholder")}
+                />
+              </div>
+              <Button type="submit" disabled={creatingTemplate}>
+                <Plus className="mr-2 size-4" />
+                {t("clientSms.addTemplate")}
+              </Button>
+            </form>
+
+            <div className="space-y-3">
+              {(templates ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t("clientSms.noTemplates")}</p>
+              ) : (
+                (templates ?? []).map((template) => (
+                  <div
+                    key={template.id}
+                    className="rounded-lg border border-border/70 bg-background/40 p-3"
+                  >
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <p className="font-medium">{template.name}</p>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => void removeTemplate(template.id)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                    <p className="line-clamp-3 text-sm text-muted-foreground">{template.body}</p>
                   </div>
                 ))
               )}

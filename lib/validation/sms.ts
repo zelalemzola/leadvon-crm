@@ -35,6 +35,26 @@ export const sendLeadSmsSchema = z.object({
   message: z.string().min(1).max(1600),
 });
 
+export const smsTemplateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  body: z.string().min(1).max(1600),
+});
+
+export const smsTemplatePatchSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  body: z.string().min(1).max(1600).optional(),
+});
+
+export const bulkSendSmsSchema = z
+  .object({
+    lead_ids: z.array(z.string().uuid()).min(1).max(200),
+    message: z.string().min(1).max(1600).optional(),
+    template_id: z.string().uuid().optional(),
+  })
+  .refine((input) => Boolean(input.message?.trim() || input.template_id), {
+    message: "Provide a message or template_id",
+  });
+
 export const callScriptSchema = z.object({
   title: z.string().min(1).max(200),
   content: z.string().min(1).max(20000),

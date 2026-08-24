@@ -93,7 +93,12 @@ export async function sendLeadSms(input: SendLeadSmsInput) {
     });
 
     if (recordError) {
-      return { ok: false as const, error: recordError.message };
+      // Twilio already accepted the message; surface that clearly so ops can reconcile.
+      return {
+        ok: false as const,
+        error: `SMS was accepted by Twilio (${twilioResult.sid}) but billing/log failed: ${recordError.message}`,
+        twilioSid: twilioResult.sid,
+      };
     }
 
     return { ok: true as const, messageId, twilioSid: twilioResult.sid };

@@ -5,11 +5,27 @@ export type TwilioSenderConfig = {
   messagingServiceSid?: string | null;
 };
 
+/**
+ * Org-configured sender fully overrides platform defaults.
+ * If the org sets a from-number only, do not fall through to env Messaging Service SID
+ * (and vice versa). Mixing those caused org from-numbers to be ignored whenever
+ * TWILIO_MESSAGING_SERVICE_SID was set on the platform.
+ */
 function resolveSender(config?: TwilioSenderConfig) {
-  const from = config?.fromNumber?.trim() || process.env.TWILIO_FROM_NUMBER;
-  const messagingServiceSid =
-    config?.messagingServiceSid?.trim() || process.env.TWILIO_MESSAGING_SERVICE_SID;
-  return { from, messagingServiceSid };
+  const orgFrom = config?.fromNumber?.trim() || "";
+  const orgMessagingServiceSid = config?.messagingServiceSid?.trim() || "";
+
+  if (orgFrom || orgMessagingServiceSid) {
+    return {
+      from: orgFrom || undefined,
+      messagingServiceSid: orgMessagingServiceSid || undefined,
+    };
+  }
+
+  return {
+    from: process.env.TWILIO_FROM_NUMBER?.trim() || undefined,
+    messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID?.trim() || undefined,
+  };
 }
 
 export function isTwilioConfigured(config?: TwilioSenderConfig) {

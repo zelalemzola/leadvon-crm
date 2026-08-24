@@ -313,3 +313,13 @@ export type CustomerCallScript = {
   created_at: string;
   updated_at: string;
 };
+
+export type SmsTemplate = {
+  id: string;
+  organization_id: string;
+  name: string;
+  body: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};

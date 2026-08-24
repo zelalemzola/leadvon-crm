@@ -23,9 +23,11 @@ import {
   useUpdateCustomerLeadMutation,
   useGetOrgUsersQuery,
   useSendLeadSmsMutation,
+  useGetSmsTemplatesQuery,
   type CustomerLead,
   type CustomerLeadSort,
 } from "@/lib/api/client-api";
+import { SmsTemplateEditor } from "@/components/client/sms-template-editor";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -105,6 +107,7 @@ export function ClientLeads() {
   const [modalAssignee, setModalAssignee] = useState<string>("unassigned");
   const [modalNotes, setModalNotes] = useState("");
   const [modalSmsMessage, setModalSmsMessage] = useState("");
+  const [modalSmsTemplateId, setModalSmsTemplateId] = useState<string>("custom");
   const [exporting, setExporting] = useState(false);
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
   const [activeSummary, setActiveSummary] = useState("");
@@ -114,6 +117,7 @@ export function ClientLeads() {
   const { data: users } = useGetOrgUsersQuery(undefined, {
     refetchOnMountOrArgChange: true,
   });
+  const { data: smsTemplates } = useGetSmsTemplatesQuery();
   const { data, isLoading, isError, error } = useGetCustomerLeadsQuery(
     {
       search,
@@ -174,6 +178,7 @@ export function ClientLeads() {
     setModalAssignee(row.assigned_to ?? "unassigned");
     setModalNotes(row.notes ?? "");
     setModalSmsMessage("");
+    setModalSmsTemplateId("custom");
     setDialogOpen(true);
   }
 
@@ -631,11 +636,43 @@ export function ClientLeads() {
                   <MessageSquare className="size-4" />
                   {t("clientLeads.sendSms")}
                 </Label>
-                <Textarea
-                  rows={3}
+                {(smsTemplates ?? []).length > 0 ? (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">
+                      {t("clientLeads.smsTemplate")}
+                    </Label>
+                    <Select
+                      value={modalSmsTemplateId}
+                      onValueChange={(id) => {
+                        setModalSmsTemplateId(id);
+                        if (id === "custom") return;
+                        const selected = (smsTemplates ?? []).find((tpl) => tpl.id === id);
+                        if (selected) setModalSmsMessage(selected.body);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("clientLeads.smsTemplatePlaceholder")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="custom">{t("clientLeads.smsTemplateCustom")}</SelectItem>
+                        {(smsTemplates ?? []).map((tpl) => (
+                          <SelectItem key={tpl.id} value={tpl.id}>
+                            {tpl.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+                <SmsTemplateEditor
                   value={modalSmsMessage}
-                  onChange={(e) => setModalSmsMessage(e.target.value)}
+                  onChange={(next) => {
+                    setModalSmsMessage(next);
+                    setModalSmsTemplateId("custom");
+                  }}
+                  rows={3}
                   placeholder={t("clientLeads.smsPlaceholder")}
+                  insertLabel={t("clientLeads.insertPlaceholder")}
                 />
                 <p className="text-xs text-muted-foreground">{t("clientLeads.smsCostHint")}</p>
                 <Button

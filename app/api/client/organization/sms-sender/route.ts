@@ -3,10 +3,22 @@ import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireCustomerUser, writeCustomerAuditLog } from "@/lib/server/client/auth";
 
+const e164Phone = z
+  .string()
+  .trim()
+  .regex(/^\+[1-9]\d{6,14}$/, "Twilio from number must be E.164 (e.g. +14155550123)");
+
+const messagingServiceSid = z
+  .string()
+  .trim()
+  .regex(/^MG[0-9a-fA-F]{32}$/, "Messaging Service SID must look like MGxxxxxxxx...");
+
 const schema = z
   .object({
-    twilio_from_number: z.string().trim().min(4).max(30).nullable().optional(),
-    twilio_messaging_service_sid: z.string().trim().min(10).max(64).nullable().optional(),
+    twilio_from_number: z.union([e164Phone, z.literal(""), z.null()]).optional(),
+    twilio_messaging_service_sid: z
+      .union([messagingServiceSid, z.literal(""), z.null()])
+      .optional(),
   })
   .refine(
     (input) => !(input.twilio_from_number && input.twilio_messaging_service_sid),

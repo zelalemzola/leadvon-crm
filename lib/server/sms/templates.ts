@@ -1,3 +1,5 @@
+import { SMS_PLACEHOLDER_KEYS, type SmsPlaceholderKey } from "@/lib/sms/placeholders";
+
 type LeadTemplateContext = {
   first_name?: string | null;
   last_name?: string | null;
@@ -9,7 +11,7 @@ type LeadTemplateContext = {
 
 export function renderSmsTemplate(template: string, lead: LeadTemplateContext) {
   const fullName = `${lead.first_name ?? ""} ${lead.last_name ?? ""}`.trim();
-  const replacements: Record<string, string> = {
+  const replacements: Record<SmsPlaceholderKey, string> = {
     first_name: lead.first_name ?? "",
     last_name: lead.last_name ?? "",
     full_name: fullName,
@@ -20,7 +22,8 @@ export function renderSmsTemplate(template: string, lead: LeadTemplateContext) {
   };
 
   return template.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_, key: string) => {
-    const normalized = key.toLowerCase();
+    const normalized = key.toLowerCase() as SmsPlaceholderKey;
+    if (!SMS_PLACEHOLDER_KEYS.includes(normalized)) return "";
     return replacements[normalized] ?? "";
   });
 }

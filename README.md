@@ -62,7 +62,8 @@ Configure these environment variables to enable outbound SMS:
 
 SMS billing uses a separate prepaid balance per organization ($0.30 per message). Customers top up via Stripe (`purpose: sms_topup`). Apply the migration `20260702120000_sms_call_scripts.sql` before using SMS features.
 For delivery reconciliation + failed-send refunds, also apply `20260702133000_sms_delivery_reconciliation.sql`.
-To allow each customer to send from their own sender, apply `20260702150000_org_twilio_sender_settings.sql` and configure sender values under Client -> Settings.
+To allow each customer to send from their own sender number/Messaging Service (on the platform Twilio account), apply `20260702150000_org_twilio_sender_settings.sql` and configure sender values under Client -> Settings. The number or Messaging Service SID must belong to the platform Twilio account configured above.
+For reusable SMS templates + bulk send, also apply `20260824120000_sms_templates.sql`.
 
 ## External Lead Sync
 
